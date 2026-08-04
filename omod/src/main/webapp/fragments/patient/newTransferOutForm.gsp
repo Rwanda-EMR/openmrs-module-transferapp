@@ -31,7 +31,7 @@ ui.includeCss("transferapp", "styles/select2.min.css")
                     <div class="transfer-wizard-field">
                         <label for="callingTime">Calling time</label>
                         <input type="text" class="js-time-picker" id="callingTime" name="callingTime"
-                               value="" required placeholder="Select time" autocomplete="off" />
+                               value="" placeholder="Select time" autocomplete="off" />
                     </div>
                     <div class="transfer-wizard-field">
                         <label for="receivingFacilityCode">Receiving facility</label>
@@ -54,11 +54,11 @@ ui.includeCss("transferapp", "styles/select2.min.css")
                     </div>
                     <div class="transfer-wizard-field">
                         <label for="staffContactedName">Staff contacted</label>
-                        <input type="text" id="staffContactedName" name="staffContactedName" value="" required />
+                        <input type="text" id="staffContactedName" name="staffContactedName" value="" />
                     </div>
                     <div class="transfer-wizard-field">
                         <label for="staffContactedPhone">Contact phone</label>
-                        <input type="tel" id="staffContactedPhone" name="staffContactedPhone" value="" required />
+                        <input type="tel" id="staffContactedPhone" name="staffContactedPhone" value="" />
                     </div>
                 </div>
             </div>
