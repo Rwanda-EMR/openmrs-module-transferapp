@@ -21,6 +21,7 @@ import org.openmrs.PersonAddress;
 import org.openmrs.User;
 import org.openmrs.api.APIException;
 import org.openmrs.api.context.Context;
+import org.openmrs.module.transferapp.TransferAppConstants;
 import org.openmrs.module.transferapp.api.NewTransferOutService;
 import org.openmrs.module.transferapp.api.TransferAdminService;
 import org.openmrs.module.transferapp.api.TransferPatientSnapshotResolver;
@@ -90,6 +91,10 @@ public class NewTransferOutServiceImpl implements NewTransferOutService {
 		formData.setTransferTypes(getTransferTypes());
 		formData.setTransportationTypes(getTransportationTypes());
 		formData.setHealthInsuranceTypes(getHealthInsuranceTypes());
+		formData.setCurrentSendingFosaId(StringUtils.trimToEmpty(
+				Context.getAdministrationService().getGlobalProperty(
+						TransferAppConstants.GP_SENDING_FOSA_ID,
+						TransferAppConstants.DEFAULT_SENDING_FOSA_ID)));
 
 		prefillFromPatient(formData, patient);
 		prefillFromCurrentUser(formData);
@@ -138,6 +143,8 @@ public class NewTransferOutServiceImpl implements NewTransferOutService {
 		formData.setProceduresAndTreatments(StringUtils.defaultString(transfer.getProceduresTreatments()));
 		formData.setTransportationType(StringUtils.defaultString(transfer.getTransportType()));
 		formData.setTransportationOtherSpec(StringUtils.defaultString(transfer.getTransportOther()));
+		formData.setAmbulanceProviderFosaId(StringUtils.defaultString(transfer.getAmbulanceProviderFosaId()));
+		formData.setAmbulanceProviderName(StringUtils.defaultString(transfer.getAmbulanceProviderName()));
 		formData.setCaregiverName(StringUtils.defaultString(transfer.getCaregiverName()));
 		formData.setCaregiverTelephone(StringUtils.defaultString(transfer.getCaregiverTelephone()));
 		if (transfer.getSignedDate() != null) {

@@ -36,6 +36,33 @@
 		return jq('#moh-transfer-wizard-form');
 	}
 
+	function normalizeRootUrl(path) {
+		var p = String(path || '');
+		if (p.indexOf('http://') === 0 || p.indexOf('https://') === 0) {
+			return p;
+		}
+		while (p.indexOf('//') === 0) {
+			p = p.substring(1);
+		}
+		if (p.charAt(0) !== '/') {
+			p = '/' + p;
+		}
+		while (p.indexOf('//') !== -1) {
+			p = p.split('//').join('/');
+		}
+		return p;
+	}
+
+	function resolveOpenmrsPath() {
+		if (typeof window.transferOpenmrsPath === 'string' && window.transferOpenmrsPath) {
+			return normalizeRootUrl(window.transferOpenmrsPath);
+		}
+		if (typeof openmrsContextPath !== 'undefined' && openmrsContextPath) {
+			return normalizeRootUrl(openmrsContextPath);
+		}
+		return '/openmrs';
+	}
+
 	function getClientName() {
 		var $form = getForm();
 		var fromField = jq.trim(jq('#clientName').val() || '');
@@ -268,6 +295,246 @@
 		if (!isOther) {
 			$input.val('');
 		}
+		syncAmbulanceProvider();
+	}
+
+	function getAmbulanceProviderPanel() {
+		return jq('#ambulanceProviderField');
+	}
+
+	function destroyAmbulanceProviderSelect2() {
+		var $ = getWizardJq();
+		var $select = $('#ambulanceProviderFosaId');
+		if ($select.length && $select.hasClass('select2-hidden-accessible') && typeof $.fn.select2 === 'function') {
+			$select.select2('destroy');
+		}
+	}
+
+	function initAmbulanceProviderSelect2() {
+		var $ = getWizardJq();
+		if (typeof $.fn.select2 !== 'function') {
+			return;
+		}
+		var $select = $('#ambulanceProviderFosaId');
+		if (!$select.length) {
+			return;
+		}
+		var $dropdownParent = $('#new-transfer-out-dialog');
+		destroyAmbulanceProviderSelect2();
+		$select.select2({
+			width: '100%',
+			placeholder: $select.attr('data-placeholder') || 'Select facility providing the ambulance',
+			allowClear: true,
+			dropdownParent: $dropdownParent.length ? $dropdownParent : $('body')
+		});
+		$select.off('change.ambulanceProvider').on('change.ambulanceProvider', function () {
+			syncAmbulanceProviderNameFromSelect();
+		});
+	}
+
+	var ambulanceProviderFacilitiesByCode = {};
+
+	function normalizeFosaCode(code) {
+		var value = String(code == null ? '' : code).trim();
+		if (/^\d+$/.test(value) && value.length < 4) {
+			while (value.length < 4) {
+				value = '0' + value;
+			}
+		}
+		return value;
+	}
+
+	function lookupAmbulanceProviderName(fosaId) {
+		var code = String(fosaId == null ? '' : fosaId).trim();
+		if (!code) {
+			return '';
+		}
+		if (ambulanceProviderFacilitiesByCode[code]) {
+			return ambulanceProviderFacilitiesByCode[code];
+		}
+		var normalized = normalizeFosaCode(code);
+		if (ambulanceProviderFacilitiesByCode[normalized]) {
+			return ambulanceProviderFacilitiesByCode[normalized];
+		}
+		var found = '';
+		jq.each(ambulanceProviderFacilitiesByCode, function (key, name) {
+			if (normalizeFosaCode(key) === normalized) {
+				found = name;
+				return false;
+			}
+		});
+		return found;
+	}
+
+	function syncAmbulanceProviderNameFromSelect() {
+		var $select = jq('#ambulanceProviderFosaId');
+		var $name = jq('#ambulanceProviderName');
+		if (!$select.length || !$name.length) {
+			return;
+		}
+		var selected = $select.val();
+		if (selected == null || selected === '') {
+			$name.val('');
+			return;
+		}
+		// Do not use option:selected — Select2 can leave stale selected attributes on
+		// the previously chosen option, which caused the current facility name to stick.
+		var selectedCode = String(selected);
+		var label = lookupAmbulanceProviderName(selectedCode);
+		if (!label) {
+			var $option = $select.find('option').filter(function () {
+				return String(jq(this).val()) === selectedCode
+					|| normalizeFosaCode(jq(this).val()) === normalizeFosaCode(selectedCode);
+			}).first();
+			label = jq.trim($option.attr('data-facility-name') || $option.text() || '');
+		}
+		if (!label && $select.hasClass('select2-hidden-accessible') && typeof $select.select2 === 'function') {
+			try {
+				var data = $select.select2('data');
+				if (data && data.length && data[0] && data[0].text) {
+					label = jq.trim(String(data[0].text));
+				}
+			} catch (ignoreSelect2) {
+				// ignore
+			}
+		}
+		$name.val(label);
+	}
+
+	function clearAmbulanceProviderSelection() {
+		var $select = jq('#ambulanceProviderFosaId');
+		var $name = jq('#ambulanceProviderName');
+		if ($name.length) {
+			$name.val('');
+		}
+		if ($select.length) {
+			$select.find('option').prop('selected', false);
+			$select.val(null);
+			if ($select.hasClass('select2-hidden-accessible')) {
+				$select.trigger('change');
+			}
+		}
+	}
+
+	function updateAmbulanceProviderOptions(facilities, preferredFosaId, preferredName, currentFosaId) {
+		var $select = jq('#ambulanceProviderFosaId');
+		if (!$select.length) {
+			return;
+		}
+		var preferred = jq.trim(preferredFosaId || '');
+		var preferredNormalized = normalizeFosaCode(preferred);
+		var preferredLabel = jq.trim(preferredName || '');
+		var current = jq.trim(currentFosaId || '');
+		var currentNormalized = normalizeFosaCode(current);
+		destroyAmbulanceProviderSelect2();
+		$select.empty();
+		$select.append(jq('<option value="">'));
+		ambulanceProviderFacilitiesByCode = {};
+		var hasPreferred = false;
+		var hasCurrent = false;
+		jq.each(facilities || [], function (_, facility) {
+			if (!facility || !facility.code) {
+				return;
+			}
+			var code = String(facility.code).trim();
+			var name = String(facility.name || code).trim();
+			ambulanceProviderFacilitiesByCode[code] = name;
+			var codeNormalized = normalizeFosaCode(code);
+			var $option = jq('<option>')
+				.attr('value', code)
+				.attr('data-facility-name', name)
+				.text(name);
+			if (preferred && (preferred === code || preferredNormalized === codeNormalized)) {
+				$option.prop('selected', true);
+				hasPreferred = true;
+				preferred = code;
+				if (!preferredLabel) {
+					preferredLabel = name;
+				}
+			}
+			if (current && (current === code || currentNormalized === codeNormalized)) {
+				hasCurrent = true;
+				current = code;
+			}
+			$select.append($option);
+		});
+		if (preferred && !hasPreferred) {
+			ambulanceProviderFacilitiesByCode[preferred] = preferredLabel || preferred;
+			$select.append(jq('<option>')
+				.attr('value', preferred)
+				.attr('data-facility-name', preferredLabel || preferred)
+				.text(preferredLabel || preferred)
+				.prop('selected', true));
+			hasPreferred = true;
+		}
+		$select.find('option').prop('selected', false);
+		if (!hasPreferred && current && hasCurrent) {
+			$select.val(current);
+		}
+		else if (hasPreferred) {
+			$select.val(preferred);
+		}
+		else {
+			$select.val(null);
+		}
+		initAmbulanceProviderSelect2();
+		syncAmbulanceProviderNameFromSelect();
+	}
+
+	function getAmbulanceProviderFacilitiesUrl() {
+		var $panel = getAmbulanceProviderPanel();
+		var configured = jq.trim($panel.attr('data-facilities-url') || '');
+		if (configured) {
+			return normalizeRootUrl(configured);
+		}
+		return normalizeRootUrl(resolveOpenmrsPath() + '/module/transferapp/transfer/ambulanceProviderFacilities.form');
+	}
+
+	var ambulanceProviderFacilitiesLoaded = false;
+	var ambulanceProviderFacilitiesLoading = false;
+
+	function loadAmbulanceProviderFacilities() {
+		var $panel = getAmbulanceProviderPanel();
+		if (!$panel.length || ambulanceProviderFacilitiesLoading) {
+			return;
+		}
+		if (ambulanceProviderFacilitiesLoaded) {
+			initAmbulanceProviderSelect2();
+			return;
+		}
+		ambulanceProviderFacilitiesLoading = true;
+		var preferredFosaId = jq.trim($panel.attr('data-preferred-fosa-id') || '');
+		var preferredName = jq.trim($panel.attr('data-preferred-name') || '');
+		var currentFosaId = jq.trim($panel.attr('data-current-fosa-id') || '');
+		jq.getJSON(getAmbulanceProviderFacilitiesUrl())
+			.done(function (response) {
+				var facilities = (response && response.facilities) ? response.facilities : [];
+				if (response && response.currentFosaId) {
+					currentFosaId = jq.trim(response.currentFosaId);
+					$panel.attr('data-current-fosa-id', currentFosaId);
+				}
+				updateAmbulanceProviderOptions(facilities, preferredFosaId, preferredName, currentFosaId);
+				ambulanceProviderFacilitiesLoaded = true;
+			})
+			.fail(function () {
+				updateAmbulanceProviderOptions([], preferredFosaId, preferredName, currentFosaId);
+			})
+			.always(function () {
+				ambulanceProviderFacilitiesLoading = false;
+			});
+	}
+
+	function syncAmbulanceProvider() {
+		var isAmbulance = jq('input[name="transportationType"]:checked').val() === 'AMBULANCE';
+		var $panel = getAmbulanceProviderPanel();
+		var $select = jq('#ambulanceProviderFosaId');
+		$panel.toggleClass('is-visible', isAmbulance);
+		$select.prop('required', isAmbulance);
+		if (!isAmbulance) {
+			clearAmbulanceProviderSelection();
+			return;
+		}
+		loadAmbulanceProviderFacilities();
 	}
 
 	function syncInsuranceOther() {
@@ -412,8 +679,7 @@
 	}
 
 	function getReceivingServicesUrl() {
-		var path = (typeof openmrsContextPath !== 'undefined' ? openmrsContextPath : '');
-		return path + '/module/transferapp/admin/receivingServices.form';
+		return normalizeRootUrl(resolveOpenmrsPath() + '/module/transferapp/admin/receivingServices.form');
 	}
 
 	function loadReceivingServicesForSelectedFacility() {
@@ -484,6 +750,9 @@
 		}
 
 		currentStep = 1;
+		ambulanceProviderFacilitiesLoaded = false;
+		ambulanceProviderFacilitiesLoading = false;
+		ambulanceProviderFacilitiesByCode = {};
 		bindToggles();
 		bindReceivingFacilityServices();
 		bindNavigation();
@@ -493,6 +762,7 @@
 		syncEmergencyPanel();
 		syncTransportByTransferType();
 		syncTransportOther();
+		syncAmbulanceProvider();
 		syncInsuranceOther();
 		showStep(REFERRAL_CAUSE_ONLY_MODE ? 3 : 1);
 		if (REFERRAL_CAUSE_ONLY_MODE) {

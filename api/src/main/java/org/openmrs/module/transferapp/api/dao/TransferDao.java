@@ -37,12 +37,15 @@ public interface TransferDao {
 			Date startDate, Date endDate, String receivingFacilityCode);
 
 	/**
-	 * Outbound transfers that have an ambulance consommation, within an optional date range.
+	 * Transfers with an ambulance consommation for this facility: outbound
+	 * ({@code sendingFacility}) and/or where this facility is the ambulance provider
+	 * ({@code ambulanceProviderFosaId}).
 	 */
-	List<Transfer> getAmbulanceVoucherTransfers(String sendingFacility, Date startDate, Date endDate,
-			Integer firstResult, Integer maxResults);
+	List<Transfer> getAmbulanceVoucherTransfers(String sendingFacility, String ambulanceProviderFosaId,
+			Date startDate, Date endDate, Integer firstResult, Integer maxResults);
 
-	int countAmbulanceVoucherTransfers(String sendingFacility, Date startDate, Date endDate);
+	int countAmbulanceVoucherTransfers(String sendingFacility, String ambulanceProviderFosaId,
+			Date startDate, Date endDate);
 
 	int countOutboundTransfers(String sendingFacility, Date fromDate, Boolean hieSent);
 

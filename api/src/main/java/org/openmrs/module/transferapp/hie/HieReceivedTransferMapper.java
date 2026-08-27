@@ -68,6 +68,8 @@ public class HieReceivedTransferMapper {
 			transfer.setDepartRefTime(truncate(extractTime(stringValue(hieData.get("departureTime"))), 8));
 		}
 		applyTransport(transfer, hieData);
+		transfer.setAmbulanceProviderFosaId(truncate(stringValue(hieData.get("ambulanceProviderFosaId")), 64));
+		transfer.setAmbulanceProviderName(truncate(stringValue(hieData.get("ambulanceProviderName")), 255));
 
 		transfer.setReasonForTransfer(StringUtils.trimToNull(stringValue(hieData.get("reasonForTransfer"))));
 		transfer.setClinicalPresentation(StringUtils.trimToNull(stringValue(hieData.get("clinicalPresentation"))));

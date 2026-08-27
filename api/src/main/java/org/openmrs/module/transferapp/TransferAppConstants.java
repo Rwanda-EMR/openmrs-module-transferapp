@@ -133,6 +133,23 @@ public final class TransferAppConstants {
 
 	public static final String DEFAULT_SENDING_FOSA_ID = "";
 
+	/**
+	 * When {@code true} (default), ambulance billing enforces that the current facility is the
+	 * designated ambulance provider. Set to {@code false} for testing so any facility can create
+	 * ambulance bills. HIE-search patient registration always matches Pending (any new patient).
+	 */
+	public static final String GP_PRODUCTION = "transferapp.production";
+
+	public static final String DEFAULT_PRODUCTION = "true";
+
+	/** FHIR extension: facility that provides the ambulance vehicle (FOSA id + name). */
+	public static final String EXT_AMBULANCE_PROVIDER_FACILITY =
+			"http://example.org/fhir/StructureDefinition/ambulance-provider-facility";
+
+	public static final String EXT_AMBULANCE_PROVIDER_FOSA_ID = "fosaId";
+
+	public static final String EXT_AMBULANCE_PROVIDER_NAME = "name";
+
 	/** Comma-separated aliases for inbound destination matching and pending targetOrg (old/alternate names). */
 	public static final String GP_SENDING_FACILITY_NAME = "transferapp.sendingFacilityName";
 

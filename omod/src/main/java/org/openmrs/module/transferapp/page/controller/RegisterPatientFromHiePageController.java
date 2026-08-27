@@ -138,7 +138,9 @@ public class RegisterPatientFromHiePageController {
 
 	private void requireAccess(UiSessionContext sessionContext) {
 		sessionContext.requireAuthentication();
-		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_PENDING)) {
+		boolean canRegister = TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_PENDING)
+				|| TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
+		if (!canRegister) {
 			throw new APIAuthenticationException(TransferPrivilegeHelper.requiredPrivilegeMessage(
 					TransferAppActivator.PRIVILEGE_LIST_PENDING));
 		}

@@ -40,11 +40,7 @@ public final class PendingTransferPatientStatusResolver {
 			return Collections.emptyList();
 		}
 
-		PatientIdentifierType upidIdentifierType = patientService.getPatientIdentifierTypeByName(
-				TransferAppConstants.UPID_IDENTIFIER_TYPE_NAME);
-		if (upidIdentifierType == null) {
-			throw new APIException("UPID patient identifier type is not configured");
-		}
+		PatientIdentifierType upidIdentifierType = requireUpidIdentifierType(patientService);
 
 		Map<String, Patient> existingPatientsByUpid = new HashMap<String, Patient>();
 		Set<String> checkedUpids = new HashSet<String>();
@@ -57,10 +53,9 @@ public final class PendingTransferPatientStatusResolver {
 			Patient existingPatient = null;
 			if (upid != null) {
 				if (!checkedUpids.contains(upid)) {
-					List<Patient> matches = patientService.getPatients(null, upid,
-							Collections.singletonList(upidIdentifierType), true);
-					if (matches != null && !matches.isEmpty()) {
-						existingPatientsByUpid.put(upid, matches.get(0));
+					Patient match = findPatientByUpid(patientService, upidIdentifierType, upid);
+					if (match != null) {
+						existingPatientsByUpid.put(upid, match);
 					}
 					checkedUpids.add(upid);
 				}
@@ -75,12 +70,43 @@ public final class PendingTransferPatientStatusResolver {
 		return resolvedTransfers;
 	}
 
-	private static String patientReference(Patient patient) {
+	/**
+	 * @return local OpenMRS patient for the UPID, or {@code null} when not registered locally
+	 */
+	public static Patient findLocalPatientByUpid(PatientService patientService, String upid) {
+		String normalized = StringUtils.trimToNull(upid);
+		if (normalized == null || patientService == null) {
+			return null;
+		}
+		PatientIdentifierType upidIdentifierType = requireUpidIdentifierType(patientService);
+		return findPatientByUpid(patientService, upidIdentifierType, normalized);
+	}
+
+	public static String patientReference(Patient patient) {
 		if (patient == null) {
 			return "";
 		}
 		String uuid = StringUtils.trimToNull(patient.getUuid());
 		return uuid != null ? uuid : patient.getId() != null ? String.valueOf(patient.getId()) : "";
+	}
+
+	private static PatientIdentifierType requireUpidIdentifierType(PatientService patientService) {
+		PatientIdentifierType upidIdentifierType = patientService.getPatientIdentifierTypeByName(
+				TransferAppConstants.UPID_IDENTIFIER_TYPE_NAME);
+		if (upidIdentifierType == null) {
+			throw new APIException("UPID patient identifier type is not configured");
+		}
+		return upidIdentifierType;
+	}
+
+	private static Patient findPatientByUpid(PatientService patientService, PatientIdentifierType upidIdentifierType,
+			String upid) {
+		List<Patient> matches = patientService.getPatients(null, upid,
+				Collections.singletonList(upidIdentifierType), true);
+		if (matches == null || matches.isEmpty()) {
+			return null;
+		}
+		return matches.get(0);
 	}
 
 	private static String resolveUpid(Map<String, Object> transfer) {

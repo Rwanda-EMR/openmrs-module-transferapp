@@ -2,6 +2,7 @@ package org.openmrs.module.transferapp.hie;
 
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.openmrs.module.transferapp.TransferAppConstants;
 import org.openmrs.module.transferapp.model.TransferProfile;
 
 import java.util.ArrayList;
@@ -277,6 +278,8 @@ public class HieTransferResponseParser {
         transfer.put("isAmbulanceTransport", "");
         transfer.put("otherTransportType", "");
         transfer.put("isNaTransport", "");
+        transfer.put("ambulanceProviderFosaId", "");
+        transfer.put("ambulanceProviderName", "");
         transfer.put("healthInsurance", "");
         transfer.put("isCbhiInsurance", "");
         transfer.put("isRssbInsurance", "");
@@ -476,6 +479,12 @@ public class HieTransferResponseParser {
         String transportTypeLower = transportType.toLowerCase();
         transfer.put("isAmbulanceTransport", String.valueOf(transportTypeLower.contains("ambulance")));
         transfer.put("otherTransportType", transportTypeLower.contains("ambulance") ? "" : transportType);
+        transfer.put("ambulanceProviderFosaId", extractNestedExtensionValue(resource,
+                TransferAppConstants.EXT_AMBULANCE_PROVIDER_FACILITY,
+                TransferAppConstants.EXT_AMBULANCE_PROVIDER_FOSA_ID));
+        transfer.put("ambulanceProviderName", extractNestedExtensionValue(resource,
+                TransferAppConstants.EXT_AMBULANCE_PROVIDER_FACILITY,
+                TransferAppConstants.EXT_AMBULANCE_PROVIDER_NAME));
 
         String insurance = extractExtensionDisplay(resource, EXT_INSURANCE_TYPE);
         transfer.put("healthInsurance", insurance);

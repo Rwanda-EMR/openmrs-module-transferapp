@@ -18,9 +18,14 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.transferapp.TransferAppActivator;
 import org.openmrs.module.transferapp.TransferAppConstants;
+import org.openmrs.module.transferapp.TransferAppMode;
 import org.openmrs.module.transferapp.TransferPrivilegeHelper;
+import org.openmrs.module.transferapp.PatientTransferIdentifierDetector;
+import org.openmrs.module.transferapp.api.PendingTransferPatientStatusResolver;
+import org.openmrs.module.transferapp.api.ClientRegistryRegistrationService;
 import org.openmrs.module.transferapp.api.TransferAdminService;
 import org.openmrs.module.transferapp.api.TransferAmbulanceVoucherService;
+import org.openmrs.module.transferapp.api.TransferHieSearchService;
 import org.openmrs.module.transferapp.api.TransferHieSubmissionService;
 import org.openmrs.module.transferapp.api.TransferProfileService;
 import org.openmrs.module.transferapp.api.TransferQrCodeService;
@@ -28,10 +33,12 @@ import org.openmrs.module.transferapp.api.TransferService;
 import org.openmrs.module.transferapp.api.TransferVerificationUrlService;
 import org.openmrs.module.transferapp.api.impl.PatientInsuranceServiceImpl;
 import org.openmrs.module.transferapp.model.AmbulanceVoucherPreview;
+import org.openmrs.module.transferapp.model.RegistryFacility;
 import org.openmrs.module.transferapp.model.Transfer;
 import org.openmrs.module.transferapp.model.TransferFormExtras;
 import org.openmrs.module.transferapp.model.TransferProfile;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -39,8 +46,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import javax.servlet.http.HttpServletResponse;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Controller
@@ -57,8 +66,16 @@ public class TransferSaveController {
 	@Autowired
 	private TransferAmbulanceVoucherService transferAmbulanceVoucherService;
 
+	@Autowired(required = false)
+	@Qualifier("transferAppClientRegistryRegistrationService")
+	private ClientRegistryRegistrationService clientRegistryRegistrationService;
+
 	private TransferHieSubmissionService getTransferHieSubmissionService() {
 		return Context.getService(TransferHieSubmissionService.class);
+	}
+
+	private TransferHieSearchService getTransferHieSearchService() {
+		return Context.getService(TransferHieSearchService.class);
 	}
 
 	private TransferVerificationUrlService getTransferVerificationUrlService() {
@@ -67,6 +84,115 @@ public class TransferSaveController {
 
 	private TransferQrCodeService getTransferQrCodeService() {
 		return Context.getService(TransferQrCodeService.class);
+	}
+
+	@RequestMapping(value = "/module/transferapp/transfer/hiePatientRegistrationPreview.form", method = RequestMethod.GET)
+	public void previewHiePatientRegistration(HttpServletResponse response,
+			@RequestParam("upid") String upid) throws Exception {
+
+		Map<String, Object> data = new HashMap<String, Object>();
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_PENDING)
+				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
+			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
+			return;
+		}
+		if (clientRegistryRegistrationService == null) {
+			data.put("status", "error");
+			data.put("message", "Client Registry registration is not available on this server.");
+			writeJson(response, data);
+			return;
+		}
+		try {
+			String normalizedUpid = StringUtils.trimToNull(upid);
+			if (normalizedUpid == null) {
+				data.put("status", "error");
+				data.put("message", "UPID is required");
+				writeJson(response, data);
+				return;
+			}
+			Map<String, Object> patientDetails = clientRegistryRegistrationService
+					.findRegistrationFieldsByUpid(normalizedUpid);
+			if (patientDetails == null) {
+				data.put("status", "error");
+				data.put("message", "No patient was found in the HIE client registry for UPID " + normalizedUpid);
+				writeJson(response, data);
+				return;
+			}
+			data.put("status", "success");
+			data.put("upid", normalizedUpid);
+			data.put("upidIdentifierTypeUuid",
+					nullToEmpty(clientRegistryRegistrationService.getUpidIdentifierTypeUuid()));
+			data.put("patientDetails", patientDetails);
+		}
+		catch (Exception e) {
+			putError(data, e, TransferAppActivator.PRIVILEGE_LIST_TRANSFERS,
+					"Unable to load HIE patient registration preview");
+		}
+		writeJson(response, data);
+	}
+
+	@RequestMapping(value = "/module/transferapp/transfer/registerPatientFromHie.form", method = RequestMethod.POST)
+	public void registerPatientFromHie(HttpServletResponse response,
+			@RequestParam("upid") String upid) throws Exception {
+
+		Map<String, Object> data = new HashMap<String, Object>();
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_PENDING)
+				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
+			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
+			return;
+		}
+		if (clientRegistryRegistrationService == null) {
+			data.put("status", "error");
+			data.put("message", "Client Registry registration is not available on this server.");
+			writeJson(response, data);
+			return;
+		}
+		try {
+			String normalizedUpid = StringUtils.trimToNull(upid);
+			if (normalizedUpid == null) {
+				data.put("status", "error");
+				data.put("message", "UPID is required");
+				writeJson(response, data);
+				return;
+			}
+			org.openmrs.Location location = null;
+			try {
+				location = Context.getUserContext().getLocation();
+			}
+			catch (Exception ignored) {
+				location = null;
+			}
+			if (location == null) {
+				location = Context.getLocationService().getDefaultLocation();
+			}
+			org.openmrs.module.transferapp.api.HiePatientRegistrationResult result =
+					clientRegistryRegistrationService.registerPatientByUpid(normalizedUpid, location);
+			org.openmrs.Patient patient = result.getPatient();
+			org.openmrs.PatientIdentifier preferredIdentifier = patient.getPatientIdentifier();
+			String localIdentifier = preferredIdentifier != null ? preferredIdentifier.getIdentifier() : "";
+			String patientUuid = patient.getUuid();
+			String patientPagePath = "/coreapps/clinicianfacing/patient.page?patientId="
+					+ java.net.URLEncoder.encode(patientUuid, "UTF-8");
+			String redirectPath = "/registrationapp/registrationSummary.page?patientId="
+					+ java.net.URLEncoder.encode(patientUuid, "UTF-8")
+					+ "&appId=rwandaemr.registerPatient"
+					+ "&returnUrl=" + java.net.URLEncoder.encode(patientPagePath, "UTF-8");
+
+			data.put("status", "success");
+			data.put("created", Boolean.valueOf(result.isCreated()));
+			data.put("patientUuid", patientUuid);
+			data.put("localIdentifier", localIdentifier);
+			data.put("upid", normalizedUpid);
+			data.put("redirectUrl", redirectPath);
+			data.put("message", result.isCreated()
+					? "Patient registered successfully"
+					: "Patient already exists locally");
+		}
+		catch (Exception e) {
+			putError(data, e, TransferAppActivator.PRIVILEGE_LIST_TRANSFERS,
+					"Unable to register patient from HIE");
+		}
+		writeJson(response, data);
 	}
 
 	@RequestMapping(value = "/module/transferapp/transfer/submit.form", method = RequestMethod.POST)
@@ -118,6 +244,8 @@ public class TransferSaveController {
 			@RequestParam(value = "departureFromReferringTime", required = false) String departureFromReferringTime,
 			@RequestParam(value = "transportationType", required = false) String transportationType,
 			@RequestParam(value = "transportationOtherSpec", required = false) String transportationOtherSpec,
+			@RequestParam(value = "ambulanceProviderFosaId", required = false) String ambulanceProviderFosaId,
+			@RequestParam(value = "ambulanceProviderName", required = false) String ambulanceProviderName,
 			@RequestParam(value = "reasonForTransfer", required = false) String reasonForTransfer,
 			@RequestParam(value = "clinicalPresentation", required = false) String clinicalPresentation,
 			@RequestParam(value = "disabilityType", required = false) String disabilityType,
@@ -165,6 +293,8 @@ public class TransferSaveController {
 					departureFromReferringTime,
 					transportationType,
 					transportationOtherSpec,
+					ambulanceProviderFosaId,
+					ambulanceProviderName,
 					reasonForTransfer,
 					formExtras);
 
@@ -209,6 +339,45 @@ public class TransferSaveController {
 		writeJson(response, data);
 	}
 
+	@RequestMapping(value = "/module/transferapp/transfer/ambulanceProviderFacilities.form", method = RequestMethod.GET)
+	public void listAmbulanceProviderFacilities(HttpServletResponse response) throws Exception {
+		Map<String, Object> data = new HashMap<String, Object>();
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
+				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
+			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+			return;
+		}
+		try {
+			List<RegistryFacility> facilities = Context.getService(
+					org.openmrs.module.transferapp.api.TransferFacilityRegistryService.class)
+					.listAmbulanceProviderFacilitiesFromHie();
+			List<Map<String, Object>> rows = new ArrayList<Map<String, Object>>();
+			if (facilities != null) {
+				for (RegistryFacility facility : facilities) {
+					if (facility == null) {
+						continue;
+					}
+					Map<String, Object> row = new HashMap<String, Object>();
+					row.put("code", nullToEmpty(facility.getCode()));
+					row.put("name", nullToEmpty(facility.getName()));
+					row.put("category", nullToEmpty(facility.getCategory()));
+					rows.add(row);
+				}
+			}
+			String currentFosaId = StringUtils.trimToEmpty(Context.getAdministrationService().getGlobalProperty(
+					TransferAppConstants.GP_SENDING_FOSA_ID, TransferAppConstants.DEFAULT_SENDING_FOSA_ID));
+			data.put("status", "success");
+			data.put("facilities", rows);
+			data.put("currentFosaId", currentFosaId);
+		}
+		catch (Exception e) {
+			putError(data, e, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER,
+					"Unable to load ambulance provider facilities");
+			data.put("facilities", new ArrayList<Map<String, Object>>());
+		}
+		writeJson(response, data);
+	}
+
 	@RequestMapping(value = "/module/transferapp/transfer/ambulanceVoucherPreview.form", method = RequestMethod.GET)
 	public void previewAmbulanceVoucher(HttpServletResponse response,
 			@RequestParam("uuid") String uuid) throws Exception {
@@ -227,6 +396,229 @@ public class TransferSaveController {
 		}
 		catch (Exception e) {
 			putError(data, e, TransferAppActivator.PRIVILEGE_LIST_TRANSFERS, "Unable to load ambulance voucher");
+		}
+
+		writeJson(response, data);
+	}
+
+	@RequestMapping(value = "/module/transferapp/transfer/createAmbulanceVoucherFromHie.form", method = RequestMethod.POST)
+	public void createAmbulanceVoucherFromHie(HttpServletResponse response,
+			@RequestParam("patientId") Integer patientId,
+			@RequestParam("hieTransferId") String hieTransferId,
+			@RequestParam("kilometers") Integer kilometers,
+			@RequestParam(value = "district", required = false) String district) throws Exception {
+
+		Map<String, Object> data = new HashMap<String, Object>();
+
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
+				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
+			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+			return;
+		}
+
+		if (kilometers == null || kilometers.intValue() <= 0) {
+			data.put("status", "error");
+			data.put("message", "Distance in kilometers must be greater than zero");
+			writeJson(response, data);
+			return;
+		}
+		if (StringUtils.isBlank(district)) {
+			data.put("status", "error");
+			data.put("message", "Covered district is required");
+			writeJson(response, data);
+			return;
+		}
+
+		try {
+			Transfer transfer = transferAmbulanceVoucherService.createAmbulanceVoucherFromHie(
+					patientId, hieTransferId, kilometers.intValue(), district);
+			data.put("status", "success");
+			data.put("uuid", transfer.getUuid());
+			data.put("transferId", transfer.getTransferId());
+			data.put("hieTransferId", transfer.getHieTransferId());
+			data.put("ambulanceConsommationId", transfer.getAmbulanceConsommationId());
+			data.put("message", "Ambulance voucher created successfully");
+		}
+		catch (Exception e) {
+			putError(data, e, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER,
+					"Unable to create ambulance voucher from HIE transfer");
+		}
+
+		writeJson(response, data);
+	}
+
+	@RequestMapping(value = "/module/transferapp/transfer/hieTransfersByIdentifier.form", method = RequestMethod.GET)
+	public void searchHieTransfersByIdentifier(HttpServletResponse response,
+			@RequestParam("identifier") String identifier) throws Exception {
+
+		Map<String, Object> data = new HashMap<String, Object>();
+
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
+			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
+			return;
+		}
+
+		try {
+			String normalized = PatientTransferIdentifierDetector.normalize(identifier);
+			PatientTransferIdentifierDetector.Kind kind = PatientTransferIdentifierDetector.detect(normalized);
+			if (kind == PatientTransferIdentifierDetector.Kind.UNKNOWN || normalized == null) {
+				data.put("status", "error");
+				data.put("message",
+						"Enter a 16-digit National ID or a UPID in 6-4-4 format (e.g. 260204-0023-8464).");
+				data.put("transfers", new ArrayList<Map<String, Object>>());
+				writeJson(response, data);
+				return;
+			}
+
+			String upid;
+			String identifierKind;
+			if (kind == PatientTransferIdentifierDetector.Kind.UPID) {
+				upid = normalized;
+				identifierKind = "UPID";
+			} else {
+				identifierKind = "NID";
+				if (clientRegistryRegistrationService == null) {
+					data.put("status", "error");
+					data.put("message", "Client Registry lookup is not available on this server.");
+					data.put("transfers", new ArrayList<Map<String, Object>>());
+					writeJson(response, data);
+					return;
+				}
+				upid = clientRegistryRegistrationService.findUpidByNationalId(normalized);
+				if (StringUtils.isBlank(upid)) {
+					data.put("status", "error");
+					data.put("message", "No patient found in Client Registry for National ID " + normalized + ".");
+					data.put("transfers", new ArrayList<Map<String, Object>>());
+					data.put("identifierKind", identifierKind);
+					writeJson(response, data);
+					return;
+				}
+			}
+
+			Map<String, Object> searchResult = getTransferHieSearchService().searchTransfers(upid, null, false);
+			@SuppressWarnings("unchecked")
+			List<Map<String, Object>> rawTransfers = searchResult != null
+					&& searchResult.get("data") instanceof List
+					? (List<Map<String, Object>>) searchResult.get("data")
+					: new ArrayList<Map<String, Object>>();
+
+			if (searchResult != null && "error".equals(searchResult.get("status"))) {
+				data.put("status", "error");
+				data.put("message", searchResult.get("message") != null
+						? String.valueOf(searchResult.get("message"))
+						: "Unable to search transfers from HIE");
+				data.put("transfers", new ArrayList<Map<String, Object>>());
+				data.put("upid", upid);
+				data.put("identifierKind", identifierKind);
+				writeJson(response, data);
+				return;
+			}
+
+			List<Map<String, Object>> rows = new ArrayList<Map<String, Object>>();
+			String currentFosaId = StringUtils.trimToEmpty(Context.getAdministrationService().getGlobalProperty(
+					TransferAppConstants.GP_SENDING_FOSA_ID, TransferAppConstants.DEFAULT_SENDING_FOSA_ID));
+			boolean productionMode = TransferAppMode.isProduction();
+			boolean ambulanceProviderForAny = false;
+			String currentFacilityName = "";
+			if (transferAdminService != null) {
+				currentFacilityName = StringUtils.trimToEmpty(transferAdminService.resolveOutboundFacilityName());
+				if (StringUtils.isBlank(currentFacilityName)) {
+					currentFacilityName = StringUtils.trimToEmpty(
+							transferAdminService.resolveCurrentSendingFacilityName());
+				}
+			}
+
+			org.openmrs.Patient localPatient = null;
+			try {
+				localPatient = PendingTransferPatientStatusResolver.findLocalPatientByUpid(
+						Context.getPatientService(), upid);
+			}
+			catch (Exception ignored) {
+				localPatient = null;
+			}
+			boolean existingPatient = localPatient != null;
+			Integer localPatientId = localPatient != null ? localPatient.getPatientId() : null;
+			String existingPatientReference = PendingTransferPatientStatusResolver.patientReference(localPatient);
+			String insuranceCardNumber = null;
+			if (existingPatient && localPatient != null) {
+				try {
+					org.openmrs.module.transferapp.api.PatientInsuranceService insuranceService =
+							Context.getService(org.openmrs.module.transferapp.api.PatientInsuranceService.class);
+					if (insuranceService != null) {
+						insuranceCardNumber = insuranceService.resolveInsuranceCardNumber(localPatient);
+					}
+				}
+				catch (Exception ignored) {
+					insuranceCardNumber = null;
+				}
+			}
+			boolean hasInsuranceOnRegistration = StringUtils.isNotBlank(insuranceCardNumber);
+			boolean canRegisterPatient = !existingPatient && StringUtils.isNotBlank(upid);
+
+			for (Map<String, Object> transfer : rawTransfers) {
+				if (transfer == null) {
+					continue;
+				}
+				Map<String, Object> row = toHieTransferSummaryRow(transfer);
+				boolean providerMatch = isCurrentFacilityAmbulanceProvider(
+						row.get("ambulanceProviderFosaId"),
+						row.get("ambulanceProviderName"),
+						currentFosaId,
+						currentFacilityName);
+				row.put("ambulanceProviderMatchesCurrent", providerMatch);
+				if (providerMatch) {
+					ambulanceProviderForAny = true;
+				}
+
+				String hieTransferId = firstNonBlank(row.get("uuid"), transfer.get("id"), transfer.get("uuid"));
+				row.put("hieTransferId", hieTransferId);
+				boolean canCreateVoucher = existingPatient && hasInsuranceOnRegistration
+						&& StringUtils.isNotBlank(hieTransferId);
+				// Production: only the configured outbound facility may create vouchers for
+				// transfers that name it as ambulance provider. Non-production allows any.
+				if (productionMode && !providerMatch) {
+					canCreateVoucher = false;
+				}
+				boolean hasAmbulanceVoucher = false;
+				String localTransferUuid = "";
+				if (localPatientId != null && StringUtils.isNotBlank(hieTransferId)
+						&& transferAmbulanceVoucherService != null) {
+					Map<String, Object> link = transferAmbulanceVoucherService.resolveLocalVoucherLink(
+							localPatientId, hieTransferId);
+					localTransferUuid = link.get("localTransferUuid") != null
+							? String.valueOf(link.get("localTransferUuid")) : "";
+					hasAmbulanceVoucher = Boolean.TRUE.equals(link.get("hasAmbulanceVoucher"))
+							|| "true".equalsIgnoreCase(String.valueOf(link.get("hasAmbulanceVoucher")));
+				}
+				if (hasAmbulanceVoucher) {
+					canCreateVoucher = false;
+				}
+				row.put("localTransferUuid", localTransferUuid);
+				row.put("hasAmbulanceVoucher", hasAmbulanceVoucher);
+				row.put("canCreateAmbulanceVoucher", canCreateVoucher);
+				rows.add(row);
+			}
+
+			data.put("status", "success");
+			data.put("upid", upid);
+			data.put("identifierKind", identifierKind);
+			data.put("existingPatient", existingPatient);
+			data.put("patientId", localPatientId);
+			data.put("existingPatientReference", existingPatientReference);
+			data.put("hasInsuranceOnRegistration", hasInsuranceOnRegistration);
+			data.put("insuranceCardNumber", StringUtils.defaultString(insuranceCardNumber));
+			data.put("currentFacilityName", currentFacilityName);
+			data.put("currentFosaId", currentFosaId);
+			data.put("productionMode", productionMode);
+			data.put("ambulanceProviderForCurrentFacility", ambulanceProviderForAny);
+			data.put("canRegisterPatient", canRegisterPatient);
+			data.put("transfers", rows);
+		}
+		catch (Exception e) {
+			putError(data, e, TransferAppActivator.PRIVILEGE_LIST_TRANSFERS, "Unable to search HIE transfers");
+			if (!data.containsKey("transfers")) {
+				data.put("transfers", new ArrayList<Map<String, Object>>());
+			}
 		}
 
 		writeJson(response, data);
@@ -381,6 +773,8 @@ public class TransferSaveController {
 		preview.put("isAmbulanceTransport", "AMBULANCE".equals(transportType));
 		preview.put("transportationOtherSpec", nullToEmpty(transfer.getTransportOther()));
 		preview.put("isNaTransport", "NA".equals(transportType));
+		preview.put("ambulanceProviderFosaId", nullToEmpty(transfer.getAmbulanceProviderFosaId()));
+		preview.put("ambulanceProviderName", nullToEmpty(transfer.getAmbulanceProviderName()));
 
 		String healthInsuranceType = nullToEmpty(transfer.getHealthInsuranceType()).trim();
 		String healthInsuranceOther = nullToEmpty(transfer.getHealthInsuranceOther()).trim();
@@ -444,6 +838,75 @@ public class TransferSaveController {
 
 	private String nullToEmpty(String value) {
 		return value != null ? value : "";
+	}
+
+	private static String firstNonBlank(Object... values) {
+		if (values == null) {
+			return "";
+		}
+		for (Object value : values) {
+			if (value == null) {
+				continue;
+			}
+			String text = String.valueOf(value).trim();
+			if (text.length() > 0 && !"null".equalsIgnoreCase(text)) {
+				return text;
+			}
+		}
+		return "";
+	}
+
+	private Map<String, Object> toHieTransferSummaryRow(Map<String, Object> transfer) {
+		Map<String, Object> row = new HashMap<String, Object>();
+		row.put("date", firstNonBlank(
+				transfer.get("date"),
+				transfer.get("transferDecisionDatetime"),
+				transfer.get("decisionToTransferAt"),
+				transfer.get("admissionDatetime"),
+				transfer.get("admissionAt"),
+				transfer.get("periodStart")));
+		row.put("fromFacility", firstNonBlank(
+				transfer.get("origin"),
+				transfer.get("referringFacilityName"),
+				transfer.get("hospitalName"),
+				transfer.get("sendingFacility")));
+		row.put("fromService", firstNonBlank(
+				transfer.get("referringUnit"),
+				transfer.get("admitSource")));
+		row.put("toFacility", firstNonBlank(
+				transfer.get("destinationDisplay"),
+				transfer.get("destination"),
+				transfer.get("receivingFacility")));
+		row.put("toService", firstNonBlank(
+				transfer.get("receivingService"),
+				transfer.get("receivingDepartment")));
+		row.put("clinician", firstNonBlank(
+				transfer.get("staffContactedAtReceivingFacility"),
+				transfer.get("staffContactedName"),
+				transfer.get("receivingClinician"),
+				transfer.get("referringProviderName")));
+		row.put("ambulanceProviderFosaId", firstNonBlank(transfer.get("ambulanceProviderFosaId")));
+		row.put("ambulanceProviderName", firstNonBlank(
+				transfer.get("ambulanceProviderName"),
+				transfer.get("ambulanceProviderFosaId")));
+		row.put("district", firstNonBlank(
+				transfer.get("district"),
+				transfer.get("receivingDistrict"),
+				transfer.get("patientDistrict")));
+		row.put("uuid", firstNonBlank(transfer.get("uuid"), transfer.get("id")));
+		return row;
+	}
+
+	private static boolean isCurrentFacilityAmbulanceProvider(Object providerFosaId, Object providerName,
+			String currentFosaId, String outboundFacilityName) {
+		String providerFosa = providerFosaId != null ? StringUtils.trimToNull(String.valueOf(providerFosaId)) : null;
+		String currentFosa = StringUtils.trimToNull(currentFosaId);
+		if (providerFosa != null && currentFosa != null && currentFosa.equalsIgnoreCase(providerFosa)) {
+			return true;
+		}
+		String providerLabel = providerName != null ? StringUtils.trimToNull(String.valueOf(providerName)) : null;
+		String outbound = StringUtils.trimToNull(outboundFacilityName);
+		return providerLabel != null && outbound != null && outbound.equalsIgnoreCase(providerLabel);
 	}
 
 	/**

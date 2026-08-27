@@ -29,4 +29,13 @@ public interface TransferFacilityRegistryService {
 	@Authorized(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
 	List<RegistryFacility> listCounterReferralFacilitiesFromHie();
 
+	/**
+	 * Facilities that may provide an ambulance vehicle (health centres through hospitals/clinics).
+	 */
+	@Authorized(value = {
+			TransferAppActivator.PRIVILEGE_CREATE_TRANSFER,
+			TransferAppActivator.PRIVILEGE_LIST_TRANSFERS,
+			TransferAppActivator.PRIVILEGE_DASHBOARD }, requireAll = false)
+	List<RegistryFacility> listAmbulanceProviderFacilitiesFromHie();
+
 }

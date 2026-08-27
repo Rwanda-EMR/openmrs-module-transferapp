@@ -201,6 +201,7 @@ public class TransferEncounterPayloadBuilder {
 		addStringExtension(encounter, "http://example.org/fhir/StructureDefinition/procedures-treatments",
 				transfer.getProceduresTreatments());
 		addTransportExtension(encounter, transfer.getTransportType());
+		addAmbulanceProviderFacilityExtension(encounter, transfer);
 		addPatientDemographicsExtension(encounter, transfer);
 		addPatientAddressExtension(encounter, transfer);
 		addPractitionerInfoExtension(encounter, transfer, user);
@@ -499,6 +500,26 @@ public class TransferEncounterPayloadBuilder {
 				"http://example.org/fhir/CodeSystem/transport-type",
 				code,
 				display);
+	}
+
+	/**
+	 * Publishes which facility provides the ambulance so peers can match their FOSA id
+	 * and create the ambulance bill when appropriate.
+	 */
+	private void addAmbulanceProviderFacilityExtension(ObjectNode encounter, Transfer transfer) {
+		if (transfer == null || !"AMBULANCE".equals(StringUtils.trimToEmpty(transfer.getTransportType()))) {
+			return;
+		}
+		String fosaId = StringUtils.trimToNull(transfer.getAmbulanceProviderFosaId());
+		String name = StringUtils.trimToNull(transfer.getAmbulanceProviderName());
+		if (fosaId == null && name == null) {
+			return;
+		}
+		ObjectNode extension = addObjectNode(extensionsArray(encounter));
+		extension.put("url", TransferAppConstants.EXT_AMBULANCE_PROVIDER_FACILITY);
+		ArrayNode nested = extension.putArray("extension");
+		addNestedExtensionField(nested, TransferAppConstants.EXT_AMBULANCE_PROVIDER_FOSA_ID, fosaId);
+		addNestedExtensionField(nested, TransferAppConstants.EXT_AMBULANCE_PROVIDER_NAME, name);
 	}
 
 	private void addExternalFacilityExtension(ObjectNode encounter, boolean externalReceivingFacility) {

@@ -56,6 +56,10 @@
     width: 100%;
 }
 
+.transfer-stat-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .transfer-stat-card {
     display: flex;
     flex-direction: column;
@@ -87,6 +91,10 @@
 
 .transfer-stat-card-sent {
     border-top: 4px solid #5cb85c;
+}
+
+.transfer-stat-card-voucher {
+    border-top: 4px solid #5bc0de;
 }
 
 .transfer-stat-card-pending {

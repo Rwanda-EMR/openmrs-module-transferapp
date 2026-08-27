@@ -828,4 +828,26 @@
         </addColumn>
     </changeSet>
 
+    <changeSet id="transferapp-20260826-ambulance-provider-facility" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="transfers"/>
+                <not>
+                    <columnExists tableName="transfers" columnName="ambulance_provider_fosa_id"/>
+                </not>
+            </and>
+        </preConditions>
+        <comment>Facility (FOSA) that provides the ambulance vehicle for the transfer</comment>
+        <addColumn tableName="transfers">
+            <column name="ambulance_provider_fosa_id" type="varchar(64)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="transfers">
+            <column name="ambulance_provider_name" type="varchar(255)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
 </databaseChangeLog>
