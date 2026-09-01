@@ -457,6 +457,7 @@
 		<property name="patientService" ref="patientService" />
 		<property name="obsService" ref="obsService" />
 		<property name="transferHieSearchService" ref="transferAppHieSearchService" />
+		<property name="transferHieReceiveService" ref="transferAppHieReceiveService" />
 	</bean>
 
 	<bean id="transferAppRegistrationObsService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">

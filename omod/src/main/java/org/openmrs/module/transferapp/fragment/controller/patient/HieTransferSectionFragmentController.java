@@ -111,6 +111,7 @@ public class HieTransferSectionFragmentController {
 			ui.includeCss("transferapp", "transferSection.css");
 			ui.includeJavascript("transferapp", "transferMohLogo.js");
 			ui.includeJavascript("transferapp", "transferFormPreview.js");
+			ui.includeJavascript("transferapp", "transferPreviewCommon.js");
 			ui.includeJavascript("transferapp", "hieTransferSection.js");
 		}
 		catch (Exception ex) {

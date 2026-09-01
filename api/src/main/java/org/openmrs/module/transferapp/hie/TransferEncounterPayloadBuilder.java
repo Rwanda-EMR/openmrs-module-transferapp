@@ -95,8 +95,8 @@ public class TransferEncounterPayloadBuilder {
 			addSubject(encounter, upi, transfer.getClientName());
 			addParticipant(encounter, transfer, user);
 
-			Date periodStart = transfer.getAdmissionAt() != null ? transfer.getAdmissionAt() : transfer.getDecisionToTransferAt();
-			Date periodEnd = transfer.getDecisionToTransferAt() != null ? transfer.getDecisionToTransferAt() : periodStart;
+			Date periodStart = requireDecisionToTransferAt(transfer);
+			Date periodEnd = periodStart;
 			addPeriod(encounter, periodStart, periodEnd);
 			addLength(encounter, periodStart, periodEnd);
 			addReasonCode(encounter, transfer.getReasonForTransfer());
@@ -703,6 +703,13 @@ public class TransferEncounterPayloadBuilder {
 			throw new HieApiException("Cannot submit transfer: patient UPI (EMR ID) is missing.");
 		}
 		return transfer.getEmrId().trim();
+	}
+
+	private static Date requireDecisionToTransferAt(Transfer transfer) {
+		if (transfer == null || transfer.getDecisionToTransferAt() == null) {
+			throw new HieApiException("Cannot submit transfer: Date and time of decision to transfer is required.");
+		}
+		return transfer.getDecisionToTransferAt();
 	}
 
 	private static String resolvePractitionerId(User user) {

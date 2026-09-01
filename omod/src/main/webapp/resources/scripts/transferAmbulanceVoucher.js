@@ -268,6 +268,10 @@
         }
 
         function ensureTransferPreviewRenderer(callback) {
+            if (typeof ensureTransferPreviewAssets === "function") {
+                ensureTransferPreviewAssets(callback);
+                return;
+            }
             if (typeof buildTransferFormPreviewHtml === "function") {
                 callback();
                 return;
@@ -280,28 +284,7 @@
             if (base.charAt(base.length - 1) !== "/") {
                 base += "/";
             }
-            transferPreviewScriptsLoading = jq.getScript(base + "transferMohLogo.js")
-                .then(function() {
-                    return jq.getScript(base + "transferFormPreview.js");
-                })
-                .done(function() {
-                    if (typeof buildTransferFormPreviewHtml === "function") {
-                        callback();
-                    } else {
-                        jq("#ambulance-voucher-transfer-preview-body").html(
-                            "<p class='bon-error'>"
-                            + escapeHtml(filterMessages.previewTransferError || "Unable to load transfer form.")
-                            + "</p>"
-                        );
-                    }
-                })
-                .fail(function() {
-                    jq("#ambulance-voucher-transfer-preview-body").html(
-                        "<p class='bon-error'>"
-                        + escapeHtml(filterMessages.previewTransferError || "Unable to load transfer form.")
-                        + "</p>"
-                    );
-                });
+            transferPreviewScriptsLoading = jq.getScript(base + "transferPreviewCommon.js").done(callback);
         }
 
         function loadTransferPreview(uuid) {
@@ -323,6 +306,10 @@
             }).done(function(response) {
                 if (response && response.status === "success" && response.transfer) {
                     ensureTransferPreviewRenderer(function() {
+                        if (typeof renderTransferPreviewInto === "function") {
+                            renderTransferPreviewInto("#ambulance-voucher-transfer-preview-body", response.transfer);
+                            return;
+                        }
                         var previewHtml = buildTransferFormPreviewHtml(response.transfer);
                         jq("#ambulance-voucher-transfer-preview-body").html(previewHtml);
                     });

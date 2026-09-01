@@ -228,6 +228,12 @@
         }
 
         function renderPreview(transfer) {
+            if (typeof renderTransferPreviewInto === "function") {
+                renderTransferPreviewInto("#registration-hie-transfer-preview-body", transfer, function() {
+                    updateValidateButton(transfer);
+                });
+                return;
+            }
             var previewHtml = typeof buildTransferFormPreviewHtml === "function"
                 ? buildTransferFormPreviewHtml(transfer)
                 : "<p style='color:red;'>Preview renderer not loaded.</p>";
@@ -411,16 +417,13 @@
     }
 
     jq(document).ready(function() {
-        if (typeof buildTransferFormPreviewHtml === "function") {
+        if (typeof renderTransferPreviewInto === "function" || typeof buildTransferFormPreviewHtml === "function") {
             initRegistrationHieTransfer();
             return;
         }
         var transferOpenmrsPath = (typeof openmrsContextPath !== "undefined" ? openmrsContextPath : "/openmrs");
         var previewResourcesBase = normalizeRootUrl(transferOpenmrsPath + "/moduleResources/transferapp/scripts/");
-        jq.getScript(previewResourcesBase + "transferMohLogo.js")
-            .then(function() {
-                return jq.getScript(previewResourcesBase + "transferFormPreview.js");
-            })
+        jq.getScript(previewResourcesBase + "transferPreviewCommon.js")
             .done(initRegistrationHieTransfer)
             .fail(function() {
                 jq("#transfer_from_hie").html("<span style='color:#a94442;'>Unable to load transfer preview renderer.</span>");

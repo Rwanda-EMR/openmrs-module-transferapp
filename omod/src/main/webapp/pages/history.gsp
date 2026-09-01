@@ -7,6 +7,7 @@
     ui.includeJavascript("uicommons", "datatables/jquery.dataTables.min.js")
     ui.includeJavascript("transferapp", "transferMohLogo.js")
     ui.includeJavascript("transferapp", "transferFormPreview.js")
+    ui.includeJavascript("transferapp", "transferPreviewCommon.js")
     ui.includeJavascript("transferapp", "transferHistory.js")
 %>
 <script type="text/javascript">

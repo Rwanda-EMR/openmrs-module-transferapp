@@ -237,13 +237,13 @@
 		var formKindInfo = resolveTransferFormKind(normalized);
 		var transportType = normalizeTransportType(normalized);
 		var verificationTransferId = resolveVerificationTransferId(normalized);
-		var showVerificationQr = truthy(normalized.showVerificationQr);
-		if (!showVerificationQr && isValidVerificationUuid(verificationTransferId)) {
-			showVerificationQr = true;
-		}
 		var verifyQrUrl = normalized.verifyQrUrl;
-		if (showVerificationQr && !verifyQrUrl && verificationTransferId) {
+		if ((!verifyQrUrl || String(verifyQrUrl).trim() === "") && verificationTransferId) {
 			verifyQrUrl = buildVerifyQrFormUrl(verificationTransferId);
+		}
+		var showVerificationQr = truthy(normalized.showVerificationQr);
+		if (!showVerificationQr && verificationTransferId && verifyQrUrl) {
+			showVerificationQr = true;
 		}
 		var verifyRemoteUrl = normalized.verifyRemoteUrl;
 		if (showVerificationQr && !verifyRemoteUrl && verificationTransferId && global.transferVerifyBaseUrl) {
@@ -461,7 +461,7 @@
 			+ signatureBlock + "</div>";
 
 		var bottomSection = bottomRows;
-		if (p.showVerificationQr && p.verifyQrUrl) {
+		if (p.verifyQrUrl) {
 			bottomSection = "<table class='tf-bottom-table' cellpadding='0' cellspacing='0'>"
 				+ "<tr>"
 				+ "<td class='tf-bottom-fields'>" + bottomRows + "</td>"
@@ -639,7 +639,12 @@
 		return true;
 	}
 
+	function enrichTransferPreviewData(item) {
+		return normalizeTransferPreviewItem(item || {});
+	}
+
 	global.escTransferPreview = escTransferPreview;
+	global.enrichTransferPreviewData = enrichTransferPreviewData;
 	global.buildTransferFormPreviewHtml = buildTransferFormPreviewHtml;
 	global.exportTransferFormPreviewPdf = exportTransferFormPreviewPdf;
 })(window);

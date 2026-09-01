@@ -111,6 +111,7 @@ public class HieReceivedTransferMapper {
 
 		transfer.setReferringProviderName(truncate(stringValue(hieData.get("referringProviderName")), 255));
 		transfer.setProviderQualification(truncate(stringValue(hieData.get("referringProviderQualification")), 255));
+		transfer.setProviderPhone(truncate(stringValue(hieData.get("providerPhone")), 64));
 		transfer.setSignedDate(parseDateOnly(firstNonBlank(
 				stringValue(hieData.get("formDate")),
 				stringValue(hieData.get("referringSignedDate")))));

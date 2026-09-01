@@ -53,10 +53,7 @@ public class TransferVerificationUrlServiceImpl implements TransferVerificationU
 		if (transfer == null) {
 			return false;
 		}
-		if (transfer.isSentToHie() || transfer.isReceivedFromHie()) {
-			return isValidVerificationTransferId(resolveVerificationTransferId(transfer));
-		}
-		return isValidVerificationTransferId(transfer.getHieTransferId());
+		return isValidVerificationTransferId(resolveVerificationTransferId(transfer));
 	}
 
 	@Override

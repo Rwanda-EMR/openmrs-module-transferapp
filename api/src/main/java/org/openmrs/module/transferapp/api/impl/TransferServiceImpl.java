@@ -241,6 +241,9 @@ public class TransferServiceImpl implements TransferService {
 		}
 
 		transfer.setDecisionToTransferAt(parseDateTimeLocal(decisionToTransferAt));
+		if (transfer.getDecisionToTransferAt() == null) {
+			throw new APIException("Date and time of decision to transfer is required");
+		}
 		transfer.setCallingTime(StringUtils.trimToNull(callingTime));
 		transfer.setReceivingFacilityCode(StringUtils.trimToNull(receivingFacilityCode));
 		applyReceivingFacilitySnapshot(transfer, receivingFacilityCode, receivingFacilityId);

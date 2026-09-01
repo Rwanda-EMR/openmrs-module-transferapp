@@ -108,11 +108,42 @@ public class TransferHieReceiveServiceImpl implements TransferHieReceiveService 
 		}
 
 		Map<String, Object> hieTransfer = (Map<String, Object>) ((List<?>) data).get(0);
+		return storeReceivedTransfer(patientId, hieTransfer);
+	}
+
+	@Override
+	public Transfer storeReceivedTransfer(Integer patientId, Map<String, Object> hieTransfer) {
+		if (patientId == null) {
+			throw new APIException("Patient is required");
+		}
+		if (hieTransfer == null || hieTransfer.isEmpty()) {
+			throw new APIException("HIE transfer data is required");
+		}
+
+		String normalizedHieTransferId = resolveHieTransferId(hieTransfer);
+		if (StringUtils.isBlank(normalizedHieTransferId)) {
+			throw new APIException("HIE transfer id is required");
+		}
+
+		Transfer existing = transferDao.getTransferByHieTransferId(patientId, normalizedHieTransferId);
+		if (existing != null) {
+			log.info("Transfer already stored for patient " + patientId + " and HIE id " + normalizedHieTransferId);
+			return existing;
+		}
+
+		Patient patient = patientService.getPatient(patientId);
+		if (patient == null) {
+			throw new APIException("Patient not found");
+		}
+
 		String receivingFacilityName = transferAdminService != null
 				? transferAdminService.resolveCurrentSendingFacilityName()
 				: null;
 
 		Transfer transfer = receivedTransferMapper.mapToTransfer(patient, hieTransfer, receivingFacilityName);
+		if (StringUtils.isBlank(transfer.getHieTransferId())) {
+			transfer.setHieTransferId(normalizedHieTransferId);
+		}
 		applyPatientFallbacks(transfer, patient);
 		transfer.setUuid(UUID.randomUUID().toString());
 		transfer.setCreator(Context.getAuthenticatedUser());
@@ -120,6 +151,18 @@ public class TransferHieReceiveServiceImpl implements TransferHieReceiveService 
 		transfer.setVoided(false);
 
 		return transferDao.saveTransfer(transfer);
+	}
+
+	private static String resolveHieTransferId(Map<String, Object> hieTransfer) {
+		Object id = hieTransfer.get("id");
+		if (id != null && StringUtils.isNotBlank(String.valueOf(id))) {
+			return String.valueOf(id).trim();
+		}
+		Object uuid = hieTransfer.get("uuid");
+		if (uuid != null && StringUtils.isNotBlank(String.valueOf(uuid))) {
+			return String.valueOf(uuid).trim();
+		}
+		return null;
 	}
 
 	private void applyPatientFallbacks(Transfer transfer, Patient patient) {

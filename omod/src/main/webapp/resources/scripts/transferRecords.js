@@ -229,6 +229,14 @@
         }
 
         function renderTransferPreview(transfer) {
+            if (typeof renderTransferPreviewInto === "function") {
+                renderTransferPreviewInto("#transfer-preview-body", transfer, function() {
+                    currentPreviewTransferSent = !!(transfer && (transfer.hieSent === true || transfer.hieSent === "true"));
+                    currentPreviewIsHieUpdate = !currentPreviewTransferSent && !!(transfer && String(transfer.hieTransferId || "").trim());
+                    syncTransferPreviewSubmitButton();
+                });
+                return;
+            }
             var previewHtml = typeof buildTransferFormPreviewHtml === "function"
                 ? buildTransferFormPreviewHtml(transfer)
                 : "<p style='color:red;'>Preview renderer not loaded.</p>";
@@ -296,9 +304,17 @@
                 dataType: "json"
             }).done(function(response) {
                 if (response && response.status === "success" && response.transfer) {
-                    ensureTransferPreviewRenderer(function() {
-                        renderTransferPreview(response.transfer);
-                    });
+                    if (typeof renderTransferPreviewInto === "function") {
+                        renderTransferPreviewInto("#transfer-preview-body", response.transfer, function() {
+                            currentPreviewTransferSent = !!(response.transfer && (response.transfer.hieSent === true || response.transfer.hieSent === "true"));
+                            currentPreviewIsHieUpdate = !currentPreviewTransferSent && !!(response.transfer && String(response.transfer.hieTransferId || "").trim());
+                            syncTransferPreviewSubmitButton();
+                        });
+                    } else {
+                        ensureTransferPreviewRenderer(function() {
+                            renderTransferPreview(response.transfer);
+                        });
+                    }
                     return;
                 }
                 var message = response && response.message ? response.message : "Unable to load transfer details.";
