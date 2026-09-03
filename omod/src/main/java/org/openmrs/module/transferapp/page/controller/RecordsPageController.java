@@ -49,6 +49,7 @@ public class RecordsPageController {
 			@RequestParam(value = "startDate", required = false) String startDateParam,
 			@RequestParam(value = "endDate", required = false) String endDateParam,
 			@RequestParam(value = "receivingFacilityCode", required = false) String receivingFacilityCode,
+			@RequestParam(value = "formType", required = false) String formType,
 			@RequestParam(value = "app", required = false) String app) {
 
 		sessionContext.requireAuthentication();
@@ -70,6 +71,7 @@ public class RecordsPageController {
 		endDate = normalizedRange[1];
 
 		String selectedReceivingFacilityCode = StringUtils.trimToNull(receivingFacilityCode);
+		String selectedFormType = StringUtils.trimToNull(formType);
 
 		if (canListTransfers) {
 			try {
@@ -80,7 +82,7 @@ public class RecordsPageController {
 				}
 
 				records = facilityTransferRecordsService.getOutboundTransferRecords(
-						patientId, startDate, endDate, selectedReceivingFacilityCode);
+						patientId, startDate, endDate, selectedReceivingFacilityCode, selectedFormType);
 				if (patientId != null) {
 					Patient patient = patientService.getPatient(patientId);
 					if (patient != null && patient.getPersonName() != null) {
@@ -115,6 +117,7 @@ public class RecordsPageController {
 		model.addAttribute("filterEndDate", formatDateParam(endDate));
 		model.addAttribute("filterReceivingFacilityCode", selectedReceivingFacilityCode != null
 				? selectedReceivingFacilityCode : "");
+		model.addAttribute("filterFormType", selectedFormType != null ? selectedFormType : "");
 		model.addAttribute("maxDateRangeMonths", MAX_DATE_RANGE_MONTHS);
 	}
 

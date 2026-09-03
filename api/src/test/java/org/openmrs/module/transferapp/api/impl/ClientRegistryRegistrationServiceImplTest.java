@@ -99,6 +99,7 @@ public class ClientRegistryRegistrationServiceImplTest {
 		PersonName translatedName = new PersonName("Consolée Marie", null, "Uwase");
 		translatedName.setPreferred(true);
 		translatedPatient.addName(translatedName);
+		addBirthdateAndGender(translatedPatient);
 		translatedPatient.addIdentifier(identifier(nationalIdType, "1199880011223344"));
 		ClientRegistryPatientTranslator translator = mock(ClientRegistryPatientTranslator.class);
 		when(translator.toPatient(registryPatient)).thenReturn(translatedPatient);
@@ -137,6 +138,37 @@ public class ClientRegistryRegistrationServiceImplTest {
 		assertOptionalNationalIdAccepted(null);
 		assertOptionalNationalIdAccepted("");
 		assertOptionalNationalIdAccepted("   ");
+	}
+
+	@Test
+	public void registerPatientByUpidRejectsMissingRequiredDemographics() {
+		PatientIdentifierType upidType = identifierType("upid");
+		PatientIdentifierType nationalIdType = identifierType("national-id");
+		PatientService patientService = mock(PatientService.class);
+		when(patientService.getPatients(null, "UPI-123", Collections.singletonList(upidType), true))
+				.thenReturn(Collections.<Patient>emptyList());
+
+		ClientRegistryPatient registryPatient = new ClientRegistryPatient(new org.hl7.fhir.r4.model.Patient());
+		ClientRegistryPatientProvider provider = mock(ClientRegistryPatientProvider.class);
+		when(provider.fetchPatientFromClientRegistry("UPI-123", IntegrationConfig.IDENTIFIER_SYSTEM_UPI))
+				.thenReturn(registryPatient);
+		Patient translatedPatient = new Patient();
+		ClientRegistryPatientTranslator translator = mock(ClientRegistryPatientTranslator.class);
+		when(translator.toPatient(registryPatient)).thenReturn(translatedPatient);
+		RegistrationCoreService registrationCoreService = mock(RegistrationCoreService.class);
+		ClientRegistryRegistrationServiceImpl service = registrationService(
+				upidType, nationalIdType, patientService, provider, translator, registrationCoreService);
+
+		try {
+			service.registerPatientByUpid("UPI-123", new Location());
+			fail("Expected incomplete demographics to prevent patient registration");
+		}
+		catch (org.openmrs.api.APIException ex) {
+			assertEquals(org.openmrs.module.transferapp.api.HiePatientRegistrationValidator
+					.MISSING_REQUIRED_DEMOGRAPHICS_MESSAGE, ex.getMessage());
+		}
+		verify(registrationCoreService, never()).registerPatient(eq(translatedPatient), anyList(),
+				org.mockito.ArgumentMatchers.any(Location.class));
 	}
 
 	@Test
@@ -498,6 +530,8 @@ public class ClientRegistryRegistrationServiceImplTest {
 				.thenReturn(registryPatient);
 
 		Patient translatedPatient = new Patient();
+		translatedPatient.addName(new PersonName("Alice", null, "Uwase"));
+		addBirthdateAndGender(translatedPatient);
 		if (nationalId != null) {
 			translatedPatient.addIdentifier(identifier(nationalIdType, nationalId));
 		}
@@ -530,6 +564,8 @@ public class ClientRegistryRegistrationServiceImplTest {
 		when(provider.fetchPatientFromClientRegistry("UPI-123", IntegrationConfig.IDENTIFIER_SYSTEM_UPI))
 				.thenReturn(registryPatient);
 		Patient translatedPatient = new Patient();
+		translatedPatient.addName(new PersonName("Alice", null, "Uwase"));
+		addBirthdateAndGender(translatedPatient);
 		if (nationalId != null) {
 			translatedPatient.addIdentifier(identifier(nationalIdType, nationalId));
 		}
@@ -549,6 +585,14 @@ public class ClientRegistryRegistrationServiceImplTest {
 			assertNull(translatedPatient.getPatientIdentifier(nationalIdType));
 		}
 		verify(registrationCoreService).registerPatient(eq(translatedPatient), anyList(), eq(location));
+	}
+
+	private void addBirthdateAndGender(Patient patient) {
+		patient.setGender("F");
+		Calendar birthdate = Calendar.getInstance();
+		birthdate.clear();
+		birthdate.set(1990, Calendar.APRIL, 12);
+		patient.setBirthdate(birthdate.getTime());
 	}
 
 	private ClientRegistryRegistrationServiceImpl registrationService(PatientIdentifierType upidType,

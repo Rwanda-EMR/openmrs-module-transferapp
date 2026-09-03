@@ -566,6 +566,394 @@
         </sql>
     </changeSet>
 
+    <changeSet id="transferapp-20260811-create-maternity-transfer-table" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="maternity_transfers"/>
+            </not>
+        </preConditions>
+        <comment>Create maternity_transfers table for outbound Maternity/ANC-Delivery-PNC referral records</comment>
+        <createTable tableName="maternity_transfers">
+            <column name="maternity_transfer_id" type="int" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="uuid" type="char(38)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="patient_id" type="int">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Step 1: client & referral info -->
+            <column name="client_name" type="varchar(255)"/>
+            <column name="serial_number_emr" type="varchar(64)"/>
+            <column name="age_or_dob" type="varchar(64)"/>
+            <column name="next_of_kin_name" type="varchar(255)"/>
+            <column name="next_of_kin_telephone" type="varchar(64)"/>
+            <column name="client_district" type="varchar(120)"/>
+            <column name="sector" type="varchar(120)"/>
+            <column name="cell" type="varchar(120)"/>
+            <column name="village" type="varchar(120)"/>
+            <column name="admission_at" type="datetime"/>
+            <column name="decision_to_transfer_at" type="datetime"/>
+            <column name="receiving_facility_code" type="varchar(64)"/>
+            <column name="receiving_service" type="varchar(255)"/>
+            <column name="calling_time" type="varchar(8)"/>
+            <column name="staff_contacted_name" type="varchar(255)"/>
+            <column name="staff_contacted_phone" type="varchar(64)"/>
+            <column name="reason_for_transfer" type="text"/>
+            <column name="transfer_type" type="varchar(32)"/>
+            <column name="ambulance_called_time" type="varchar(8)"/>
+            <column name="departure_from_referring_time" type="varchar(8)"/>
+            <column name="partograph_attached" type="boolean" defaultValueBoolean="false"/>
+            <column name="clinical_presentation" type="text"/>
+            <column name="disability_type" type="varchar(255)"/>
+            <column name="sending_facility" type="varchar(255)"/>
+
+            <!-- Step 2: obstetric history & current pregnancy -->
+            <column name="obstetric_gravida" type="varchar(16)"/>
+            <column name="obstetric_parity" type="varchar(16)"/>
+            <column name="obstetric_living_children" type="varchar(16)"/>
+            <column name="obstetric_abortion" type="varchar(16)"/>
+            <column name="obstetric_stillbirth" type="varchar(16)"/>
+            <column name="obstetric_neonatal_death" type="varchar(16)"/>
+            <column name="obstetric_preterm_birth" type="varchar(16)"/>
+            <column name="lmp_date" type="date"/>
+            <column name="edd_date" type="date"/>
+            <column name="gestation_age" type="varchar(32)"/>
+            <column name="muac" type="varchar(32)"/>
+            <column name="anc_completed_count" type="varchar(16)"/>
+            <column name="tetanus_vaccine_doses" type="varchar(16)"/>
+            <column name="previous_significant_history" type="text"/>
+            <column name="current_pregnancy_complications" type="text"/>
+
+            <!-- Step 3: clinical findings -->
+            <column name="latest_hemoglobin" type="varchar(32)"/>
+            <column name="latest_hiv_status" type="varchar(32)"/>
+            <column name="latest_blood_group" type="varchar(16)"/>
+            <column name="latest_other_results" type="text"/>
+            <column name="vital_bp" type="varchar(32)"/>
+            <column name="vital_temp" type="varchar(32)"/>
+            <column name="vital_spo2" type="varchar(32)"/>
+            <column name="vital_rr" type="varchar(32)"/>
+            <column name="vital_pulse" type="varchar(32)"/>
+            <column name="vital_weight" type="varchar(32)"/>
+            <column name="vital_height" type="varchar(32)"/>
+            <column name="fetal_presentation" type="varchar(64)"/>
+            <column name="fundal_height" type="varchar(32)"/>
+            <column name="fetal_heart_rate" type="varchar(32)"/>
+            <column name="contractions" type="varchar(64)"/>
+            <column name="vaginal_exam_at" type="datetime"/>
+            <column name="dilation" type="varchar(16)"/>
+            <column name="effacement" type="varchar(16)"/>
+            <column name="descent" type="varchar(16)"/>
+            <column name="consistency" type="varchar(32)"/>
+            <column name="position" type="varchar(32)"/>
+            <column name="caput" type="boolean" defaultValueBoolean="false"/>
+            <column name="moulding" type="boolean" defaultValueBoolean="false"/>
+            <column name="membranes_ruptured" type="boolean" defaultValueBoolean="false"/>
+            <column name="membranes_ruptured_at" type="datetime"/>
+            <column name="amniotic_fluid_color" type="varchar(64)"/>
+            <column name="offensive" type="boolean" defaultValueBoolean="false"/>
+            <column name="estimated_blood_loss_ml" type="varchar(16)"/>
+            <column name="investigation_hgb" type="varchar(32)"/>
+            <column name="investigation_urine_test" type="varchar(64)"/>
+            <column name="investigation_other_test" type="varchar(64)"/>
+            <column name="imaging_investigations" type="text"/>
+            <column name="diagnosis" type="text"/>
+            <column name="procedures" type="text"/>
+            <column name="attached_lab_tests" type="boolean" defaultValueBoolean="false"/>
+            <column name="attached_imaging" type="boolean" defaultValueBoolean="false"/>
+            <column name="attached_other" type="text"/>
+
+            <!-- Step 4: transport / insurance -->
+            <column name="transport_type" type="varchar(16)"/>
+            <column name="transport_other" type="varchar(255)"/>
+            <column name="health_insurance_type" type="varchar(16)"/>
+            <column name="health_insurance_other" type="varchar(255)"/>
+
+            <!-- Step 5: sign-off -->
+            <column name="referring_provider_name" type="varchar(255)"/>
+            <column name="referring_provider_qualification" type="varchar(255)"/>
+            <column name="referring_signed_date" type="date"/>
+            <column name="referring_signed_time" type="varchar(8)"/>
+            <column name="referring_provider_phone" type="varchar(64)"/>
+
+            <column name="creator" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="date_created" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+            <column name="changed_by" type="int"/>
+            <column name="date_changed" type="datetime"/>
+            <column name="voided" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="voided_by" type="int"/>
+            <column name="date_voided" type="datetime"/>
+            <column name="void_reason" type="varchar(255)"/>
+        </createTable>
+
+        <addForeignKeyConstraint constraintName="maternity_transfers_patient_fk"
+                                 baseTableName="maternity_transfers"
+                                 baseColumnNames="patient_id"
+                                 referencedTableName="patient"
+                                 referencedColumnNames="patient_id"/>
+
+        <addForeignKeyConstraint constraintName="maternity_transfers_creator_fk"
+                                 baseTableName="maternity_transfers"
+                                 baseColumnNames="creator"
+                                 referencedTableName="users"
+                                 referencedColumnNames="user_id"/>
+
+        <addForeignKeyConstraint constraintName="maternity_transfers_changed_by_fk"
+                                 baseTableName="maternity_transfers"
+                                 baseColumnNames="changed_by"
+                                 referencedTableName="users"
+                                 referencedColumnNames="user_id"/>
+
+        <addForeignKeyConstraint constraintName="maternity_transfers_voided_by_fk"
+                                 baseTableName="maternity_transfers"
+                                 baseColumnNames="voided_by"
+                                 referencedTableName="users"
+                                 referencedColumnNames="user_id"/>
+
+        <createIndex tableName="maternity_transfers" indexName="maternity_transfers_patient_idx">
+            <column name="patient_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="transferapp-20260811-create-maternity-transfer-treatments-table" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="maternity_transfer_treatments"/>
+            </not>
+        </preConditions>
+        <comment>Create maternity_transfer_treatments table — drug administration rows for a maternity transfer</comment>
+        <createTable tableName="maternity_transfer_treatments">
+            <column name="maternity_transfer_treatment_id" type="int" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="maternity_transfer_id" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="treatment_name" type="varchar(255)"/>
+            <column name="dose" type="varchar(64)"/>
+            <column name="given_date" type="date"/>
+            <column name="given_time" type="varchar(8)"/>
+        </createTable>
+
+        <addForeignKeyConstraint constraintName="maternity_transfer_treatments_transfer_fk"
+                                 baseTableName="maternity_transfer_treatments"
+                                 baseColumnNames="maternity_transfer_id"
+                                 referencedTableName="maternity_transfers"
+                                 referencedColumnNames="maternity_transfer_id"/>
+
+        <createIndex tableName="maternity_transfer_treatments" indexName="maternity_transfer_treatments_transfer_idx">
+            <column name="maternity_transfer_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="transferapp-20260811-create-neonatal-transfer-table" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="neonatal_transfers"/>
+            </not>
+        </preConditions>
+        <comment>Create neonatal_transfers table for outbound Neonatal referral records</comment>
+        <createTable tableName="neonatal_transfers">
+            <column name="neonatal_transfer_id" type="int" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="uuid" type="char(38)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="patient_id" type="int">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Step 1: baby & referral info -->
+            <column name="baby_name" type="varchar(255)"/>
+            <column name="sex" type="varchar(20)"/>
+            <column name="dob" type="date"/>
+            <column name="gestational_age_weeks" type="varchar(16)"/>
+            <column name="birth_weight_g" type="varchar(16)"/>
+            <column name="current_weight_g" type="varchar(16)"/>
+            <column name="current_age_days" type="varchar(16)"/>
+            <column name="mother_name" type="varchar(255)"/>
+            <column name="mother_age" type="varchar(16)"/>
+            <column name="mother_caregiver_phone" type="varchar(64)"/>
+            <column name="place_of_birth" type="varchar(255)"/>
+            <column name="reason_for_transfer" type="text"/>
+            <column name="mode_of_transport" type="varchar(32)"/>
+            <column name="transport_other" type="varchar(255)"/>
+            <column name="transfer_type" type="varchar(32)"/>
+            <column name="receiving_facility_code" type="varchar(64)"/>
+            <column name="receiving_service" type="varchar(255)"/>
+            <column name="calling_time" type="varchar(8)"/>
+            <column name="staff_contacted_name" type="varchar(255)"/>
+            <column name="staff_contacted_phone" type="varchar(64)"/>
+            <column name="decision_to_transfer_at" type="datetime"/>
+            <column name="sending_facility" type="varchar(255)"/>
+
+            <!-- Step 2: maternal history -->
+            <column name="mother_alive" type="varchar(16)"/>
+            <column name="obstetric_gravida" type="varchar(16)"/>
+            <column name="obstetric_parity" type="varchar(16)"/>
+            <column name="pregnancy_type" type="varchar(32)"/>
+            <column name="anc_screening" type="text"/>
+            <column name="pathologies_during_pregnancy" type="text"/>
+            <column name="pregnancy_treatment" type="text"/>
+            <column name="blood_group" type="varchar(16)"/>
+            <column name="rh_factor" type="varchar(16)"/>
+            <column name="hiv_status" type="varchar(32)"/>
+            <column name="hiv_regimen" type="varchar(255)"/>
+            <column name="hiv_recent_vl" type="varchar(64)"/>
+            <column name="hiv_cd4_count" type="varchar(64)"/>
+            <column name="hiv_opportunistic_infections" type="text"/>
+            <column name="tetanus_vaccine_doses" type="varchar(16)"/>
+            <column name="maternal_illicit_drug_history" type="text"/>
+
+            <!-- Step 3: labor details -->
+            <column name="rom_at" type="datetime"/>
+            <column name="af_quality" type="varchar(64)"/>
+            <column name="af_quantity" type="varchar(64)"/>
+            <column name="fever_timing" type="varchar(64)"/>
+            <column name="steroid_doses" type="varchar(16)"/>
+            <column name="last_steroid_dose_at" type="datetime"/>
+            <column name="mgso4_at" type="datetime"/>
+            <column name="mode_of_delivery" type="varchar(64)"/>
+            <column name="labor_complications" type="varchar(255)"/>
+            <column name="labor_complications_other" type="varchar(255)"/>
+            <column name="maternal_anesthesia" type="varchar(64)"/>
+            <column name="maternal_anesthesia_other" type="varchar(255)"/>
+            <column name="maternal_antibiotics" type="text"/>
+            <column name="other_drugs" type="text"/>
+            <column name="sepsis_risk_factors" type="text"/>
+
+            <!-- Step 4: neonatal history & drugs -->
+            <column name="resuscitation_at_birth" type="varchar(16)"/>
+            <column name="resuscitation_methods" type="text"/>
+            <column name="apgar_1min" type="varchar(8)"/>
+            <column name="apgar_5min" type="varchar(8)"/>
+            <column name="apgar_10min" type="varchar(8)"/>
+            <column name="hie" type="varchar(16)"/>
+            <column name="hie_grade" type="varchar(16)"/>
+            <column name="allergies" type="varchar(255)"/>
+            <column name="immunization" type="varchar(16)"/>
+            <column name="immunization_details" type="text"/>
+            <column name="vitamin_k" type="varchar(16)"/>
+            <column name="tetracycline_eye_ointment" type="varchar(16)"/>
+            <column name="surfactant" type="varchar(16)"/>
+
+            <!-- Step 5: chief complaint & diagnoses -->
+            <column name="chief_complaint_details" type="text"/>
+            <column name="spo2_preductal" type="varchar(16)"/>
+            <column name="spo2_postductal" type="varchar(16)"/>
+            <column name="condition_temp" type="varchar(16)"/>
+            <column name="condition_hr" type="varchar(16)"/>
+            <column name="condition_rr" type="varchar(16)"/>
+            <column name="condition_bp" type="varchar(32)"/>
+            <column name="neurological_status" type="varchar(64)"/>
+            <column name="seizures" type="boolean" defaultValueBoolean="false"/>
+            <column name="adverse_events_24h" type="text"/>
+            <column name="diagnosis_1" type="varchar(255)"/>
+            <column name="diagnosis_2" type="varchar(255)"/>
+            <column name="diagnosis_3" type="varchar(255)"/>
+            <column name="diagnosis_4" type="varchar(255)"/>
+
+            <!-- Step 6: management at referring facility -->
+            <column name="respiratory_support" type="varchar(64)"/>
+            <column name="ventilation_settings" type="text"/>
+            <column name="iv_fluid_vol" type="varchar(32)"/>
+            <column name="passed_urine" type="varchar(16)"/>
+            <column name="inotropes" type="varchar(255)"/>
+            <column name="peripheral_iv" type="varchar(16)"/>
+            <column name="central_iv" type="varchar(16)"/>
+            <column name="intraosseous_line" type="varchar(16)"/>
+            <column name="antibiotic1_name" type="varchar(255)"/>
+            <column name="antibiotic1_doses" type="varchar(120)"/>
+            <column name="antibiotic1_durations" type="varchar(120)"/>
+            <column name="antibiotic2_name" type="varchar(255)"/>
+            <column name="antibiotic2_doses" type="varchar(120)"/>
+            <column name="antibiotic2_durations" type="varchar(120)"/>
+            <column name="arvs" type="varchar(255)"/>
+            <column name="npo" type="varchar(16)"/>
+            <column name="last_feed_time" type="varchar(8)"/>
+            <column name="last_feed_amount" type="varchar(32)"/>
+            <column name="feed_vol" type="varchar(32)"/>
+            <column name="feed_type" type="varchar(64)"/>
+            <column name="passed_stool" type="varchar(16)"/>
+            <column name="nasogastric_tube" type="varchar(16)"/>
+            <column name="lab_glucose" type="varchar(32)"/>
+            <column name="lab_fbc" type="varchar(64)"/>
+            <column name="lab_hb" type="varchar(32)"/>
+            <column name="lab_wbc" type="varchar(32)"/>
+            <column name="lab_platelets" type="varchar(32)"/>
+            <column name="lab_crp" type="varchar(32)"/>
+            <column name="lab_bili_total" type="varchar(32)"/>
+            <column name="lab_bili_direct" type="varchar(32)"/>
+            <column name="lab_ue" type="varchar(64)"/>
+            <column name="lab_cultures" type="varchar(255)"/>
+            <column name="imaging_results" type="text"/>
+            <column name="pain_sedation_drugs" type="text"/>
+            <column name="imaging_report_attached" type="boolean" defaultValueBoolean="false"/>
+            <column name="lab_reports_attached" type="boolean" defaultValueBoolean="false"/>
+
+            <!-- Step 7: summary & sign-off -->
+            <column name="clinical_management_summary" type="text"/>
+            <column name="referring_provider_name" type="varchar(255)"/>
+            <column name="referring_provider_qualification" type="varchar(255)"/>
+            <column name="referring_signed_date" type="date"/>
+            <column name="referring_signed_time" type="varchar(8)"/>
+            <column name="referring_provider_phone" type="varchar(64)"/>
+
+            <column name="creator" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="date_created" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+            <column name="changed_by" type="int"/>
+            <column name="date_changed" type="datetime"/>
+            <column name="voided" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="voided_by" type="int"/>
+            <column name="date_voided" type="datetime"/>
+            <column name="void_reason" type="varchar(255)"/>
+        </createTable>
+
+        <addForeignKeyConstraint constraintName="neonatal_transfers_patient_fk"
+                                 baseTableName="neonatal_transfers"
+                                 baseColumnNames="patient_id"
+                                 referencedTableName="patient"
+                                 referencedColumnNames="patient_id"/>
+
+        <addForeignKeyConstraint constraintName="neonatal_transfers_creator_fk"
+                                 baseTableName="neonatal_transfers"
+                                 baseColumnNames="creator"
+                                 referencedTableName="users"
+                                 referencedColumnNames="user_id"/>
+
+        <addForeignKeyConstraint constraintName="neonatal_transfers_changed_by_fk"
+                                 baseTableName="neonatal_transfers"
+                                 baseColumnNames="changed_by"
+                                 referencedTableName="users"
+                                 referencedColumnNames="user_id"/>
+
+        <addForeignKeyConstraint constraintName="neonatal_transfers_voided_by_fk"
+                                 baseTableName="neonatal_transfers"
+                                 baseColumnNames="voided_by"
+                                 referencedTableName="users"
+                                 referencedColumnNames="user_id"/>
+
+        <createIndex tableName="neonatal_transfers" indexName="neonatal_transfers_patient_idx">
+            <column name="patient_id"/>
+        </createIndex>
+    </changeSet>
+
     <changeSet id="transferapp-20250813-transfer-profile-speciality" author="MoH Team">
         <preConditions onFail="MARK_RAN">
             <and>
@@ -848,6 +1236,96 @@
                 <constraints nullable="true"/>
             </column>
         </addColumn>
+    </changeSet>
+
+    <changeSet id="transferapp-20260827-neonatal-mgh-spec-fields" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="neonatal_transfers"/>
+                <not>
+                    <columnExists tableName="neonatal_transfers" columnName="province"/>
+                </not>
+            </and>
+        </preConditions>
+        <comment>Add MoH Neonatal Transfer Form facility header fields and remaining spec fields (Blood Gas Analysis, FBC Done, Imaging Results Available, Inotropes specify)</comment>
+        <addColumn tableName="neonatal_transfers">
+            <column name="province" type="varchar(255)"/>
+            <column name="district" type="varchar(255)"/>
+            <column name="hospital_name" type="varchar(255)"/>
+            <column name="referring_facility_name" type="varchar(255)"/>
+            <column name="referring_unit" type="varchar(255)"/>
+            <column name="blood_gas_analysis" type="varchar(16)"/>
+            <column name="inotropes_specify" type="varchar(255)"/>
+            <column name="fbc_done" type="varchar(16)"/>
+            <column name="imaging_results_available" type="varchar(16)"/>
+            <column name="pregnancy_other_pathologies" type="varchar(255)"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="transferapp-20260828-neonatal-hie-columns" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="neonatal_transfers"/>
+                <not>
+                    <columnExists tableName="neonatal_transfers" columnName="hie_sent"/>
+                </not>
+            </and>
+        </preConditions>
+        <comment>Add HIE submission tracking columns to neonatal_transfers, matching transfers</comment>
+        <addColumn tableName="neonatal_transfers">
+            <column name="hie_sent" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hie_sent_at" type="datetime"/>
+            <column name="hie_send_err" type="varchar(500)"/>
+            <column name="hie_transfer_id" type="varchar(64)"/>
+        </addColumn>
+        <createIndex tableName="neonatal_transfers" indexName="neonatal_transfers_hie_transfer_id_idx">
+            <column name="hie_transfer_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="transferapp-20260828-maternity-mgh-spec-fields" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="maternity_transfers"/>
+                <not>
+                    <columnExists tableName="maternity_transfers" columnName="province"/>
+                </not>
+            </and>
+        </preConditions>
+        <comment>Add MoH ANC/Delivery/PNC Transfer Form facility header fields and multi-pregnancies/known-HIV field</comment>
+        <addColumn tableName="maternity_transfers">
+            <column name="province" type="varchar(255)"/>
+            <column name="district" type="varchar(255)"/>
+            <column name="hospital_name" type="varchar(255)"/>
+            <column name="referring_facility_name" type="varchar(255)"/>
+            <column name="referring_unit" type="varchar(255)"/>
+            <column name="multi_pregnancies_known_hiv" type="text"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="transferapp-20260828-maternity-hie-columns" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="maternity_transfers"/>
+                <not>
+                    <columnExists tableName="maternity_transfers" columnName="hie_sent"/>
+                </not>
+            </and>
+        </preConditions>
+        <comment>Add HIE submission tracking columns to maternity_transfers, matching transfers</comment>
+        <addColumn tableName="maternity_transfers">
+            <column name="hie_sent" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hie_sent_at" type="datetime"/>
+            <column name="hie_send_err" type="varchar(500)"/>
+            <column name="hie_transfer_id" type="varchar(64)"/>
+        </addColumn>
+        <createIndex tableName="maternity_transfers" indexName="maternity_transfers_hie_transfer_id_idx">
+            <column name="hie_transfer_id"/>
+        </createIndex>
     </changeSet>
 
 </databaseChangeLog>

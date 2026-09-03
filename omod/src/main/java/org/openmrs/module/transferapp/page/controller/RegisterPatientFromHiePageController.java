@@ -23,6 +23,7 @@ import org.openmrs.module.appui.UiSessionContext;
 import org.openmrs.module.transferapp.TransferAppActivator;
 import org.openmrs.module.transferapp.TransferPrivilegeHelper;
 import org.openmrs.module.transferapp.api.ClientRegistryRegistrationService;
+import org.openmrs.module.transferapp.api.HiePatientRegistrationValidator;
 import org.openmrs.module.transferapp.api.HiePatientRegistrationResult;
 import org.openmrs.module.uicommons.util.InfoErrorMessageUtil;
 import org.openmrs.ui.framework.UiUtils;
@@ -63,6 +64,8 @@ public class RegisterPatientFromHiePageController {
 			}
 
 			model.addAttribute("patientDetails", patientDetails);
+			model.addAttribute("canConfirmRegistration",
+					HiePatientRegistrationValidator.hasRequiredDemographics(patientDetails));
 			model.addAttribute("upidIdentifierTypeUuid",
 					clientRegistryRegistrationService.getUpidIdentifierTypeUuid());
 			model.addAttribute("upid", normalizedUpid);

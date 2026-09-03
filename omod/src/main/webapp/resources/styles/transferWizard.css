@@ -151,6 +151,11 @@
   font-size: 0.72rem;
 }
 
+.transfer-wizard-progress-7 li {
+  font-size: 0.68rem;
+  padding: 0.85rem 0.6rem;
+}
+
 .transfer-wizard-step-num {
   display: inline-flex;
   align-items: center;
@@ -219,6 +224,12 @@
 .transfer-wizard-row-three-col {
   display: grid !important;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.transfer-wizard-row-two-col {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -519,6 +530,30 @@
 }
 
 #new-transfer-out-dialog .select2-dropdown {
+  z-index: 10051 !important;
+}
+
+#new-maternity-transfer-out-dialog .flatpickr-calendar {
+  z-index: 10052 !important;
+}
+
+#new-maternity-transfer-out-dialog .select2-container {
+  z-index: 10050 !important;
+}
+
+#new-maternity-transfer-out-dialog .select2-dropdown {
+  z-index: 10051 !important;
+}
+
+#new-neonatal-transfer-out-dialog .flatpickr-calendar {
+  z-index: 10052 !important;
+}
+
+#new-neonatal-transfer-out-dialog .select2-container {
+  z-index: 10050 !important;
+}
+
+#new-neonatal-transfer-out-dialog .select2-dropdown {
   z-index: 10051 !important;
 }
 

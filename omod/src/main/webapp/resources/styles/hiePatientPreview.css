@@ -133,6 +133,23 @@
   font-size: 15px;
 }
 
+.transfer-hie-preview-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 12px 14px;
+  border-left: 4px solid #b7791f;
+  background: #fff8e6;
+  color: #744210;
+  line-height: 1.45;
+}
+
+.transfer-hie-preview-warning i {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
 .transfer-hie-preview-actions {
   display: flex;
   align-items: center;

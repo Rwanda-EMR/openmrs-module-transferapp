@@ -31,12 +31,8 @@ public class HieConnectionResolver {
 			return new HieBasicConnection(normalizeBaseUrl(primaryUrl), primaryUsername, primaryPassword);
 		}
 
-		String fallbackUrl = StringUtils.trimToNull(adminService.getGlobalProperty(
-				TransferAppConstants.GP_HIE_URL,
-				TransferAppConstants.DEFAULT_HIE_URL));
-		String fallbackUsername = StringUtils.trimToNull(adminService.getGlobalProperty(
-				TransferAppConstants.GP_HIE_USERNAME,
-				TransferAppConstants.DEFAULT_HIE_USERNAME));
+		String fallbackUrl = StringUtils.trimToNull(adminService.getGlobalProperty(TransferAppConstants.GP_HIE_URL));
+		String fallbackUsername = StringUtils.trimToNull(adminService.getGlobalProperty(TransferAppConstants.GP_HIE_USERNAME));
 		String fallbackPassword = StringUtils.trimToNull(adminService.getGlobalProperty(TransferAppConstants.GP_HIE_PASSWORD));
 
 		if (!isComplete(fallbackUrl, fallbackUsername, fallbackPassword)) {

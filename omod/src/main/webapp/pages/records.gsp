@@ -86,6 +86,15 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "recor
                 <% } } %>
             </select>
         </div>
+        <div class="transfer-records-filter-field transfer-records-filter-field-formtype">
+            <label for="records-filter-form-type">${ ui.message("transferapp.records.filter.formType") }</label>
+            <select id="records-filter-form-type" name="formType" class="transfer-records-formtype-select">
+                <option value="" <% if (filterFormType == null || filterFormType.length() == 0) { %>selected="selected"<% } %>>${ ui.message("transferapp.records.filter.formType.all") }</option>
+                <option value="External" <% if (filterFormType == "External") { %>selected="selected"<% } %>>${ ui.message("transferapp.records.filter.formType.external") }</option>
+                <option value="Maternity" <% if (filterFormType == "Maternity") { %>selected="selected"<% } %>>${ ui.message("transferapp.records.filter.formType.maternity") }</option>
+                <option value="Neonatal" <% if (filterFormType == "Neonatal") { %>selected="selected"<% } %>>${ ui.message("transferapp.records.filter.formType.neonatal") }</option>
+            </select>
+        </div>
         <div class="transfer-records-filter-actions">
             <button type="submit" id="records-filter-apply" class="confirm">
                 ${ ui.message("transferapp.records.filter.apply") }
@@ -98,7 +107,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "recor
 <p class="transfer-records-patient-filter">
     ${ ui.message("transferapp.records.filteredByPatient") }:
     <strong>${ ui.encodeHtmlContent(filteredPatientName) }</strong>
-    <a href="${ ui.pageLink('transferapp', 'records') }?app=${ ui.encodeHtmlAttribute(appId) }&amp;startDate=${ ui.encodeHtmlAttribute(filterStartDate ?: '') }&amp;endDate=${ ui.encodeHtmlAttribute(filterEndDate ?: '') }<% if (filterReceivingFacilityCode != null && filterReceivingFacilityCode.length() > 0) { %>&amp;receivingFacilityCode=${ ui.encodeHtmlAttribute(filterReceivingFacilityCode) }<% } %>">
+    <a href="${ ui.pageLink('transferapp', 'records') }?app=${ ui.encodeHtmlAttribute(appId) }&amp;startDate=${ ui.encodeHtmlAttribute(filterStartDate ?: '') }&amp;endDate=${ ui.encodeHtmlAttribute(filterEndDate ?: '') }<% if (filterReceivingFacilityCode != null && filterReceivingFacilityCode.length() > 0) { %>&amp;receivingFacilityCode=${ ui.encodeHtmlAttribute(filterReceivingFacilityCode) }<% } %><% if (filterFormType != null && filterFormType.length() > 0) { %>&amp;formType=${ ui.encodeHtmlAttribute(filterFormType) }<% } %>">
         ${ ui.message("transferapp.records.clearFilter") }
     </a>
 </p>
@@ -136,6 +145,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "recor
                 <th>${ ui.message("transferapp.records.column.emrId") }</th>
                 <th>${ ui.message("transferapp.records.column.to") }</th>
                 <th>${ ui.message("transferapp.patient.transfers.column.service") }</th>
+                <th>${ ui.message("transferapp.records.column.formType") }</th>
                 <th>${ ui.message("transferapp.patient.transfers.column.status") }</th>
                 <th>${ ui.message("transferapp.patient.transfers.column.action") }</th>
             </tr>
@@ -144,12 +154,14 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "recor
             <% records.each { record -> %>
             <tr class="transfer-row${ record.hieSent ? ' transfer-row-sent' : '' }"
                 data-transfer-id="${ ui.encodeHtmlAttribute(record.id) }"
-                data-uuid="${ ui.encodeHtmlAttribute(record.id) }">
+                data-uuid="${ ui.encodeHtmlAttribute(record.id) }"
+                data-form-type="${ ui.encodeHtmlAttribute(record.formType) }">
                 <td>${ ui.format(record.transferDate) }</td>
                 <td>${ ui.format(record.clientName) }</td>
                 <td>${ ui.format(record.emrId) }</td>
                 <td>${ ui.format(record.receivingFacility) }</td>
                 <td>${ ui.format(record.service) }</td>
+                <td>${ ui.format(record.formType) }</td>
                 <td>
                     <% if (record.hieSent) { %>
                         <span class="transfer-status-sent">${ ui.message("transferapp.patient.transfers.statusSent") }</span>
@@ -161,7 +173,8 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "recor
                     <a class="transfer-view-link"
                        href="#"
                        data-transfer-id="${ ui.encodeHtmlAttribute(record.id) }"
-                       data-uuid="${ ui.encodeHtmlAttribute(record.id) }">
+                       data-uuid="${ ui.encodeHtmlAttribute(record.id) }"
+                       data-form-type="${ ui.encodeHtmlAttribute(record.formType) }">
                         <i class="icon-share-alt"></i> ${ ui.message("transferapp.patient.transfers.view") }
                     </a>
                     <% if (canCreateTransfer && record.patientId != null) { %>

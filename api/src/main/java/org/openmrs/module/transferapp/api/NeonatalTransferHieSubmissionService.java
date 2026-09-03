@@ -15,26 +15,13 @@ package org.openmrs.module.transferapp.api;
 
 import org.openmrs.annotation.Authorized;
 import org.openmrs.module.transferapp.TransferAppActivator;
-import org.openmrs.module.transferapp.model.FacilityTransferRecordItem;
+import org.openmrs.module.transferapp.model.NeonatalTransfer;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Date;
-import java.util.List;
-
 @Transactional
-public interface FacilityTransferRecordsService {
+public interface NeonatalTransferHieSubmissionService {
 
-	@Authorized(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
-	@Transactional(readOnly = true)
-	List<FacilityTransferRecordItem> getOutboundTransferRecords(Integer patientId, Date startDate, Date endDate,
-			String receivingFacilityCode);
-
-	/**
-	 * @param formType optional filter — "External", "Maternity", or null/blank for both
-	 */
-	@Authorized(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
-	@Transactional(readOnly = true)
-	List<FacilityTransferRecordItem> getOutboundTransferRecords(Integer patientId, Date startDate, Date endDate,
-			String receivingFacilityCode, String formType);
+	@Authorized(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
+	NeonatalTransfer submitNeonatalTransferToHie(String transferUuid);
 
 }

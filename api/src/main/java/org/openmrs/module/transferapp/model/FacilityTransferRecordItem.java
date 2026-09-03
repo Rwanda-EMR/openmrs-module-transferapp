@@ -36,6 +36,9 @@ public class FacilityTransferRecordItem {
 
 	private boolean hieSent;
 
+	/** "External" or "Maternity" — which transfer form produced this row. */
+	private String formType;
+
 	public String getId() {
 		return id;
 	}
@@ -98,6 +101,14 @@ public class FacilityTransferRecordItem {
 
 	public void setHieSent(boolean hieSent) {
 		this.hieSent = hieSent;
+	}
+
+	public String getFormType() {
+		return formType;
+	}
+
+	public void setFormType(String formType) {
+		this.formType = formType;
 	}
 
 }

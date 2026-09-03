@@ -13,28 +13,24 @@
  */
 package org.openmrs.module.transferapp.api;
 
+import org.openmrs.Patient;
 import org.openmrs.annotation.Authorized;
 import org.openmrs.module.transferapp.TransferAppActivator;
-import org.openmrs.module.transferapp.model.FacilityTransferRecordItem;
+import org.openmrs.module.transferapp.model.MaternityTransferFormData;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Date;
-import java.util.List;
-
+/**
+ * Provides data for the new Maternity/ANC-Delivery-PNC transfer out form.
+ */
 @Transactional
-public interface FacilityTransferRecordsService {
+public interface NewMaternityTransferOutService {
 
-	@Authorized(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
+	@Authorized(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
 	@Transactional(readOnly = true)
-	List<FacilityTransferRecordItem> getOutboundTransferRecords(Integer patientId, Date startDate, Date endDate,
-			String receivingFacilityCode);
+	MaternityTransferFormData getMaternityTransferFormData(Patient patient);
 
-	/**
-	 * @param formType optional filter — "External", "Maternity", or null/blank for both
-	 */
-	@Authorized(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
+	@Authorized(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
 	@Transactional(readOnly = true)
-	List<FacilityTransferRecordItem> getOutboundTransferRecords(Integer patientId, Date startDate, Date endDate,
-			String receivingFacilityCode, String formType);
+	MaternityTransferFormData getMaternityTransferFormData(Patient patient, String transferUuid);
 
 }

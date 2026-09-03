@@ -34,6 +34,8 @@ public class PatientTransferListItem {
 
 	private boolean hieSent;
 
+	private String formType = "External";
+
 	public String getId() {
 		return id;
 	}
@@ -88,6 +90,14 @@ public class PatientTransferListItem {
 
 	public void setHieSent(boolean hieSent) {
 		this.hieSent = hieSent;
+	}
+
+	public String getFormType() {
+		return formType;
+	}
+
+	public void setFormType(String formType) {
+		this.formType = formType;
 	}
 
 }

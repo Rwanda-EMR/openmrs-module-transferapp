@@ -417,18 +417,6 @@
 		return buildExternalTransferFormPreviewHtml(p);
 	}
 
-	function buildMaternityTransferFormPreviewHtml(p) {
-		return buildExternalTransferFormPreviewHtml(p, {
-			unsupportedNotice: "Maternity transfer form preview is not fully implemented yet. Showing external transfer layout."
-		});
-	}
-
-	function buildNeonatalTransferFormPreviewHtml(p) {
-		return buildExternalTransferFormPreviewHtml(p, {
-			unsupportedNotice: "Neonatal transfer form preview is not fully implemented yet. Showing external transfer layout."
-		});
-	}
-
 	function buildExternalTransferFormPreviewHtml(itemOrNormalized, options) {
 		var p = itemOrNormalized && itemOrNormalized.formKind
 			? itemOrNormalized
@@ -556,6 +544,358 @@
 			+ "</div></div>";
 	}
 
+	function yesNo(flag) {
+		return flag ? "Yes" : "No";
+	}
+
+	function buildMaternityTreatmentTableHtml(treatments) {
+		if (!treatments || !treatments.length) {
+			return "<div class='tf-row'><em>No treatments recorded.</em></div>";
+		}
+		var rows = "";
+		for (var i = 0; i < treatments.length; i++) {
+			var t = treatments[i] || {};
+			rows += "<tr>"
+				+ "<td style='padding:3px 8px;border:1px solid #ccc;'>" + escTransferPreview(t.treatmentName) + "</td>"
+				+ "<td style='padding:3px 8px;border:1px solid #ccc;'>" + escTransferPreview(t.dose) + "</td>"
+				+ "<td style='padding:3px 8px;border:1px solid #ccc;'>" + escTransferPreview(t.givenDate) + "</td>"
+				+ "<td style='padding:3px 8px;border:1px solid #ccc;'>" + escTransferPreview(t.givenTime) + "</td>"
+				+ "</tr>";
+		}
+		return "<table style='border-collapse:collapse;width:100%;margin:6px 0;font-size:12px;'>"
+			+ "<thead><tr>"
+			+ "<th style='padding:3px 8px;border:1px solid #ccc;text-align:left;'>Treatment</th>"
+			+ "<th style='padding:3px 8px;border:1px solid #ccc;text-align:left;'>Dose</th>"
+			+ "<th style='padding:3px 8px;border:1px solid #ccc;text-align:left;'>Date</th>"
+			+ "<th style='padding:3px 8px;border:1px solid #ccc;text-align:left;'>Time</th>"
+			+ "</tr></thead><tbody>" + rows + "</tbody></table>";
+	}
+
+	/**
+	 * Builds the print/preview HTML for a Maternity/ANC-Delivery-PNC transfer, the sibling
+	 * of buildTransferFormPreviewHtml() for the External Transfer form. Field names match
+	 * TransferSaveController#toMaternityPreviewMap.
+	 */
+	function buildMaternityTransferFormPreviewHtml(item) {
+		var p = item || {};
+		var logoUri = global.transferMohLogoDataUri || "";
+		var logoHtml = logoUri
+			? "<img class='tf-moh-logo' src='" + logoUri + "' alt='Ministry of Health' />"
+			: "";
+
+		var treatmentsHtml = buildMaternityTreatmentTableHtml(p.treatments);
+
+		return "<div class='transfer-form-preview'><div class='tf-sheet'>"
+			+ "<div class='tf-head'>"
+			+ "<div class='tf-left'>"
+			+ "<div class='tf-row'><strong>REPUBLIC OF RWANDA</strong></div>"
+			+ "<div class='tf-row'>" + logoHtml + "</div>"
+			+ "<div class='tf-row' style='margin-top: 22px;'><strong>MINISTRY OF HEALTH</strong></div>"
+			+ "</div>"
+			+ "<div class='tf-right'>"
+			+ "<div class='tf-row'><strong>Province:</strong>" + line(p.province, 180) + "</div>"
+			+ "<div class='tf-row'><strong>District:</strong>" + line(p.district, 180) + "</div>"
+			+ "<div class='tf-row'><strong>Name of Hospital:</strong>" + line(p.hospitalName, 230) + "</div>"
+			+ "<div class='tf-row'><strong>Name of Referring Facility:</strong>" + line(p.referringFacilityName, 172) + "</div>"
+			+ "<div class='tf-row'><strong>Referring Unit:</strong>" + line(p.referringUnit, 172) + "</div>"
+			+ "</div>"
+			+ "</div>"
+
+			+ "<div class='tf-title'>MATERNITY TRANSFER FORM</div>"
+			+ "<div class='tf-section-title'>ANC / Delivery / PNC Transfer</div>"
+
+			+ "<div class='tf-row'><strong>Client Name:</strong> " + line(p.clientName, 280)
+			+ " <strong>UPID:</strong> " + line(p.serialNumberEmr, 220)
+			+ " <strong>Age(DOB):</strong> " + line(p.ageOrDob, 150) + "</div>"
+			+ "<div class='tf-row'><strong>Next of kin:</strong> " + line(p.nextOfKinName, 250)
+			+ " <strong>Telephone:</strong> " + line(p.nextOfKinTelephone, 180) + "</div>"
+			+ "<div class='tf-row'><strong>District:</strong> " + line(p.clientDistrict, 200)
+			+ " <strong>Sector:</strong> " + line(p.sector, 170)
+			+ " <strong>Cell:</strong> " + line(p.cell, 210)
+			+ " <strong>Village:</strong> " + line(p.village, 190) + "</div>"
+
+			+ "<div class='tf-row'><strong>Date and time of Admission:</strong> " + line(p.admissionAt, 280)
+			+ " <strong>Date and Time of decision to transfer:</strong> " + line(p.decisionToTransferAt, 240) + "</div>"
+			+ "<div class='tf-row'><strong>Receiving Facility:</strong> " + line(p.receivingFacility, 240)
+			+ " <strong>Receiving Service:</strong> " + line(p.receivingService, 250)
+			+ " <strong>Calling Time:</strong> " + line(p.callingTime, 140) + "</div>"
+			+ "<div class='tf-row'><strong>Staff contacted at receiving facility:</strong> " + line(p.staffContactedName, 320)
+			+ " <strong>Phone:</strong> " + line(p.staffContactedPhone, 260) + "</div>"
+
+			+ "<div class='tf-row'><strong>Type of transfer:</strong>"
+			+ " Emergency:<span class='tf-circle'>" + yesNoCircle(truthy(p.isEmergency)) + "</span>"
+			+ " Not-Emergency:<span class='tf-circle'>" + yesNoCircle(truthy(p.isNonEmergency)) + "</span>"
+			+ " Follow up:<span class='tf-circle'>" + yesNoCircle(truthy(p.isFollowUp)) + "</span></div>"
+			+ "<div class='tf-row'><strong>If emergency:</strong> Time ambulance called: " + line(p.ambulanceCalledTime, 200)
+			+ " Time of departure from referring facility: " + line(p.departureFromReferringTime, 250) + "</div>"
+			+ "<div class='tf-row'><strong>Reason for Transfer:</strong> " + line(p.reasonForTransfer, 830) + "</div>"
+			+ "<div class='tf-row'><strong>Partograph attached:</strong> " + yesNo(truthy(p.partographAttached))
+			+ " <strong>Disability type:</strong> " + line(p.disabilityType, 400) + "</div>"
+			+ "<div class='tf-row'><strong>Clinical Presentation:</strong> " + line(p.clinicalPresentation, 780) + "</div>"
+
+			+ "<div class='tf-section-title'>Obstetric History</div>"
+			+ "<div class='tf-row'>"
+			+ "<strong>Gravida:</strong>" + line(p.obstetricGravida, 60)
+			+ " <strong>Parity:</strong>" + line(p.obstetricParity, 60)
+			+ " <strong>Living children:</strong>" + line(p.obstetricLivingChildren, 60)
+			+ " <strong>Abortion:</strong>" + line(p.obstetricAbortion, 60)
+			+ " <strong>Stillbirth:</strong>" + line(p.obstetricStillbirth, 60)
+			+ " <strong>Neonatal death:</strong>" + line(p.obstetricNeonatalDeath, 60)
+			+ " <strong>Preterm birth:</strong>" + line(p.obstetricPretermBirth, 60) + "</div>"
+
+			+ "<div class='tf-section-title'>Current Pregnancy</div>"
+			+ "<div class='tf-row'><strong>LMP:</strong>" + line(p.lmpDate, 120)
+			+ " <strong>EDD:</strong>" + line(p.eddDate, 120)
+			+ " <strong>Gestation age:</strong>" + line(p.gestationAge, 120)
+			+ " <strong>MUAC:</strong>" + line(p.muac, 90)
+			+ " <strong>ANC visits:</strong>" + line(p.ancCompletedCount, 90)
+			+ " <strong>Tetanus doses:</strong>" + line(p.tetanusVaccineDoses, 90) + "</div>"
+			+ "<div class='tf-row'><strong>Previous significant history:</strong> " + line(p.previousSignificantHistory, 780) + "</div>"
+			+ "<div class='tf-row'><strong>Multi pregnancies and known HIV:</strong> " + line(p.multiPregnanciesAndKnownHiv, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Current pregnancy complications:</strong> " + line(p.currentPregnancyComplications, 700) + "</div>"
+
+			+ "<div class='tf-section-title'>Latest Results</div>"
+			+ "<div class='tf-row'><strong>Hemoglobin:</strong>" + line(p.latestHemoglobin, 90)
+			+ " <strong>HIV status:</strong>" + line(p.latestHivStatus, 90)
+			+ " <strong>Blood group:</strong>" + line(p.latestBloodGroup, 90)
+			+ " <strong>Other results:</strong>" + line(p.latestOtherResults, 400) + "</div>"
+
+			+ "<div class='tf-row'><strong>Vital Signs:</strong>"
+			+ " BP:" + line(p.vitalBp, 90)
+			+ " T&#176;:" + line(p.vitalTemp, 70)
+			+ " SpO<sub>2</sub>:" + line(p.vitalSpo2, 70)
+			+ " RR:" + line(p.vitalRr, 70)
+			+ " Pulse:" + line(p.vitalPulse, 70)
+			+ " Weight:" + line(p.vitalWeight, 80)
+			+ " Height:" + line(p.vitalHeight, 80) + "</div>"
+
+			+ "<div class='tf-section-title'>Abdominal &amp; Vaginal Exam</div>"
+			+ "<div class='tf-row'><strong>Fetal presentation:</strong>" + line(p.fetalPresentation, 150)
+			+ " <strong>Fundal height:</strong>" + line(p.fundalHeight, 120)
+			+ " <strong>Fetal heart rate:</strong>" + line(p.fetalHeartRate, 120)
+			+ " <strong>Contractions:</strong>" + line(p.contractions, 150) + "</div>"
+			+ "<div class='tf-row'><strong>Vaginal exam at:</strong>" + line(p.vaginalExamAt, 200)
+			+ " <strong>Dilation:</strong>" + line(p.dilation, 70)
+			+ " <strong>Effacement:</strong>" + line(p.effacement, 70)
+			+ " <strong>Descent:</strong>" + line(p.descent, 70)
+			+ " <strong>Consistency:</strong>" + line(p.consistency, 100)
+			+ " <strong>Position:</strong>" + line(p.position, 100) + "</div>"
+			+ "<div class='tf-row'>"
+			+ "Caput:<span class='tf-circle'>" + yesNoCircle(truthy(p.caput)) + "</span>"
+			+ " Moulding:<span class='tf-circle'>" + yesNoCircle(truthy(p.moulding)) + "</span>"
+			+ " Membranes ruptured:<span class='tf-circle'>" + yesNoCircle(truthy(p.membranesRuptured)) + "</span>"
+			+ " at " + line(p.membranesRupturedAt, 180) + "</div>"
+			+ "<div class='tf-row'><strong>Amniotic fluid color:</strong>" + line(p.amnioticFluidColor, 150)
+			+ " <strong>Estimated blood loss (mL):</strong>" + line(p.estimatedBloodLossMl, 120) + "</div>"
+
+			+ "<div class='tf-section-title'>Investigations &amp; Diagnosis</div>"
+			+ "<div class='tf-row'><strong>HGB:</strong>" + line(p.investigationHgb, 90)
+			+ " <strong>Urine test:</strong>" + line(p.investigationUrineTest, 150)
+			+ " <strong>Other test:</strong>" + line(p.investigationOtherTest, 150) + "</div>"
+			+ "<div class='tf-row'><strong>Imaging investigations:</strong> " + line(p.imagingInvestigations, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Diagnosis:</strong> " + line(p.diagnosis, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Procedures:</strong> " + line(p.procedures, 700) + "</div>"
+			+ "<div class='tf-row'>"
+			+ "Lab tests attached:<span class='tf-circle'>" + yesNoCircle(truthy(p.attachedLabTests)) + "</span>"
+			+ " Imaging attached:<span class='tf-circle'>" + yesNoCircle(truthy(p.attachedImaging)) + "</span>"
+			+ " <strong>Other:</strong>" + line(p.attachedOther, 250) + "</div>"
+
+			+ "<div class='tf-section-title'>Treatment Given</div>"
+			+ treatmentsHtml
+
+			+ "<div class='tf-row'><strong>Type of Transportation:</strong>"
+			+ " Ambulance:<span class='tf-circle'>" + yesNoCircle(truthy(p.isAmbulanceTransport)) + "</span>"
+			+ " Other (specify):" + line(p.transportationOtherSpec, 230)
+			+ " NA:<span class='tf-circle'>" + yesNoCircle(truthy(p.isNaTransport)) + "</span></div>"
+			+ "<div class='tf-row'><strong>Health insurance:</strong>"
+			+ " CBHI (mutuelle):<span class='tf-circle'>" + yesNoCircle(truthy(p.isCbhiInsurance)) + "</span>"
+			+ " RSSB:<span class='tf-circle'>" + yesNoCircle(truthy(p.isRssbInsurance)) + "</span>"
+			+ " MMI:<span class='tf-circle'>" + yesNoCircle(truthy(p.isMmiInsurance)) + "</span>"
+			+ " Other (Specify):" + line(p.healthInsuranceOtherSpec, 120)
+			+ " None:<span class='tf-circle'>" + yesNoCircle(truthy(p.isNoInsurance)) + "</span></div>"
+
+			+ "<div class='tf-row tf-bottom-gap'><strong>Names of referring health care provider:</strong> " + line(p.referringProviderName, 220)
+			+ " <strong>Qualification:</strong> " + line(p.referringProviderQualification, 160) + "</div>"
+			+ "<div class='tf-row tf-signature-row'><strong>Date:</strong> " + line(p.referringSignedDate, 120)
+			+ " <strong>Time:</strong> " + line(p.referringSignedTime, 120)
+			+ " <strong>Phone:</strong> " + line(p.referringProviderPhone, 180) + "</div>"
+
+			+ "</div></div>";
+	}
+
+	/**
+	 * Builds the print/preview HTML for a Neonatal transfer, the sibling of
+	 * buildTransferFormPreviewHtml()/buildMaternityTransferFormPreviewHtml() for the
+	 * Neonatal Transfer form. Field names match TransferSaveController#toNeonatalPreviewMap.
+	 */
+	function buildNeonatalTransferFormPreviewHtml(item) {
+		var p = item || {};
+		var logoUri = global.transferMohLogoDataUri || "";
+		var logoHtml = logoUri
+			? "<img class='tf-moh-logo' src='" + logoUri + "' alt='Ministry of Health' />"
+			: "";
+
+		return "<div class='transfer-form-preview'><div class='tf-sheet'>"
+			+ "<div class='tf-head'>"
+			+ "<div class='tf-left'>"
+			+ "<div class='tf-row'><strong>REPUBLIC OF RWANDA</strong></div>"
+			+ "<div class='tf-row'>" + logoHtml + "</div>"
+			+ "<div class='tf-row' style='margin-top: 22px;'><strong>MINISTRY OF HEALTH</strong></div>"
+			+ "</div>"
+			+ "<div class='tf-right'>"
+			+ "<div class='tf-row'><strong>Province:</strong>" + line(p.province, 180) + "</div>"
+			+ "<div class='tf-row'><strong>District:</strong>" + line(p.district, 180) + "</div>"
+			+ "<div class='tf-row'><strong>Name of Hospital:</strong>" + line(p.hospitalName, 230) + "</div>"
+			+ "<div class='tf-row'><strong>Name of Referring Facility:</strong>" + line(p.referringFacilityName, 172) + "</div>"
+			+ "<div class='tf-row'><strong>Referring Unit:</strong>" + line(p.referringUnit, 172) + "</div>"
+			+ "</div>"
+			+ "</div>"
+
+			+ "<div class='tf-title'>NEONATAL TRANSFER FORM</div>"
+
+			+ "<div class='tf-section-title'>Baby &amp; Referral Info</div>"
+			+ "<div class='tf-row'><strong>Baby Name:</strong> " + line(p.babyName, 260)
+			+ " <strong>Sex:</strong> " + line(p.sex, 90)
+			+ " <strong>DOB:</strong> " + line(p.dob, 150) + "</div>"
+			+ "<div class='tf-row'><strong>Gestational age (wks):</strong>" + line(p.gestationalAgeWeeks, 90)
+			+ " <strong>Birth weight (g):</strong>" + line(p.birthWeightG, 100)
+			+ " <strong>Current weight (g):</strong>" + line(p.currentWeightG, 110)
+			+ " <strong>Current age (days):</strong>" + line(p.currentAgeDays, 110) + "</div>"
+			+ "<div class='tf-row'><strong>Mother Name:</strong> " + line(p.motherName, 260)
+			+ " <strong>Mother Age:</strong> " + line(p.motherAge, 90)
+			+ " <strong>Mother/Caregiver Phone:</strong> " + line(p.motherCaregiverPhone, 180) + "</div>"
+			+ "<div class='tf-row'><strong>Place of Birth:</strong> " + line(p.placeOfBirth, 300) + "</div>"
+			+ "<div class='tf-row'><strong>Receiving Facility:</strong> " + line(p.receivingFacility, 240)
+			+ " <strong>Receiving Service:</strong> " + line(p.receivingService, 250)
+			+ " <strong>Calling Time:</strong> " + line(p.callingTime, 140) + "</div>"
+			+ "<div class='tf-row'><strong>Staff contacted at receiving facility:</strong> " + line(p.staffContactedName, 320)
+			+ " <strong>Phone:</strong> " + line(p.staffContactedPhone, 260) + "</div>"
+			+ "<div class='tf-row'><strong>Date and Time of decision to transfer:</strong> " + line(p.decisionToTransferAt, 280) + "</div>"
+			+ "<div class='tf-row'><strong>Type of transfer:</strong>"
+			+ " Emergency:<span class='tf-circle'>" + yesNoCircle(truthy(p.isEmergency)) + "</span>"
+			+ " Not-Emergency:<span class='tf-circle'>" + yesNoCircle(truthy(p.isNonEmergency)) + "</span>"
+			+ " Follow up:<span class='tf-circle'>" + yesNoCircle(truthy(p.isFollowUp)) + "</span></div>"
+			+ "<div class='tf-row'><strong>Mode of transport:</strong>" + line(p.modeOfTransport, 150)
+			+ " <strong>Other (specify):</strong>" + line(p.transportOther, 230) + "</div>"
+			+ "<div class='tf-row'><strong>Reason for Transfer:</strong> " + line(p.reasonForTransfer, 830) + "</div>"
+
+			+ "<div class='tf-section-title'>Maternal History</div>"
+			+ "<div class='tf-row'><strong>Mother alive:</strong>" + line(p.motherAlive, 120)
+			+ " <strong>Gravida:</strong>" + line(p.obstetricGravida, 60)
+			+ " <strong>Parity:</strong>" + line(p.obstetricParity, 60)
+			+ " <strong>Pregnancy type:</strong>" + line(p.pregnancyType, 120) + "</div>"
+			+ "<div class='tf-row'><strong>ANC screening:</strong> " + line(p.ancScreening, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Pathologies during pregnancy:</strong> " + line(p.pathologiesDuringPregnancy, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Infections / other pathologies:</strong> " + line(p.pregnancyOtherPathologies, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Pregnancy treatment:</strong> " + line(p.pregnancyTreatment, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Blood group:</strong>" + line(p.bloodGroup, 90)
+			+ " <strong>Rh factor:</strong>" + line(p.rhFactor, 90)
+			+ " <strong>Tetanus doses:</strong>" + line(p.tetanusVaccineDoses, 90) + "</div>"
+			+ "<div class='tf-row'><strong>HIV status:</strong>" + line(p.hivStatus, 100)
+			+ " <strong>Regimen:</strong>" + line(p.hivRegimen, 150)
+			+ " <strong>Recent VL:</strong>" + line(p.hivRecentVl, 100)
+			+ " <strong>CD4 count:</strong>" + line(p.hivCd4Count, 100) + "</div>"
+			+ "<div class='tf-row'><strong>Opportunistic infections:</strong> " + line(p.hivOpportunisticInfections, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Illicit drug history:</strong> " + line(p.maternalIllicitDrugHistory, 700) + "</div>"
+
+			+ "<div class='tf-section-title'>Labor Details</div>"
+			+ "<div class='tf-row'><strong>ROM at:</strong>" + line(p.romAt, 200)
+			+ " <strong>AF quality:</strong>" + line(p.afQuality, 120)
+			+ " <strong>AF quantity:</strong>" + line(p.afQuantity, 120)
+			+ " <strong>Fever timing:</strong>" + line(p.feverTiming, 150) + "</div>"
+			+ "<div class='tf-row'><strong>Steroid doses:</strong>" + line(p.steroidDoses, 100)
+			+ " <strong>Last steroid dose at:</strong>" + line(p.lastSteroidDoseAt, 200)
+			+ " <strong>MgSO4 at:</strong>" + line(p.mgso4At, 200) + "</div>"
+			+ "<div class='tf-row'><strong>Mode of delivery:</strong>" + line(p.modeOfDelivery, 150)
+			+ " <strong>Labor complications:</strong>" + line(p.laborComplications, 200)
+			+ " <strong>Other:</strong>" + line(p.laborComplicationsOther, 200) + "</div>"
+			+ "<div class='tf-row'><strong>Maternal anesthesia:</strong>" + line(p.maternalAnesthesia, 150)
+			+ " <strong>Other:</strong>" + line(p.maternalAnesthesiaOther, 200) + "</div>"
+			+ "<div class='tf-row'><strong>Maternal antibiotics:</strong> " + line(p.maternalAntibiotics, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Other drugs:</strong> " + line(p.otherDrugs, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Sepsis risk factors:</strong> " + line(p.sepsisRiskFactors, 700) + "</div>"
+
+			+ "<div class='tf-section-title'>Neonatal History &amp; Drugs</div>"
+			+ "<div class='tf-row'><strong>Resuscitation at birth:</strong>" + line(p.resuscitationAtBirth, 120)
+			+ " <strong>APGAR 1/5/10 min:</strong>" + line(p.apgar1min, 50) + line(p.apgar5min, 50) + line(p.apgar10min, 50) + "</div>"
+			+ "<div class='tf-row'><strong>Resuscitation methods:</strong> " + line(p.resuscitationMethods, 700) + "</div>"
+			+ "<div class='tf-row'><strong>HIE:</strong>" + line(p.hie, 90)
+			+ " <strong>HIE grade:</strong>" + line(p.hieGrade, 90)
+			+ " <strong>Allergies:</strong>" + line(p.allergies, 250) + "</div>"
+			+ "<div class='tf-row'><strong>Immunization:</strong>" + line(p.immunization, 90)
+			+ " <strong>Vitamin K:</strong>" + line(p.vitaminK, 90)
+			+ " <strong>Tetracycline eye ointment:</strong>" + line(p.tetracyclineEyeOintment, 90)
+			+ " <strong>Surfactant:</strong>" + line(p.surfactant, 90) + "</div>"
+			+ "<div class='tf-row'><strong>Immunization details:</strong> " + line(p.immunizationDetails, 700) + "</div>"
+
+			+ "<div class='tf-section-title'>Chief Complaint &amp; Diagnoses</div>"
+			+ "<div class='tf-row'><strong>Chief complaint:</strong> " + line(p.chiefComplaintDetails, 780) + "</div>"
+			+ "<div class='tf-row'><strong>Clinical condition:</strong>"
+			+ " SpO2 pre:" + line(p.spo2Preductal, 70)
+			+ " SpO2 post:" + line(p.spo2Postductal, 70)
+			+ " T&#176;:" + line(p.conditionTemp, 70)
+			+ " HR:" + line(p.conditionHr, 70)
+			+ " RR:" + line(p.conditionRr, 70)
+			+ " BP:" + line(p.conditionBp, 90)
+			+ " Neuro:" + line(p.neurologicalStatus, 120) + "</div>"
+			+ "<div class='tf-row'>Seizures:<span class='tf-circle'>" + yesNoCircle(truthy(p.seizures)) + "</span></div>"
+			+ "<div class='tf-row'><strong>Adverse events (24h):</strong> " + line(p.adverseEvents24h, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Diagnoses:</strong> "
+			+ line(p.diagnosis1, 190) + line(p.diagnosis2, 190) + line(p.diagnosis3, 190) + line(p.diagnosis4, 190) + "</div>"
+
+			+ "<div class='tf-section-title'>Management at Referring Facility</div>"
+			+ "<div class='tf-row'><strong>Respiratory support:</strong>" + line(p.respiratorySupport, 150)
+			+ " <strong>Blood gas analysis:</strong>" + line(p.bloodGasAnalysis, 90)
+			+ " <strong>IV fluid vol:</strong>" + line(p.ivFluidVol, 100)
+			+ " <strong>Passed urine:</strong>" + line(p.passedUrine, 100) + "</div>"
+			+ "<div class='tf-row'><strong>Ventilation settings:</strong> " + line(p.ventilationSettings, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Inotropes:</strong>" + line(p.inotropes, 150)
+			+ " <strong>Specify:</strong>" + line(p.inotropesSpecify, 200)
+			+ " <strong>Peripheral IV:</strong>" + line(p.peripheralIv, 90)
+			+ " <strong>Central IV:</strong>" + line(p.centralIv, 90)
+			+ " <strong>Intraosseous line:</strong>" + line(p.intraosseousLine, 90) + "</div>"
+			+ "<div class='tf-row'><strong>Antibiotic 1:</strong>" + line(p.antibiotic1Name, 180)
+			+ " Dose:" + line(p.antibiotic1Doses, 100) + " Duration:" + line(p.antibiotic1Durations, 100) + "</div>"
+			+ "<div class='tf-row'><strong>Antibiotic 2:</strong>" + line(p.antibiotic2Name, 180)
+			+ " Dose:" + line(p.antibiotic2Doses, 100) + " Duration:" + line(p.antibiotic2Durations, 100) + "</div>"
+			+ "<div class='tf-row'><strong>ARVs:</strong> " + line(p.arvs, 400) + "</div>"
+			+ "<div class='tf-row'><strong>NPO:</strong>" + line(p.npo, 80)
+			+ " <strong>Last feed time:</strong>" + line(p.lastFeedTime, 100)
+			+ " <strong>Last feed amount:</strong>" + line(p.lastFeedAmount, 120)
+			+ " <strong>Feed volume:</strong>" + line(p.feedVol, 100)
+			+ " <strong>Feed type:</strong>" + line(p.feedType, 120) + "</div>"
+			+ "<div class='tf-row'><strong>Passed stool:</strong>" + line(p.passedStool, 90)
+			+ " <strong>Nasogastric tube:</strong>" + line(p.nasogastricTube, 90) + "</div>"
+			+ "<div class='tf-row'><strong>Latest labs:</strong>"
+			+ " Glucose:" + line(p.labGlucose, 80)
+			+ " FBC done:" + line(p.fbcDone, 60)
+			+ " Hb:" + line(p.labHb, 80)
+			+ " WBC:" + line(p.labWbc, 80)
+			+ " Platelets:" + line(p.labPlatelets, 90)
+			+ " CRP:" + line(p.labCrp, 80) + "</div>"
+			+ "<div class='tf-row'>"
+			+ " Bili total:" + line(p.labBiliTotal, 90)
+			+ " Bili direct:" + line(p.labBiliDirect, 90)
+			+ " U&amp;E:" + line(p.labUe, 100)
+			+ " Cultures:" + line(p.labCultures, 200) + "</div>"
+			+ "<div class='tf-row'><strong>Imaging results available:</strong>" + line(p.imagingResultsAvailable, 90) + "</div>"
+			+ "<div class='tf-row'><strong>Imaging results:</strong> " + line(p.imagingResults, 700) + "</div>"
+			+ "<div class='tf-row'><strong>Pain/sedation drugs:</strong> " + line(p.painSedationDrugs, 700) + "</div>"
+			+ "<div class='tf-row'>"
+			+ "Imaging report attached:<span class='tf-circle'>" + yesNoCircle(truthy(p.imagingReportAttached)) + "</span>"
+			+ " Lab reports attached:<span class='tf-circle'>" + yesNoCircle(truthy(p.labReportsAttached)) + "</span></div>"
+
+			+ "<div class='tf-section-title'>Summary &amp; Sign-off</div>"
+			+ "<div class='tf-row'><strong>Clinical management summary:</strong> " + line(p.clinicalManagementSummary, 830) + "</div>"
+			+ "<div class='tf-row tf-bottom-gap'><strong>Names of referring health care provider:</strong> " + line(p.referringProviderName, 220)
+			+ " <strong>Qualification:</strong> " + line(p.referringProviderQualification, 160) + "</div>"
+			+ "<div class='tf-row tf-signature-row'><strong>Date:</strong> " + line(p.referringSignedDate, 120)
+			+ " <strong>Time:</strong> " + line(p.referringSignedTime, 120)
+			+ " <strong>Phone:</strong> " + line(p.referringProviderPhone, 180) + "</div>"
+
+			+ "</div></div>";
+	}
+
 	/**
 	 * Opens a print window for the MOH transfer form so the user can Save as PDF.
 	 * @param {string|HTMLElement|jQuery} contentOrSelector preview HTML or a container with .transfer-form-preview
@@ -646,5 +986,7 @@
 	global.escTransferPreview = escTransferPreview;
 	global.enrichTransferPreviewData = enrichTransferPreviewData;
 	global.buildTransferFormPreviewHtml = buildTransferFormPreviewHtml;
+	global.buildMaternityTransferFormPreviewHtml = buildMaternityTransferFormPreviewHtml;
+	global.buildNeonatalTransferFormPreviewHtml = buildNeonatalTransferFormPreviewHtml;
 	global.exportTransferFormPreviewPdf = exportTransferFormPreviewPdf;
 })(window);

@@ -39,6 +39,7 @@ import org.openmrs.module.rwandaemr.integration.ClientRegistryPatientTranslator;
 import org.openmrs.module.rwandaemr.integration.IntegrationConfig;
 import org.openmrs.module.transferapp.TransferAppConstants;
 import org.openmrs.module.transferapp.api.ClientRegistryRegistrationService;
+import org.openmrs.module.transferapp.api.HiePatientRegistrationValidator;
 import org.openmrs.module.transferapp.api.HiePatientRegistrationResult;
 import org.openmrs.module.registrationcore.api.RegistrationCoreService;
 import org.openmrs.util.OpenmrsConstants;
@@ -174,6 +175,7 @@ public class ClientRegistryRegistrationServiceImpl implements ClientRegistryRegi
 		normalizePatientNamesForConfiguredValidation(patient);
 		validateNationalId(patient);
 		validateAddress(patient);
+		HiePatientRegistrationValidator.requireRequiredDemographics(patient);
 		Location resolvedLocation = identifierLocation != null ? identifierLocation : locationService.getDefaultLocation();
 		ensureIdentifier(patient, normalizedUpid, upidType, resolvedLocation);
 		for (PatientIdentifier identifier : patient.getIdentifiers()) {

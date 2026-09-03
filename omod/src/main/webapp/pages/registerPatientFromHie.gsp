@@ -83,10 +83,18 @@
         </dl>
     </section>
 
+    <% if (!canConfirmRegistration) { %>
+    <div class="transfer-hie-preview-warning" role="alert">
+        <i class="icon-warning-sign"></i>
+        <span>${ ui.message("transferapp.pending.registration.preview.incomplete") }</span>
+    </div>
+    <% } %>
+
     <div class="transfer-hie-preview-actions">
         <a class="button cancel" href="${ ui.encodeHtmlAttribute(cancelUrl) }">
             ${ ui.message("transferapp.pending.registration.preview.cancel") }
         </a>
+        <% if (canConfirmRegistration) { %>
         <form method="post" action="${ ui.pageLink('transferapp', 'registerPatientFromHie') }">
             <input type="hidden" name="upid" value="${ ui.encodeHtmlAttribute(upid) }" />
             <input type="hidden" name="returnUrl" value="${ ui.encodeHtmlAttribute(returnUrl) }" />
@@ -94,6 +102,7 @@
                 <i class="icon-ok"></i> ${ ui.message("transferapp.pending.registration.preview.confirm") }
             </button>
         </form>
+        <% } %>
     </div>
 </div>
 
