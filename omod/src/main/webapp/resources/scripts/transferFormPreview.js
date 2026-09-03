@@ -99,6 +99,70 @@
 		return truthy(value);
 	}
 
+	/**
+	 * Maps transfer-type code/display to Emergency / Not-Emergency / Follow-up.
+	 * "Not emergency" must not be treated as Emergency (substring "emergency").
+	 * New workflow types (REFERRAL / NORMAL_TRANSFER / COUNTER_REFERRAL) are ignored here.
+	 */
+	function classifyTransferType(raw) {
+		if (raw === null || raw === undefined || String(raw).trim() === "") {
+			return null;
+		}
+		var normalized = String(raw).trim().toUpperCase()
+			.replace(/[\s-]+/g, "_")
+			.replace(/_+/g, "_");
+		if (normalized === "NORMAL_TRANSFER" || normalized === "REFERRAL"
+				|| normalized === "COUNTER_REFERRAL" || normalized === "COUNTERREFERRAL") {
+			return null;
+		}
+		if (normalized === "NOT_EMERGENCY" || normalized === "NON_EMERGENCY"
+				|| normalized === "NOT_EMERGENT" || normalized === "NON_EMERGENT"
+				|| normalized.indexOf("NOT_EMERGENCY") >= 0 || normalized.indexOf("NON_EMERGENCY") >= 0
+				|| normalized.indexOf("NOT_EMERG") >= 0 || normalized.indexOf("NON_EMERG") >= 0) {
+			return "NOT_EMERGENCY";
+		}
+		if (normalized === "FOLLOW_UP" || normalized === "FOLLOWUP"
+				|| normalized.indexOf("FOLLOW_UP") >= 0 || normalized.indexOf("FOLLOWUP") >= 0
+				|| normalized.indexOf("FOLLOW") === 0) {
+			return "FOLLOW_UP";
+		}
+		if (normalized === "EMERGENCY" || normalized === "EMER" || normalized === "EMERG") {
+			return "EMERGENCY";
+		}
+		if (normalized.indexOf("EMERGENCY") >= 0 || normalized.indexOf("EMERG") >= 0) {
+			if (normalized.indexOf("NOT_") >= 0 || normalized.indexOf("NON_") >= 0
+					|| normalized.indexOf("NOT") === 0 || normalized.indexOf("NON") === 0) {
+				return "NOT_EMERGENCY";
+			}
+			return "EMERGENCY";
+		}
+		return null;
+	}
+
+	function resolveTransferTypeFlags(normalized) {
+		var classified = classifyTransferType(firstNonBlank(
+			normalized.urgencyTransferType,
+			normalized.transferTypeCode,
+			normalized.formTransferType,
+			normalized.transferType
+		));
+		if (classified === "NOT_EMERGENCY") {
+			return { isEmergency: false, isNonEmergency: true, isFollowUp: false };
+		}
+		if (classified === "FOLLOW_UP") {
+			return { isEmergency: false, isNonEmergency: false, isFollowUp: true };
+		}
+		if (classified === "EMERGENCY") {
+			return { isEmergency: true, isNonEmergency: false, isFollowUp: false };
+		}
+		// Prefer explicit flags from parser (old or new), then leave unset.
+		return {
+			isEmergency: resolveFlag(normalized.isEmergency, false),
+			isNonEmergency: resolveFlag(normalized.isNonEmergency, false),
+			isFollowUp: resolveFlag(normalized.isFollowUp, false)
+		};
+	}
+
 	function normalizeTransportType(normalized) {
 		return String(normalized.transportationType || normalized.transportType || "").trim().toUpperCase();
 	}
@@ -204,6 +268,7 @@
 			normalized.formKindCode,
 			normalized.formKind,
 			normalized.transferFormKind,
+			normalized.formType,
 			"external"
 		);
 		var upper = String(raw).trim().toUpperCase().replace(/[\s-]+/g, "_");
@@ -231,11 +296,222 @@
 		};
 	}
 
+	/**
+	 * When a raw FHIR Encounter (new transfer.json shape) is passed to preview, flatten
+	 * nested extension fields onto the flat map used by the External form renderer.
+	 * Already-flat parser/API maps are left intact; old example.org fields remain as fallback.
+	 */
+	function flattenNewTransferPayloadFields(item) {
+		var out = item || {};
+		if (!out.extension || !out.extension.length) {
+			return out;
+		}
+		var copy = {};
+		for (var key in out) {
+			if (Object.prototype.hasOwnProperty.call(out, key)) {
+				copy[key] = out[key];
+			}
+		}
+		var patientPhone = findExtensionLeaf(out, "patient-phone");
+		if (patientPhone) {
+			copy.patientPhone = firstNonBlank(copy.patientPhone, patientPhone);
+			copy.clientTelephone = firstNonBlank(copy.clientTelephone, patientPhone);
+		}
+		var doctor = findExtensionNodeByUrl(out, "doctor-details");
+		if (doctor) {
+			copy.providerPhone = firstNonBlank(copy.providerPhone, findChildLeaf(doctor, "phone-number"));
+			copy.referringProviderPhone = firstNonBlank(copy.referringProviderPhone, copy.providerPhone);
+			copy.referringProviderQualification = firstNonBlank(
+				copy.referringProviderQualification,
+				findChildCodingDisplay(doctor, "qualification"),
+				findChildLeaf(doctor, "qualification")
+			);
+			copy.providerSpecialty = firstNonBlank(
+				copy.providerSpecialty,
+				findChildCodingDisplay(doctor, "specialty")
+			);
+		}
+		var details = findExtensionNodeByUrl(out, "transfer-details");
+		if (details) {
+			copy.transferBusinessId = firstNonBlank(copy.transferBusinessId, findChildLeaf(details, "transfer-id"));
+			copy.qrCode = firstNonBlank(copy.qrCode, findChildLeaf(details, "qr-code"));
+			copy.workflowTransferType = firstNonBlank(
+				copy.workflowTransferType,
+				findChildCodingCode(details, "transfer-type"),
+				findChildCodingDisplay(details, "transfer-type")
+			);
+			var transport = findChildNode(details, "transport");
+			if (transport) {
+				var transportType = firstNonBlank(
+					findChildCodingCode(transport, "transport-type"),
+					findChildCodingDisplay(transport, "transport-type")
+				);
+				copy.transportType = firstNonBlank(copy.transportType, transportType);
+				copy.ambulanceProviderFosaId = firstNonBlank(
+					copy.ambulanceProviderFosaId,
+					findChildLeaf(transport, "fosa-id")
+				);
+				copy.ambulanceProviderName = firstNonBlank(
+					copy.ambulanceProviderName,
+					findChildLeaf(transport, "facility-name")
+				);
+				copy.transportComments = firstNonBlank(
+					copy.transportComments,
+					findChildLeaf(transport, "transport-comments")
+				);
+				if (/ambulance/i.test(String(copy.transportType || ""))) {
+					copy.isAmbulanceTransport = true;
+				}
+			}
+		}
+		if (out.subject) {
+			copy.clientName = firstNonBlank(copy.clientName, out.subject.display);
+			if (out.subject.identifier) {
+				copy.serialNumberOrEmrId = firstNonBlank(
+					copy.serialNumberOrEmrId,
+					out.subject.identifier.value
+				);
+			}
+		}
+		if (out.hospitalization) {
+			if (out.hospitalization.origin) {
+				copy.referringFacilityName = firstNonBlank(
+					copy.referringFacilityName,
+					out.hospitalization.origin.display
+				);
+			}
+			if (out.hospitalization.destination) {
+				copy.receivingFacility = firstNonBlank(
+					copy.receivingFacility,
+					out.hospitalization.destination.display
+				);
+				copy.hospitalName = firstNonBlank(copy.hospitalName, copy.receivingFacility);
+			}
+		}
+		if (out.serviceProvider) {
+			copy.serviceProviderDisplay = firstNonBlank(copy.serviceProviderDisplay, out.serviceProvider.display);
+			copy.receivingFacility = firstNonBlank(copy.receivingFacility, out.serviceProvider.display);
+		}
+		if (out.location && out.location.length && out.location[0] && out.location[0].location) {
+			copy.locationDisplay = firstNonBlank(copy.locationDisplay, out.location[0].location.display);
+			copy.receivingService = firstNonBlank(copy.receivingService, copy.locationDisplay);
+		}
+		if (out.participant && out.participant.length && out.participant[0] && out.participant[0].individual) {
+			var individual = out.participant[0].individual;
+			copy.referringProviderName = firstNonBlank(copy.referringProviderName, individual.display);
+			if (individual.identifier) {
+				copy.providerLicense = firstNonBlank(copy.providerLicense, individual.identifier.value);
+			}
+		}
+		if (out.diagnosis && out.diagnosis.length && out.diagnosis[0] && out.diagnosis[0].condition) {
+			copy.diagnosis = firstNonBlank(copy.diagnosis, out.diagnosis[0].condition.display);
+		}
+		return copy;
+	}
+
+	function findExtensionNodeByUrl(resource, urlOrSegment) {
+		var extensions = resource && resource.extension;
+		if (!extensions || !extensions.length) {
+			return null;
+		}
+		var expected = String(urlOrSegment || "").trim();
+		var expectedSeg = expected.indexOf("/") >= 0 ? expected.substring(expected.lastIndexOf("/") + 1) : expected;
+		for (var i = 0; i < extensions.length; i++) {
+			var url = String((extensions[i] && extensions[i].url) || "").trim();
+			var seg = url.indexOf("/") >= 0 ? url.substring(url.lastIndexOf("/") + 1) : url;
+			if (url === expected || seg === expectedSeg) {
+				return extensions[i];
+			}
+		}
+		return null;
+	}
+
+	function findChildNode(parentExt, childUrl) {
+		var nested = parentExt && parentExt.extension;
+		if (!nested || !nested.length) {
+			return null;
+		}
+		var expected = String(childUrl || "").trim();
+		for (var i = 0; i < nested.length; i++) {
+			var url = String((nested[i] && nested[i].url) || "").trim();
+			if (url === expected || url.substring(url.lastIndexOf("/") + 1) === expected) {
+				return nested[i];
+			}
+		}
+		return null;
+	}
+
+	function findExtensionLeaf(resource, urlOrSegment) {
+		return extensionLeafValue(findExtensionNodeByUrl(resource, urlOrSegment));
+	}
+
+	function findChildLeaf(parentExt, childUrl) {
+		return extensionLeafValue(findChildNode(parentExt, childUrl));
+	}
+
+	function findChildCodingCode(parentExt, childUrl) {
+		var child = findChildNode(parentExt, childUrl);
+		if (!child) {
+			return "";
+		}
+		if (child.valueCoding && child.valueCoding.code) {
+			return String(child.valueCoding.code);
+		}
+		if (child.valueCodeableConcept && child.valueCodeableConcept.coding
+				&& child.valueCodeableConcept.coding[0]) {
+			return String(child.valueCodeableConcept.coding[0].code || "");
+		}
+		return "";
+	}
+
+	function findChildCodingDisplay(parentExt, childUrl) {
+		var child = findChildNode(parentExt, childUrl);
+		if (!child) {
+			return "";
+		}
+		if (child.valueCoding) {
+			return firstNonBlank(child.valueCoding.display, child.valueCoding.code);
+		}
+		if (child.valueCodeableConcept && child.valueCodeableConcept.coding
+				&& child.valueCodeableConcept.coding[0]) {
+			var coding = child.valueCodeableConcept.coding[0];
+			return firstNonBlank(coding.display, coding.code, child.valueCodeableConcept.text);
+		}
+		return extensionLeafValue(child);
+	}
+
+	function extensionLeafValue(ext) {
+		if (!ext) {
+			return "";
+		}
+		if (ext.valueString != null && String(ext.valueString).trim() !== "") {
+			return String(ext.valueString);
+		}
+		if (ext.valueDateTime != null && String(ext.valueDateTime).trim() !== "") {
+			return String(ext.valueDateTime);
+		}
+		if (ext.valueDate != null && String(ext.valueDate).trim() !== "") {
+			return String(ext.valueDate);
+		}
+		if (ext.valueCoding) {
+			return firstNonBlank(ext.valueCoding.display, ext.valueCoding.code);
+		}
+		if (ext.valueCodeableConcept && ext.valueCodeableConcept.coding
+				&& ext.valueCodeableConcept.coding[0]) {
+			var coding = ext.valueCodeableConcept.coding[0];
+			return firstNonBlank(coding.display, coding.code, ext.valueCodeableConcept.text);
+		}
+		if (ext.valueReference) {
+			return firstNonBlank(ext.valueReference.display, ext.valueReference.reference);
+		}
+		return "";
+	}
+
 	function normalizeTransferPreviewItem(item) {
-		var normalized = item || {};
-		var transferType = String(normalized.transferType || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+		var normalized = flattenNewTransferPayloadFields(item || {});
 		var formKindInfo = resolveTransferFormKind(normalized);
 		var transportType = normalizeTransportType(normalized);
+		var transferTypeFlags = resolveTransferTypeFlags(normalized);
 		var verificationTransferId = resolveVerificationTransferId(normalized);
 		var verifyQrUrl = normalized.verifyQrUrl;
 		if ((!verifyQrUrl || String(verifyQrUrl).trim() === "") && verificationTransferId) {
@@ -259,11 +535,19 @@
 			formTitle: formKindInfo.title,
 			province: firstNonBlank(normalized.province, normalized.receivingProvince),
 			district: firstNonBlank(normalized.district, normalized.receivingDistrict),
-			hospitalName: normalized.hospitalName || normalized.sendingFacility,
-			referringFacilityName: normalized.referringFacilityName || normalized.sendingFacility || normalized.origin,
-			referringUnit: normalized.referringUnit || normalized.admitSource,
-			receivingClinicianPhone: normalized.receivingClinicianPhone || normalized.staffContactedPhone,
-			clientName: normalized.clientName,
+			hospitalName: firstNonBlank(normalized.hospitalName, normalized.sendingFacility),
+			referringFacilityName: firstNonBlank(
+				normalized.referringFacilityName,
+				normalized.sendingFacility,
+				normalized.origin
+			),
+			referringUnit: firstNonBlank(normalized.referringUnit, normalized.admitSource),
+			receivingClinicianPhone: firstNonBlank(
+				normalized.receivingClinicianPhone,
+				normalized.staffContactedPhone,
+				normalized.staffContactPhone
+			),
+			clientName: firstNonBlank(normalized.clientName, normalized.patientName),
 			serialNumberEmr: firstNonBlank(
 				normalized.serialNumberEmr,
 				normalized.serialNumberOrEmrId,
@@ -271,49 +555,73 @@
 				normalized.upid,
 				normalized.subject
 			),
-			clientTelephone: firstNonBlank(normalized.clientTelephone, normalized.patientPhone),
+			clientTelephone: firstNonBlank(
+				normalized.clientTelephone,
+				normalized.patientPhone,
+				normalized.telephone
+			),
 			ageOrDob: firstNonBlank(normalized.ageOrDob, normalized.ageDob, formatAgeOrDob(normalized)),
 			sex: normalized.sex,
 			caregiverName: normalized.caregiverName,
 			caregiverTelephone: firstNonBlank(normalized.caregiverTelephone),
 			clientDistrict: firstNonBlank(normalized.clientDistrict, normalized.patientDistrict),
-			sector: normalized.sector || normalized.patientSector,
-			cell: normalized.cell || normalized.patientCell,
-			village: normalized.village || normalized.patientVillage,
-			admissionAt: normalized.admissionAt || normalized.admissionDatetime,
+			sector: firstNonBlank(normalized.sector, normalized.patientSector),
+			cell: firstNonBlank(normalized.cell, normalized.patientCell),
+			village: firstNonBlank(normalized.village, normalized.patientVillage),
+			admissionAt: firstNonBlank(normalized.admissionAt, normalized.admissionDatetime),
 			decisionToTransferAt: firstNonBlank(
 				normalized.decisionToTransferAt,
 				normalized.transferDecisionDatetime,
 				normalized.periodStart
 			),
-			receivingFacility: normalized.receivingFacility || normalized.destination || normalized.hospitalName,
+			receivingFacility: firstNonBlank(
+				normalized.receivingFacility,
+				normalized.destination,
+				normalized.hospitalName,
+				normalized.serviceProviderDisplay
+			),
 			receivingService: firstNonBlank(
 				normalized.receivingService,
-				normalized.receivingDepartment
+				normalized.receivingDepartment,
+				normalized.locationDisplay
 			),
 			callingTime: normalized.callingTime,
-			staffContactedName: normalized.staffContactedName || normalized.staffContactedAtReceivingFacility,
-			staffContactedPhone: normalized.staffContactedPhone || normalized.staffContactPhone,
-			isEmergency: resolveFlag(normalized.isEmergency, transferType === "EMERGENCY"),
-			isNonEmergency: resolveFlag(normalized.isNonEmergency,
-				transferType === "NOT_EMERGENCY" || transferType === "NON_EMERGENCY"),
-			isFollowUp: resolveFlag(normalized.isFollowUp, transferType === "FOLLOW_UP" || transferType === "FOLLOWUP"),
+			staffContactedName: firstNonBlank(
+				normalized.staffContactedName,
+				normalized.staffContactedAtReceivingFacility
+			),
+			staffContactedPhone: firstNonBlank(
+				normalized.staffContactedPhone,
+				normalized.staffContactPhone
+			),
+			isEmergency: transferTypeFlags.isEmergency,
+			isNonEmergency: transferTypeFlags.isNonEmergency,
+			isFollowUp: transferTypeFlags.isFollowUp,
+			workflowTransferType: firstNonBlank(normalized.workflowTransferType, ""),
 			ambulanceCalledTime: normalized.ambulanceCalledTime,
-			departureFromReferringTime: normalized.departureFromReferringTime || normalized.departureTime,
+			departureFromReferringTime: firstNonBlank(
+				normalized.departureFromReferringTime,
+				normalized.departureTime
+			),
 			reasonForTransfer: normalized.reasonForTransfer,
 			significantFindings: normalized.significantFindings,
 			clinicalPresentation: normalized.clinicalPresentation,
 			disabilityType: normalized.disabilityType,
-			vitalTemp: normalized.vitalTemp || normalized.temperature,
-			vitalSpo2: normalized.vitalSpo2 || normalized.spo2,
-			vitalRr: normalized.vitalRr || normalized.respiratoryRate,
-			vitalPulse: normalized.vitalPulse || normalized.pulse,
-			vitalBp: normalized.vitalBp || normalized.bloodPressure,
-			vitalWeight: normalized.vitalWeight || normalized.weight,
-			vitalHeight: normalized.vitalHeight || normalized.height,
-			vitalMuac: normalized.vitalMuac || normalized.muac,
+			vitalTemp: firstNonBlank(normalized.vitalTemp, normalized.temperature),
+			vitalSpo2: firstNonBlank(normalized.vitalSpo2, normalized.spo2),
+			vitalRr: firstNonBlank(normalized.vitalRr, normalized.respiratoryRate),
+			vitalPulse: firstNonBlank(normalized.vitalPulse, normalized.pulse),
+			vitalBp: firstNonBlank(normalized.vitalBp, normalized.bloodPressure),
+			vitalWeight: firstNonBlank(normalized.vitalWeight, normalized.weight),
+			vitalHeight: firstNonBlank(normalized.vitalHeight, normalized.height),
+			vitalMuac: firstNonBlank(normalized.vitalMuac, normalized.muac),
 			laboratory: normalized.laboratory,
-			othersNotes: firstNonBlank(normalized.othersNotes, normalized.others, normalized.additionalNotes),
+			othersNotes: firstNonBlank(
+				normalized.othersNotes,
+				normalized.others,
+				normalized.additionalNotes,
+				normalized.transportComments
+			),
 			diagnosis: normalized.diagnosis,
 			proceduresAndTreatments: firstNonBlank(
 				normalized.proceduresAndTreatments,
@@ -329,7 +637,10 @@
 			otherInsurance: insuranceFlags.otherInsurance,
 			isNoInsurance: insuranceFlags.isNoInsurance,
 			referringProviderName: normalized.referringProviderName,
-			referringProviderQualification: normalized.referringProviderQualification,
+			referringProviderQualification: firstNonBlank(
+				normalized.referringProviderQualification,
+				normalized.providerSpecialty
+			),
 			referringSignedDate: firstNonBlank(normalized.referringSignedDate, normalized.formDate),
 			referringSignedTime: firstNonBlank(normalized.referringSignedTime, normalized.formTime),
 			referringProviderPhone: firstNonBlank(normalized.referringProviderPhone, normalized.providerPhone),
@@ -407,14 +718,18 @@
 	}
 
 	function buildTransferFormPreviewHtml(item) {
-		var p = normalizeTransferPreviewItem(item);
-		if (p.formKind === "MATERNITY") {
-			return buildMaternityTransferFormPreviewHtml(p);
+		var raw = item || {};
+		var formMeta = resolveTransferFormKind(raw);
+		// Maternity/neonatal builders expect type-specific maps (toMaternityPreviewMap /
+		// toNeonatalPreviewMap). Do not run them through normalizeTransferPreviewItem,
+		// which reshapes fields into the external form layout.
+		if (formMeta.kind === "MATERNITY") {
+			return buildMaternityTransferFormPreviewHtml(raw);
 		}
-		if (p.formKind === "NEONATAL") {
-			return buildNeonatalTransferFormPreviewHtml(p);
+		if (formMeta.kind === "NEONATAL") {
+			return buildNeonatalTransferFormPreviewHtml(raw);
 		}
-		return buildExternalTransferFormPreviewHtml(p);
+		return buildExternalTransferFormPreviewHtml(normalizeTransferPreviewItem(raw));
 	}
 
 	function buildExternalTransferFormPreviewHtml(itemOrNormalized, options) {
@@ -578,6 +893,10 @@
 	 */
 	function buildMaternityTransferFormPreviewHtml(item) {
 		var p = item || {};
+		var typeFlags = resolveTransferTypeFlags(p);
+		p.isEmergency = typeFlags.isEmergency;
+		p.isNonEmergency = typeFlags.isNonEmergency;
+		p.isFollowUp = typeFlags.isFollowUp;
 		var logoUri = global.transferMohLogoDataUri || "";
 		var logoHtml = logoUri
 			? "<img class='tf-moh-logo' src='" + logoUri + "' alt='Ministry of Health' />"
@@ -730,6 +1049,10 @@
 	 */
 	function buildNeonatalTransferFormPreviewHtml(item) {
 		var p = item || {};
+		var typeFlags = resolveTransferTypeFlags(p);
+		p.isEmergency = typeFlags.isEmergency;
+		p.isNonEmergency = typeFlags.isNonEmergency;
+		p.isFollowUp = typeFlags.isFollowUp;
 		var logoUri = global.transferMohLogoDataUri || "";
 		var logoHtml = logoUri
 			? "<img class='tf-moh-logo' src='" + logoUri + "' alt='Ministry of Health' />"
@@ -980,7 +1303,26 @@
 	}
 
 	function enrichTransferPreviewData(item) {
-		return normalizeTransferPreviewItem(item || {});
+		var raw = item || {};
+		var formMeta = resolveTransferFormKind(raw);
+		if (formMeta.kind === "MATERNITY" || formMeta.kind === "NEONATAL") {
+			var copy = {};
+			for (var key in raw) {
+				if (Object.prototype.hasOwnProperty.call(raw, key)) {
+					copy[key] = raw[key];
+				}
+			}
+			copy.formKind = formMeta.kind;
+			copy.formKindCode = formMeta.code;
+			copy.formKindDisplay = formMeta.display;
+			copy.formTitle = formMeta.title;
+			copy.formType = firstNonBlank(
+				raw.formType,
+				formMeta.kind === "MATERNITY" ? "Maternity" : "Neonatal"
+			);
+			return copy;
+		}
+		return normalizeTransferPreviewItem(raw);
 	}
 
 	global.escTransferPreview = escTransferPreview;

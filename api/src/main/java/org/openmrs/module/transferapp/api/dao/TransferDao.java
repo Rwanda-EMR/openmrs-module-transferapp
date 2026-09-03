@@ -53,6 +53,12 @@ public interface TransferDao {
 
 	Transfer getTransferByHieTransferId(Integer patientId, String hieTransferId);
 
+	/**
+	 * Local transfers scheduled for reuse whose rendez-vous date falls in {@code [fromDate, toDate]}
+	 * (inclusive calendar days). Pass null patientId to ignore patient filter.
+	 */
+	List<Transfer> getTransfersByReuseRendezvousDate(Integer patientId, Date fromDate, Date toDate);
+
 	PersonAddress getPreferredPersonAddress(Integer personId);
 
 	List<PersonAttribute> getPersonAttributes(Integer personId);

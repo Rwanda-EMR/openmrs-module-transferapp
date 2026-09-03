@@ -44,6 +44,7 @@ public class HistoryPageController {
 		sessionContext.requireAuthentication();
 
 		boolean canListTransfers = TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
+		boolean canCreateTransfer = TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
 		String listAccessDeniedMessage = null;
 		List<TransferHistoryItem> historyItems = Collections.emptyList();
 		String filterUpid = StringUtils.trimToNull(upid);
@@ -68,6 +69,7 @@ public class HistoryPageController {
 		}
 
 		model.addAttribute("canListTransfers", canListTransfers);
+		model.addAttribute("canCreateTransfer", canCreateTransfer);
 		model.addAttribute("listAccessDeniedMessage", listAccessDeniedMessage);
 		model.addAttribute("historyItems", historyItems);
 		model.addAttribute("hasHistory", historyItems != null && !historyItems.isEmpty());

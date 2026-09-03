@@ -15,6 +15,7 @@ package org.openmrs.module.transferapp.api;
 
 import org.openmrs.annotation.Authorized;
 import org.openmrs.module.transferapp.TransferAppActivator;
+import org.openmrs.module.transferapp.model.Transfer;
 import org.openmrs.module.transferapp.model.TransferHistoryItem;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,4 +35,13 @@ public interface TransferHistoryService {
 	 */
 	@Authorized(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
 	List<TransferHistoryItem> findHistory(String upid, String yearMonth);
+
+	/**
+	 * Schedules (or clears) a reuse rendez-vous date for a previously recorded HIE transfer.
+	 * Date must be today or a future calendar day; blank clears the schedule.
+	 * Ensures a local {@code transfers} row exists (receives from HIE when missing).
+	 */
+	@Authorized(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
+	@Transactional(readOnly = false)
+	Transfer setReuseRendezvousDate(Integer patientId, String hieTransferId, String reuseDateYyyyMmDd);
 }

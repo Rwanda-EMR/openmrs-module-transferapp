@@ -16,28 +16,36 @@ package org.openmrs.module.transferapp.api.impl;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.openmrs.Patient;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.transferapp.TransferAppConstants;
+import org.openmrs.module.transferapp.api.PendingTransferPatientStatusResolver;
 import org.openmrs.module.transferapp.api.TransferHieSearchService;
 import org.openmrs.module.transferapp.api.TransferRegistrationObsService;
 import org.openmrs.module.transferapp.api.TransferVerificationUrlService;
 import org.openmrs.module.transferapp.api.TransferSendingLocationResolver;
+import org.openmrs.module.transferapp.api.dao.TransferDao;
 import org.openmrs.module.transferapp.hie.HieApiException;
 import org.openmrs.module.transferapp.hie.HieBasicConnection;
 import org.openmrs.module.transferapp.hie.HieConnectionResolver;
 import org.openmrs.module.transferapp.hie.HieShrClient;
 import org.openmrs.module.transferapp.hie.HieTransferResponsePage;
 import org.openmrs.module.transferapp.hie.HieTransferResponseParser;
+import org.openmrs.module.transferapp.model.Transfer;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -56,6 +64,12 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 	private HieTransferResponseParser responseParser = new HieTransferResponseParser();
 
 	private TransferSendingLocationResolver sendingLocationResolver = new TransferSendingLocationResolver();
+
+	private TransferDao transferDao;
+
+	public void setTransferDao(TransferDao transferDao) {
+		this.transferDao = transferDao;
+	}
 
 	@Override
 	public Map<String, Object> searchTransfers(String upid, String transferId, boolean activeOnly) {
@@ -82,7 +96,7 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 			String endDate = null;
 			if (activeOnly) {
 				LocalDate today = LocalDate.now();
-				fromDate = today.minusDays(28).format(DateTimeFormatter.ISO_LOCAL_DATE);
+				fromDate = today.minusDays(31).format(DateTimeFormatter.ISO_LOCAL_DATE);
 				endDate = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE);
 			}
 
@@ -93,6 +107,9 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 					fetchAllTransferPages(connection, pathWithQuery));
 			if (StringUtils.isNotBlank(transferId)) {
 				transfers = filterByTransferId(transfers, transferId.trim());
+			}
+			if (activeOnly) {
+				transfers = mergeScheduledReuseTransfers(transfers, upid.trim(), fromDate, endDate);
 			}
 
 			result.put("status", "success");
@@ -283,6 +300,124 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 		path.append("&fromDate=").append(URLEncoder.encode(fromDate, "UTF-8"));
 		path.append("&endDate=").append(URLEncoder.encode(endDate, "UTF-8"));
 		return path.toString();
+	}
+
+	private List<Map<String, Object>> mergeScheduledReuseTransfers(List<Map<String, Object>> hieTransfers,
+			String upid, String fromDateIso, String endDateIso) {
+		List<Map<String, Object>> merged = new ArrayList<Map<String, Object>>();
+		Set<String> seenIds = new HashSet<String>();
+		if (hieTransfers != null) {
+			for (Map<String, Object> item : hieTransfers) {
+				if (item == null) {
+					continue;
+				}
+				String id = firstNonBlank(asString(item.get("id")), asString(item.get("uuid")),
+						asString(item.get("hieTransferId")));
+				if (StringUtils.isNotBlank(id)) {
+					seenIds.add(id.toLowerCase(Locale.ENGLISH));
+				}
+				merged.add(item);
+			}
+		}
+		if (transferDao == null || StringUtils.isBlank(upid)) {
+			return merged;
+		}
+		Patient patient;
+		try {
+			patient = PendingTransferPatientStatusResolver.findLocalPatientByUpid(
+					Context.getPatientService(), upid);
+		}
+		catch (Exception ex) {
+			log.warn("Unable to resolve patient for reuse rendez-vous merge: " + upid, ex);
+			return merged;
+		}
+		if (patient == null || patient.getPatientId() == null) {
+			return merged;
+		}
+		Date fromDate = parseIsoDateStart(fromDateIso);
+		Date toDate = parseIsoDateStart(endDateIso);
+		if (fromDate == null && toDate == null) {
+			return merged;
+		}
+		List<Transfer> scheduled = transferDao.getTransfersByReuseRendezvousDate(
+				patient.getPatientId(), fromDate, toDate);
+		if (scheduled == null || scheduled.isEmpty()) {
+			return merged;
+		}
+		SimpleDateFormat dayFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH);
+		for (Transfer transfer : scheduled) {
+			if (transfer == null || StringUtils.isBlank(transfer.getHieTransferId())) {
+				continue;
+			}
+			String hieId = transfer.getHieTransferId().trim();
+			if (seenIds.contains(hieId.toLowerCase(Locale.ENGLISH))) {
+				continue;
+			}
+			seenIds.add(hieId.toLowerCase(Locale.ENGLISH));
+			merged.add(toScheduledReusePreviewMap(transfer, upid, dayFormat));
+		}
+		return merged;
+	}
+
+	private Map<String, Object> toScheduledReusePreviewMap(Transfer transfer, String upid,
+			SimpleDateFormat dayFormat) {
+		Map<String, Object> map = new LinkedHashMap<String, Object>();
+		String hieId = transfer.getHieTransferId().trim();
+		String rendezvous = transfer.getReuseRendezvousDate() != null
+				? dayFormat.format(transfer.getReuseRendezvousDate())
+				: "";
+		map.put("id", hieId);
+		map.put("uuid", hieId);
+		map.put("hieTransferId", hieId);
+		map.put("subject", upid);
+		map.put("upid", upid);
+		map.put("date", rendezvous);
+		map.put("origin", StringUtils.defaultString(transfer.getSendingFacility()));
+		map.put("referringFacilityName", StringUtils.defaultString(transfer.getSendingFacility()));
+		map.put("destination", StringUtils.defaultString(transfer.getReceivingFacilityCode()));
+		map.put("receivingFacility", StringUtils.defaultString(transfer.getReceivingFacilityCode()));
+		map.put("hospitalName", StringUtils.defaultString(transfer.getReceivingFacilityCode()));
+		map.put("receivedFromHie", Boolean.TRUE);
+		map.put("reuseScheduled", Boolean.TRUE);
+		map.put("reuseRendezvousDate", rendezvous);
+		map.put("status", "Scheduled reuse (" + rendezvous + ")");
+		map.put("targetsCurrentFacility", Boolean.TRUE);
+		TransferVerificationUrlService verificationUrlService = Context.getService(TransferVerificationUrlService.class);
+		if (verificationUrlService != null) {
+			verificationUrlService.enrichPreviewVerificationFields(map);
+		}
+		return map;
+	}
+
+	private static Date parseIsoDateStart(String isoDate) {
+		if (StringUtils.isBlank(isoDate)) {
+			return null;
+		}
+		try {
+			Date parsed = new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).parse(isoDate.trim());
+			Calendar calendar = Calendar.getInstance();
+			calendar.setTime(parsed);
+			calendar.set(Calendar.HOUR_OF_DAY, 0);
+			calendar.set(Calendar.MINUTE, 0);
+			calendar.set(Calendar.SECOND, 0);
+			calendar.set(Calendar.MILLISECOND, 0);
+			return calendar.getTime();
+		}
+		catch (Exception ex) {
+			return null;
+		}
+	}
+
+	private static String firstNonBlank(String... values) {
+		if (values == null) {
+			return "";
+		}
+		for (String value : values) {
+			if (StringUtils.isNotBlank(value)) {
+				return value.trim();
+			}
+		}
+		return "";
 	}
 
 	private static List<Map<String, Object>> enrichTransfers(List<Map<String, Object>> transfers) {

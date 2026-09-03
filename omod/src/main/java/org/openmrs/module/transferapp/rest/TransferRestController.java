@@ -197,6 +197,64 @@ public class TransferRestController {
 		return result;
 	}
 
+	@RequestMapping(value = "/rest/v1/transferapp/transfer/reuseRendezvous", method = RequestMethod.POST)
+	@ResponseBody
+	public Object setReuseRendezvous(HttpServletResponse response,
+			@RequestParam("patientId") Integer patientId,
+			@RequestParam("hieTransferId") String hieTransferId,
+			@RequestParam(value = "reuseDate", required = false) String reuseDate) throws ResponseException {
+
+		if (patientId == null) {
+			throw new IllegalRequestException("patientId parameter is required");
+		}
+		if (hieTransferId == null || hieTransferId.trim().isEmpty()) {
+			throw new IllegalRequestException("hieTransferId parameter is required");
+		}
+
+		SimpleObject result = new SimpleObject();
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)) {
+			result.put("status", "error");
+			result.put("message", TransferPrivilegeHelper.requiredPrivilegeMessage(
+					TransferAppActivator.PRIVILEGE_CREATE_TRANSFER));
+			result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+			response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+			return result;
+		}
+
+		try {
+			Transfer transfer = Context.getService(
+					org.openmrs.module.transferapp.api.TransferHistoryService.class)
+					.setReuseRendezvousDate(patientId, hieTransferId.trim(), reuseDate);
+			result.put("status", "success");
+			result.put("message", transfer.getReuseRendezvousDate() != null
+					? "Reuse rendez-vous date saved"
+					: "Reuse rendez-vous date cleared");
+			result.put("hieTransferId", transfer.getHieTransferId());
+			result.put("localTransferUuid", transfer.getUuid());
+			if (transfer.getReuseRendezvousDate() != null) {
+				result.put("reuseRendezvousDate",
+						new java.text.SimpleDateFormat("yyyy-MM-dd").format(transfer.getReuseRendezvousDate()));
+			}
+			else {
+				result.put("reuseRendezvousDate", "");
+			}
+			return result;
+		}
+		catch (Exception ex) {
+			log.error("Unable to set reuse rendez-vous date", ex);
+			result.put("status", "error");
+			result.put("message", TransferPrivilegeHelper.resolveUserFacingMessage(
+					ex,
+					TransferAppActivator.PRIVILEGE_CREATE_TRANSFER,
+					"Unable to save reuse rendez-vous date"));
+			if (TransferPrivilegeHelper.isPrivilegeException(ex)) {
+				result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+				response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+			}
+		}
+		return result;
+	}
+
 	@RequestMapping(value = "/rest/v1/transferapp/transfer/feedback/facilities", method = RequestMethod.GET)
 	@ResponseBody
 	public Object listCounterReferralFacilities(HttpServletResponse response) throws ResponseException {

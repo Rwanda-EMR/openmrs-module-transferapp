@@ -186,8 +186,11 @@ public class HieReceivedTransferMapper {
 	}
 
 	private static String resolveTransferType(Map<String, Object> hieData) {
-		if (isTrue(hieData.get("isEmergency"))) {
-			return "EMERGENCY";
+		// Prefer classifying transferType text/code first. Legacy HIE flags wrongly marked
+		// "Not emergency" as emergency because the label contains the word "emergency".
+		String classified = HieTransferResponseParser.classifyTransferType(stringValue(hieData.get("transferType")));
+		if (classified != null) {
+			return classified;
 		}
 		if (isTrue(hieData.get("isNonEmergency"))) {
 			return "NOT_EMERGENCY";
@@ -195,19 +198,8 @@ public class HieReceivedTransferMapper {
 		if (isTrue(hieData.get("isFollowUp"))) {
 			return "FOLLOW_UP";
 		}
-		String transferType = stringValue(hieData.get("transferType"));
-		if (StringUtils.isBlank(transferType)) {
-			return null;
-		}
-		String lower = transferType.toLowerCase();
-		if (lower.contains("emergency") && !lower.contains("non")) {
+		if (isTrue(hieData.get("isEmergency"))) {
 			return "EMERGENCY";
-		}
-		if (lower.contains("non-emergency") || lower.contains("non emergency")) {
-			return "NOT_EMERGENCY";
-		}
-		if (lower.contains("follow")) {
-			return "FOLLOW_UP";
 		}
 		return null;
 	}

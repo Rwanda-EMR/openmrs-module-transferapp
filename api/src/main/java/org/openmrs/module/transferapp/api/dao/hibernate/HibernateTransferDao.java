@@ -236,6 +236,29 @@ public class HibernateTransferDao implements TransferDao {
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
+	public List<Transfer> getTransfersByReuseRendezvousDate(Integer patientId, Date fromDate, Date toDate) {
+		if (fromDate == null && toDate == null) {
+			return Collections.emptyList();
+		}
+		Criteria criteria = getSession().createCriteria(Transfer.class);
+		criteria.add(Restrictions.eq("voided", false));
+		criteria.add(Restrictions.isNotNull("reuseRendezvousDate"));
+		if (fromDate != null) {
+			criteria.add(Restrictions.ge("reuseRendezvousDate", fromDate));
+		}
+		if (toDate != null) {
+			criteria.add(Restrictions.le("reuseRendezvousDate", toDate));
+		}
+		if (patientId != null) {
+			criteria.createAlias("patient", "patientAlias");
+			criteria.add(Restrictions.eq("patientAlias.patientId", patientId));
+		}
+		criteria.addOrder(Order.asc("reuseRendezvousDate"));
+		return criteria.list();
+	}
+
+	@Override
 	public PersonAddress getPreferredPersonAddress(Integer personId) {
 		if (personId == null) {
 			return null;

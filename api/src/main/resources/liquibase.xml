@@ -1328,4 +1328,22 @@
         </createIndex>
     </changeSet>
 
+    <changeSet id="transferapp-20260903-reuse-rendezvous-date" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="transfers"/>
+                <not>
+                    <columnExists tableName="transfers" columnName="reuse_rendezvous_date"/>
+                </not>
+            </and>
+        </preConditions>
+        <comment>Future rendez-vous date so reception can re-accept a past transfer on that day</comment>
+        <addColumn tableName="transfers">
+            <column name="reuse_rendezvous_date" type="date"/>
+        </addColumn>
+        <createIndex tableName="transfers" indexName="transfers_reuse_rendezvous_date_idx">
+            <column name="reuse_rendezvous_date"/>
+        </createIndex>
+    </changeSet>
+
 </databaseChangeLog>

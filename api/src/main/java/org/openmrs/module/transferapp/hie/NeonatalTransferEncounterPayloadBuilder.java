@@ -26,6 +26,7 @@ import org.openmrs.module.transferapp.model.NeonatalTransfer;
 import org.openmrs.module.transferapp.model.TransferFormKind;
 
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -91,8 +92,8 @@ public class NeonatalTransferEncounterPayloadBuilder {
 			addSubject(encounter, upi, transfer.getBabyName());
 			addParticipant(encounter, transfer);
 
-			Date periodStart = transfer.getDecisionToTransferAt();
-			Date periodEnd = periodStart;
+			Date periodStart = requireDecisionToTransferAt(transfer);
+			Date periodEnd = plusOneMonth(periodStart);
 			addPeriod(encounter, periodStart, periodEnd);
 			addReasonCode(encounter, transfer.getReasonForTransfer());
 			addDiagnosis(encounter, transfer);
@@ -461,6 +462,21 @@ public class NeonatalTransferEncounterPayloadBuilder {
 			throw new HieApiException("Cannot submit neonatal transfer: patient UPID is missing.");
 		}
 		return upi.trim();
+	}
+
+	private static Date requireDecisionToTransferAt(NeonatalTransfer transfer) {
+		if (transfer == null || transfer.getDecisionToTransferAt() == null) {
+			throw new HieApiException(
+					"Cannot submit neonatal transfer: Date and time of decision to transfer is required.");
+		}
+		return transfer.getDecisionToTransferAt();
+	}
+
+	private static Date plusOneMonth(Date start) {
+		Calendar calendar = Calendar.getInstance(RWANDA);
+		calendar.setTime(start);
+		calendar.add(Calendar.MONTH, 1);
+		return calendar.getTime();
 	}
 
 	private static String resolveUserDisplayName(User user) {

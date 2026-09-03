@@ -75,6 +75,13 @@ public class HieTransferResponseParser {
     private static final String EXT_TRANSFER_FORM_KIND =
             "http://example.org/fhir/StructureDefinition/transfer-form-kind";
 
+    /** New External Transfer payload ({@code devs/transfer.json}). */
+    private static final String EXT_PATIENT_PHONE = "patient-phone";
+    private static final String EXT_DOCTOR_DETAILS =
+            "http://example.rw/fhir/StructureDefinition/doctor-details";
+    private static final String EXT_TRANSFER_DETAILS =
+            "http://example.rw/fhir/StructureDefinition/transfer-details";
+
     public List<Map<String, Object>> parse(String jsonData) throws Exception {
         return parsePage(jsonData).getTransfers();
     }
@@ -323,13 +330,16 @@ public class HieTransferResponseParser {
         String patientAge = extractNestedExtensionValue(resource, EXT_PATIENT_DEMOGRAPHICS, "age");
         transfer.put("ageDob", formatAgeOrDob(patientAge, patientDob));
         transfer.put("sex", extractNestedExtensionValue(resource, EXT_PATIENT_DEMOGRAPHICS, "gender"));
-        String patientPhone = extractNestedExtensionValue(resource, EXT_PATIENT_DEMOGRAPHICS, "phone");
+        String patientPhone = firstNonBlank(
+                extractExtensionLeafValue(resource, EXT_PATIENT_PHONE),
+                extractNestedExtensionValue(resource, EXT_PATIENT_DEMOGRAPHICS, "phone"));
         transfer.put("clientTelephone", patientPhone);
 
         transfer.put("caregiverName", extractNestedExtensionValue(resource, EXT_CAREGIVER_INFO, "name"));
         String caregiverPhone = extractNestedExtensionValue(resource, EXT_CAREGIVER_INFO, "phone");
         transfer.put("caregiverTelephone", caregiverPhone);
         transfer.put("telephone", firstNonBlank(patientPhone, caregiverPhone));
+        transfer.put("patientPhone", patientPhone);
 
         transfer.put("province", stripCodePrefix(extractExtensionValue(resource, EXT_RECEIVING_PROVINCE)));
         transfer.put("district", stripCodePrefix(extractExtensionValue(resource, EXT_RECEIVING_DISTRICT)));
@@ -357,12 +367,22 @@ public class HieTransferResponseParser {
                 extractExtensionDateTime(resource, EXT_CALLING_TIME),
                 extractNestedExtensionValue(resource, EXT_RECEIVING_CLINICIAN_CONTACT, "calling-time")));
 
-        String transferType = extractExtensionDisplay(resource, EXT_TRANSFER_TYPE);
+        // Urgency type from legacy example.org transfer-type; workflow type from transfer-details.
+        String transferTypeCode = firstNonBlank(
+                extractExtensionCode(resource, EXT_TRANSFER_TYPE),
+                extractNestedCodingCode(resource, EXT_TRANSFER_DETAILS, "transfer-type"));
+        String transferTypeDisplay = firstNonBlank(
+                extractExtensionDisplay(resource, EXT_TRANSFER_TYPE),
+                extractNestedCodingDisplay(resource, EXT_TRANSFER_DETAILS, "transfer-type"),
+                transferTypeCode);
+        String transferType = firstNonBlank(transferTypeDisplay, transferTypeCode);
         transfer.put("transferType", transferType);
-        String transferTypeLower = transferType.toLowerCase();
-        transfer.put("isEmergency", String.valueOf(transferTypeLower.contains("emergency") && !transferTypeLower.contains("non")));
-        transfer.put("isNonEmergency", String.valueOf(transferTypeLower.contains("non-emergency") || transferTypeLower.contains("non emergency")));
-        transfer.put("isFollowUp", String.valueOf(transferTypeLower.contains("follow")));
+        transfer.put("workflowTransferType", firstNonBlank(
+                extractNestedCodingCode(resource, EXT_TRANSFER_DETAILS, "transfer-type"),
+                ""));
+        transfer.put("transferBusinessId", extractNestedExtensionValue(resource, EXT_TRANSFER_DETAILS, "transfer-id"));
+        transfer.put("qrCode", extractNestedExtensionValue(resource, EXT_TRANSFER_DETAILS, "qr-code"));
+        applyTransferTypeFlags(transfer, transferTypeCode, transferTypeDisplay);
 
         applyTransferFormKind(resource, transfer);
 
@@ -397,16 +417,27 @@ public class HieTransferResponseParser {
         }
 
         String serviceTypeDisplay = codingDisplay(resource.get("serviceType"));
+        String serviceProviderDisplay = referenceDisplay(resource.get("serviceProvider"));
+        String locationDisplay = "";
+        JsonNode locationsForService = resource.get("location");
+        JsonNode firstLocForService = firstArrayElement(locationsForService);
+        if (firstLocForService != null) {
+            JsonNode locationNode = firstLocForService.get("location");
+            if (locationNode != null && !locationNode.isNull()) {
+                locationDisplay = textOrDefault(locationNode.get("display"), "");
+            }
+        }
         transfer.put("referringFacilityName", originDisplay);
-        transfer.put("hospitalName", destinationDisplay);
-        transfer.put("receivingFacility", destinationDisplay);
+        transfer.put("hospitalName", firstNonBlank(destinationDisplay, serviceProviderDisplay));
+        transfer.put("receivingFacility", firstNonBlank(destinationDisplay, serviceProviderDisplay, locationDisplay));
         transfer.put("referringUnit", firstNonBlank(
                 extractExtensionValue(resource, EXT_REFERRING_DEPARTMENT),
                 admitSourceDisplay));
         transfer.put("receivingService", firstNonBlank(
                 extractExtensionValue(resource, EXT_RECEIVING_DEPARTMENT),
                 serviceTypeDisplay,
-                dischargeDispositionDisplay));
+                dischargeDispositionDisplay,
+                locationDisplay));
 
         String receivingClinicianContact = extractExtensionValue(resource, EXT_RECEIVING_CLINICIAN_CONTACT);
         String[] clinicianContactParts = parseReceivingClinicianContact(receivingClinicianContact);
@@ -463,10 +494,16 @@ public class HieTransferResponseParser {
                         extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "name"),
                         referringProviderName),
                 firstNonBlank(
+                        extractNestedExtensionValue(resource, EXT_DOCTOR_DETAILS, "license-number"),
                         extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "license-number"),
                         referringProviderLicense)));
-        transfer.put("referringProviderQualification", extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "qualification"));
-        transfer.put("providerPhone", extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "phone"));
+        transfer.put("referringProviderQualification", firstNonBlank(
+                extractNestedCodingDisplay(resource, EXT_DOCTOR_DETAILS, "qualification"),
+                extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "qualification")));
+        transfer.put("providerPhone", firstNonBlank(
+                extractNestedExtensionValue(resource, EXT_DOCTOR_DETAILS, "phone-number"),
+                extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "phone")));
+        transfer.put("providerSpecialty", extractNestedCodingDisplay(resource, EXT_DOCTOR_DETAILS, "specialty"));
         transfer.put("formDate", firstNonBlank(
                 extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "signed-date"),
                 toDateOnly(periodStart)));
@@ -474,17 +511,7 @@ public class HieTransferResponseParser {
                 extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "signed-time"),
                 toTimeOnly(periodStart)));
 
-        String transportType = extractExtensionDisplay(resource, EXT_TRANSPORT_TYPE);
-        transfer.put("transportType", transportType);
-        String transportTypeLower = transportType.toLowerCase();
-        transfer.put("isAmbulanceTransport", String.valueOf(transportTypeLower.contains("ambulance")));
-        transfer.put("otherTransportType", transportTypeLower.contains("ambulance") ? "" : transportType);
-        transfer.put("ambulanceProviderFosaId", extractNestedExtensionValue(resource,
-                TransferAppConstants.EXT_AMBULANCE_PROVIDER_FACILITY,
-                TransferAppConstants.EXT_AMBULANCE_PROVIDER_FOSA_ID));
-        transfer.put("ambulanceProviderName", extractNestedExtensionValue(resource,
-                TransferAppConstants.EXT_AMBULANCE_PROVIDER_FACILITY,
-                TransferAppConstants.EXT_AMBULANCE_PROVIDER_NAME));
+        applyTransportFields(resource, transfer);
 
         String insurance = extractExtensionDisplay(resource, EXT_INSURANCE_TYPE);
         transfer.put("healthInsurance", insurance);
@@ -538,6 +565,7 @@ public class HieTransferResponseParser {
         transfer.put("referringProviderName", TransferProfile.formatCareProviderName(
                 asString(transfer.get("referringProviderName")),
                 firstNonBlank(
+                        extractNestedExtensionValue(resource, EXT_DOCTOR_DETAILS, "license-number"),
                         extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "license-number"),
                         referringProviderLicense)));
     }
@@ -551,6 +579,13 @@ public class HieTransferResponseParser {
         transfer.put("formKind", kind.name());
         transfer.put("formKindCode", kind.getCode());
         transfer.put("formKindDisplay", kind.getDisplay());
+        if (kind.isMaternityTransferForm()) {
+            transfer.put("formType", "Maternity");
+        } else if (kind.isNeonatalTransferForm()) {
+            transfer.put("formType", "Neonatal");
+        } else {
+            transfer.put("formType", "External");
+        }
     }
 
     /**
@@ -716,70 +751,20 @@ public class HieTransferResponseParser {
     }
 
     private String extractExtensionValue(JsonNode resource, String extensionUrl) {
-        JsonNode extensions = resource.get("extension");
-        if (extensions == null || !extensions.isArray()) {
-            return "";
-        }
-
-        Iterator<JsonNode> extensionIterator = extensions.getElements();
-        while (extensionIterator.hasNext()) {
-            JsonNode ext = extensionIterator.next();
-            if (extensionUrl.equals(textOrDefault(ext.get("url"), ""))) {
-                JsonNode valueString = ext.get("valueString");
-                if (valueString != null && !valueString.isNull()) {
-                    return textOrDefault(valueString, "");
-                }
-
-                JsonNode valueDateTime = ext.get("valueDateTime");
-                if (valueDateTime != null && !valueDateTime.isNull()) {
-                    return textOrDefault(valueDateTime, "");
-                }
-
-                JsonNode valueCodeableConcept = ext.get("valueCodeableConcept");
-                if (valueCodeableConcept != null && !valueCodeableConcept.isNull()) {
-                    JsonNode coding = valueCodeableConcept.get("coding");
-                    JsonNode firstCoding = firstArrayElement(coding);
-                    if (firstCoding != null) {
-                        String display = textOrDefault(firstCoding.get("display"), "");
-                        if (!display.trim().isEmpty()) {
-                            return display;
-                        }
-                    }
-                    return textOrDefault(valueCodeableConcept.get("text"), "");
-                }
-            }
-        }
-        return "";
+        return leafExtensionValue(findExtensionNode(resource, extensionUrl));
     }
 
     private String extractExtensionDisplay(JsonNode resource, String extensionUrl) {
-        return extractExtensionValue(resource, extensionUrl);
+        JsonNode ext = findExtensionNode(resource, extensionUrl);
+        String display = codingDisplayFromExtension(ext);
+        if (display != null && display.trim().length() > 0) {
+            return display;
+        }
+        return leafExtensionValue(ext);
     }
 
     private String extractExtensionCode(JsonNode resource, String extensionUrl) {
-        JsonNode extensions = resource.get("extension");
-        if (extensions == null || !extensions.isArray() || extensionUrl == null) {
-            return "";
-        }
-        Iterator<JsonNode> extensionIterator = extensions.getElements();
-        while (extensionIterator.hasNext()) {
-            JsonNode ext = extensionIterator.next();
-            if (!extensionUrl.equals(textOrDefault(ext.get("url"), ""))) {
-                continue;
-            }
-            JsonNode valueCodeableConcept = ext.get("valueCodeableConcept");
-            if (valueCodeableConcept == null || valueCodeableConcept.isNull()) {
-                continue;
-            }
-            JsonNode firstCoding = firstArrayElement(valueCodeableConcept.get("coding"));
-            if (firstCoding != null) {
-                String code = textOrDefault(firstCoding.get("code"), "");
-                if (!code.trim().isEmpty()) {
-                    return code;
-                }
-            }
-        }
-        return "";
+        return codingCode(findExtensionNode(resource, extensionUrl));
     }
 
     private String extractExtensionDateTime(JsonNode resource, String extensionUrl) {
@@ -787,42 +772,8 @@ public class HieTransferResponseParser {
     }
 
     private String extractNestedExtensionValue(JsonNode resource, String parentUrl, String childUrl) {
-        JsonNode extensions = resource.get("extension");
-        if (extensions == null || !extensions.isArray()) {
-            return "";
-        }
-
-        Iterator<JsonNode> extensionIterator = extensions.getElements();
-        while (extensionIterator.hasNext()) {
-            JsonNode ext = extensionIterator.next();
-            if (!parentUrl.equals(textOrDefault(ext.get("url"), ""))) {
-                continue;
-            }
-
-            JsonNode nestedExtensions = ext.get("extension");
-            if (nestedExtensions == null || !nestedExtensions.isArray()) {
-                continue;
-            }
-
-            Iterator<JsonNode> nestedIterator = nestedExtensions.getElements();
-            while (nestedIterator.hasNext()) {
-                JsonNode nested = nestedIterator.next();
-                if (!childUrl.equals(textOrDefault(nested.get("url"), ""))) {
-                    continue;
-                }
-
-                JsonNode valueString = nested.get("valueString");
-                if (valueString != null && !valueString.isNull()) {
-                    return textOrDefault(valueString, "");
-                }
-
-                JsonNode valueDateTime = nested.get("valueDateTime");
-                if (valueDateTime != null && !valueDateTime.isNull()) {
-                    return textOrDefault(valueDateTime, "");
-                }
-            }
-        }
-        return "";
+        JsonNode nested = findNestedExtensionNode(resource, parentUrl, childUrl);
+        return leafExtensionValue(nested);
     }
 
     private String stripCodePrefix(String value) {
@@ -1068,5 +1019,253 @@ public class HieTransferResponseParser {
             return time.substring(0, 5);
         }
         return time;
+    }
+
+    /**
+     * Classifies FHIR transfer-type code/display into Emergency / Not-Emergency / Follow-up flags.
+     * Prefers the coding code (e.g. {@code not-emergency}) over display text. Display labels such as
+     * "Not emergency" must not be treated as Emergency: naive {@code contains("emergency")} matching
+     * wrongly matches that phrase.
+     */
+    private void applyTransferTypeFlags(Map<String, Object> transfer, String code, String display) {
+        String kind = classifyTransferType(code);
+        if (kind == null) {
+            kind = classifyTransferType(display);
+        }
+        transfer.put("isEmergency", String.valueOf("EMERGENCY".equals(kind)));
+        transfer.put("isNonEmergency", String.valueOf("NOT_EMERGENCY".equals(kind)));
+        transfer.put("isFollowUp", String.valueOf("FOLLOW_UP".equals(kind)));
+    }
+
+    /**
+     * @return EMERGENCY, NOT_EMERGENCY, FOLLOW_UP, or null when unrecognized/blank
+     */
+    public static String classifyTransferType(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
+        }
+        String normalized = raw.trim().toUpperCase()
+                .replace('-', '_')
+                .replace(' ', '_')
+                .replaceAll("_+", "_");
+        // New workflow transfer-types are not urgency flags.
+        if ("NORMAL_TRANSFER".equals(normalized) || "REFERRAL".equals(normalized)
+                || "COUNTER_REFERRAL".equals(normalized) || "COUNTERREFERRAL".equals(normalized)) {
+            return null;
+        }
+        if ("NOT_EMERGENCY".equals(normalized) || "NON_EMERGENCY".equals(normalized)
+                || "NOT_EMERGENT".equals(normalized) || "NON_EMERGENT".equals(normalized)
+                || normalized.contains("NOT_EMERGENCY") || normalized.contains("NON_EMERGENCY")
+                || normalized.contains("NOT_EMERG") || normalized.contains("NON_EMERG")) {
+            return "NOT_EMERGENCY";
+        }
+        if ("FOLLOW_UP".equals(normalized) || "FOLLOWUP".equals(normalized)
+                || normalized.contains("FOLLOW_UP") || normalized.contains("FOLLOWUP")
+                || normalized.startsWith("FOLLOW")) {
+            return "FOLLOW_UP";
+        }
+        if ("EMERGENCY".equals(normalized) || "EMER".equals(normalized)
+                || normalized.equals("EMERG")) {
+            return "EMERGENCY";
+        }
+        // Exact-ish emergency only — avoid matching "not emergency" / "non-emergency".
+        if (normalized.contains("EMERGENCY") || normalized.contains("EMERG")) {
+            if (normalized.contains("NOT_") || normalized.contains("NON_")
+                    || normalized.startsWith("NOT") || normalized.startsWith("NON")) {
+                return "NOT_EMERGENCY";
+            }
+            return "EMERGENCY";
+        }
+        return null;
+    }
+
+    private void applyTransportFields(JsonNode resource, Map<String, Object> transfer) {
+        String legacyTransport = extractExtensionDisplay(resource, EXT_TRANSPORT_TYPE);
+        String nestedTransportCode = extractDeepNestedCodingCode(resource, EXT_TRANSFER_DETAILS, "transport",
+                "transport-type");
+        String nestedTransportDisplay = extractDeepNestedCodingDisplay(resource, EXT_TRANSFER_DETAILS, "transport",
+                "transport-type");
+        String transportType = firstNonBlank(nestedTransportDisplay, nestedTransportCode, legacyTransport);
+        transfer.put("transportType", transportType);
+        String transportTypeLower = transportType == null ? "" : transportType.toLowerCase();
+        boolean ambulance = transportTypeLower.contains("ambulance");
+        transfer.put("isAmbulanceTransport", String.valueOf(ambulance));
+        transfer.put("otherTransportType", ambulance ? "" : firstNonBlank(transportType));
+        transfer.put("isNaTransport", String.valueOf(
+                "na".equals(transportTypeLower) || "n/a".equals(transportTypeLower)));
+
+        String nestedProviderFosa = extractDeepNestedString(resource, EXT_TRANSFER_DETAILS, "transport", "fosa-id");
+        String nestedProviderName = extractDeepNestedString(resource, EXT_TRANSFER_DETAILS, "transport", "facility-name");
+        String transportComments = extractDeepNestedString(resource, EXT_TRANSFER_DETAILS, "transport",
+                "transport-comments");
+        transfer.put("ambulanceProviderFosaId", firstNonBlank(
+                nestedProviderFosa,
+                extractNestedExtensionValue(resource,
+                        TransferAppConstants.EXT_AMBULANCE_PROVIDER_FACILITY,
+                        TransferAppConstants.EXT_AMBULANCE_PROVIDER_FOSA_ID)));
+        transfer.put("ambulanceProviderName", firstNonBlank(
+                nestedProviderName,
+                extractNestedExtensionValue(resource,
+                        TransferAppConstants.EXT_AMBULANCE_PROVIDER_FACILITY,
+                        TransferAppConstants.EXT_AMBULANCE_PROVIDER_NAME)));
+        if (transportComments != null && transportComments.trim().length() > 0) {
+            transfer.put("transportComments", transportComments.trim());
+            if (asString(transfer.get("others")).trim().isEmpty() && !ambulance) {
+                transfer.put("others", transportComments.trim());
+            }
+        }
+    }
+
+    private String referenceDisplay(JsonNode referenceNode) {
+        if (referenceNode == null || referenceNode.isNull()) {
+            return "";
+        }
+        return textOrDefault(referenceNode.get("display"), "");
+    }
+
+    private String extractExtensionLeafValue(JsonNode resource, String extensionUrl) {
+        return leafExtensionValue(findExtensionNode(resource, extensionUrl));
+    }
+
+    private String extractNestedCodingCode(JsonNode resource, String parentUrl, String childUrl) {
+        JsonNode nested = findNestedExtensionNode(resource, parentUrl, childUrl);
+        return codingCode(nested);
+    }
+
+    private String extractNestedCodingDisplay(JsonNode resource, String parentUrl, String childUrl) {
+        JsonNode nested = findNestedExtensionNode(resource, parentUrl, childUrl);
+        String display = codingDisplayFromExtension(nested);
+        if (display != null && display.trim().length() > 0) {
+            return display;
+        }
+        return leafExtensionValue(nested);
+    }
+
+    private String extractDeepNestedString(JsonNode resource, String parentUrl, String midUrl, String childUrl) {
+        JsonNode mid = findNestedExtensionNode(resource, parentUrl, midUrl);
+        if (mid == null) {
+            return "";
+        }
+        JsonNode child = findChildExtensionNode(mid, childUrl);
+        return leafExtensionValue(child);
+    }
+
+    private String extractDeepNestedCodingCode(JsonNode resource, String parentUrl, String midUrl, String childUrl) {
+        JsonNode mid = findNestedExtensionNode(resource, parentUrl, midUrl);
+        if (mid == null) {
+            return "";
+        }
+        return codingCode(findChildExtensionNode(mid, childUrl));
+    }
+
+    private String extractDeepNestedCodingDisplay(JsonNode resource, String parentUrl, String midUrl, String childUrl) {
+        JsonNode mid = findNestedExtensionNode(resource, parentUrl, midUrl);
+        if (mid == null) {
+            return "";
+        }
+        JsonNode child = findChildExtensionNode(mid, childUrl);
+        String display = codingDisplayFromExtension(child);
+        if (display != null && display.trim().length() > 0) {
+            return display;
+        }
+        return leafExtensionValue(child);
+    }
+
+    private JsonNode findNestedExtensionNode(JsonNode resource, String parentUrl, String childUrl) {
+        JsonNode parent = findExtensionNode(resource, parentUrl);
+        return findChildExtensionNode(parent, childUrl);
+    }
+
+    private JsonNode findChildExtensionNode(JsonNode parentExt, String childUrl) {
+        if (parentExt == null || childUrl == null) {
+            return null;
+        }
+        JsonNode nestedExtensions = parentExt.get("extension");
+        if (nestedExtensions == null || !nestedExtensions.isArray()) {
+            return null;
+        }
+        String expected = childUrl.trim();
+        Iterator<JsonNode> nestedIterator = nestedExtensions.getElements();
+        while (nestedIterator.hasNext()) {
+            JsonNode nested = nestedIterator.next();
+            String url = textOrDefault(nested.get("url"), "").trim();
+            if (url.equals(expected) || lastUrlSegment(url).equals(lastUrlSegment(expected))) {
+                return nested;
+            }
+        }
+        return null;
+    }
+
+    private String leafExtensionValue(JsonNode ext) {
+        if (ext == null || ext.isNull()) {
+            return "";
+        }
+        JsonNode valueString = ext.get("valueString");
+        if (valueString != null && !valueString.isNull()) {
+            return textOrDefault(valueString, "");
+        }
+        JsonNode valueDateTime = ext.get("valueDateTime");
+        if (valueDateTime != null && !valueDateTime.isNull()) {
+            return textOrDefault(valueDateTime, "");
+        }
+        JsonNode valueDate = ext.get("valueDate");
+        if (valueDate != null && !valueDate.isNull()) {
+            return textOrDefault(valueDate, "");
+        }
+        String codingDisplay = codingDisplayFromExtension(ext);
+        if (codingDisplay != null && codingDisplay.trim().length() > 0) {
+            return codingDisplay;
+        }
+        String codingCode = codingCode(ext);
+        if (codingCode != null && codingCode.trim().length() > 0) {
+            return codingCode;
+        }
+        JsonNode valueReference = ext.get("valueReference");
+        if (valueReference != null && !valueReference.isNull()) {
+            return textOrDefault(valueReference.get("display"),
+                    textOrDefault(valueReference.get("reference"), ""));
+        }
+        return "";
+    }
+
+    private String codingCode(JsonNode ext) {
+        if (ext == null || ext.isNull()) {
+            return "";
+        }
+        JsonNode valueCoding = ext.get("valueCoding");
+        if (valueCoding != null && !valueCoding.isNull()) {
+            return textOrDefault(valueCoding.get("code"), "");
+        }
+        JsonNode valueCodeableConcept = ext.get("valueCodeableConcept");
+        if (valueCodeableConcept != null && !valueCodeableConcept.isNull()) {
+            JsonNode firstCoding = firstArrayElement(valueCodeableConcept.get("coding"));
+            if (firstCoding != null) {
+                return textOrDefault(firstCoding.get("code"), "");
+            }
+        }
+        return "";
+    }
+
+    private String codingDisplayFromExtension(JsonNode ext) {
+        if (ext == null || ext.isNull()) {
+            return "";
+        }
+        JsonNode valueCoding = ext.get("valueCoding");
+        if (valueCoding != null && !valueCoding.isNull()) {
+            return firstNonBlank(
+                    textOrDefault(valueCoding.get("display"), ""),
+                    textOrDefault(valueCoding.get("code"), ""));
+        }
+        JsonNode valueCodeableConcept = ext.get("valueCodeableConcept");
+        if (valueCodeableConcept != null && !valueCodeableConcept.isNull()) {
+            JsonNode firstCoding = firstArrayElement(valueCodeableConcept.get("coding"));
+            if (firstCoding != null) {
+                return firstNonBlank(
+                        textOrDefault(firstCoding.get("display"), ""),
+                        textOrDefault(firstCoding.get("code"), ""));
+            }
+            return textOrDefault(valueCodeableConcept.get("text"), "");
+        }
+        return "";
     }
 }

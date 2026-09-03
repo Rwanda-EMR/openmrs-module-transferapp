@@ -36,6 +36,9 @@ public class TransferHistoryItem {
 
 	private String locationName;
 
+	/** yyyy-MM-dd when set; used by History to schedule reuse for reception. */
+	private String reuseRendezvousDate;
+
 	public Integer getPatientId() {
 		return patientId;
 	}
@@ -98,5 +101,13 @@ public class TransferHistoryItem {
 
 	public void setLocationName(String locationName) {
 		this.locationName = locationName;
+	}
+
+	public String getReuseRendezvousDate() {
+		return reuseRendezvousDate;
+	}
+
+	public void setReuseRendezvousDate(String reuseRendezvousDate) {
+		this.reuseRendezvousDate = reuseRendezvousDate;
 	}
 }
