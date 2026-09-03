@@ -11,6 +11,8 @@
 		<property name="target">
 			<bean class="org.openmrs.module.transferapp.api.impl.TransferDashboardServiceImpl">
 				<property name="transferDao" ref="transferDao" />
+				<property name="maternityTransferDao" ref="maternityTransferDao" />
+				<property name="neonatalTransferDao" ref="neonatalTransferDao" />
 				<property name="transferAdminService" ref="transferAdminService" />
 			</bean>
 		</property>
@@ -58,6 +60,14 @@
 	</bean>
 
 	<bean id="transferDao" class="org.openmrs.module.transferapp.api.dao.hibernate.HibernateTransferDao">
+		<property name="sessionFactory" ref="dbSessionFactory" />
+	</bean>
+
+	<bean id="maternityTransferDao" class="org.openmrs.module.transferapp.api.dao.hibernate.HibernateMaternityTransferDao">
+		<property name="sessionFactory" ref="dbSessionFactory" />
+	</bean>
+
+	<bean id="neonatalTransferDao" class="org.openmrs.module.transferapp.api.dao.hibernate.HibernateNeonatalTransferDao">
 		<property name="sessionFactory" ref="dbSessionFactory" />
 	</bean>
 
@@ -190,6 +200,66 @@
 		</property>
 	</bean>
 
+	<bean id="maternityTransferServiceTarget" class="org.openmrs.module.transferapp.api.impl.MaternityTransferServiceImpl">
+		<property name="maternityTransferDao" ref="maternityTransferDao" />
+		<property name="patientService" ref="patientService" />
+		<property name="transferAdminService" ref="transferAdminService" />
+	</bean>
+
+	<bean id="maternityTransferService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+		<property name="transactionManager">
+			<ref bean="transactionManager" />
+		</property>
+		<property name="target">
+			<ref bean="maternityTransferServiceTarget" />
+		</property>
+		<property name="preInterceptors">
+			<ref bean="serviceInterceptors" />
+		</property>
+		<property name="transactionAttributeSource">
+			<ref bean="transactionAttributeSource" />
+		</property>
+	</bean>
+
+	<bean parent="serviceContext">
+		<property name="moduleService">
+			<list>
+				<value>org.openmrs.module.transferapp.api.MaternityTransferService</value>
+				<ref bean="maternityTransferService" />
+			</list>
+		</property>
+	</bean>
+
+	<bean id="neonatalTransferServiceTarget" class="org.openmrs.module.transferapp.api.impl.NeonatalTransferServiceImpl">
+		<property name="neonatalTransferDao" ref="neonatalTransferDao" />
+		<property name="patientService" ref="patientService" />
+		<property name="transferAdminService" ref="transferAdminService" />
+	</bean>
+
+	<bean id="neonatalTransferService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+		<property name="transactionManager">
+			<ref bean="transactionManager" />
+		</property>
+		<property name="target">
+			<ref bean="neonatalTransferServiceTarget" />
+		</property>
+		<property name="preInterceptors">
+			<ref bean="serviceInterceptors" />
+		</property>
+		<property name="transactionAttributeSource">
+			<ref bean="transactionAttributeSource" />
+		</property>
+	</bean>
+
+	<bean parent="serviceContext">
+		<property name="moduleService">
+			<list>
+				<value>org.openmrs.module.transferapp.api.NeonatalTransferService</value>
+				<ref bean="neonatalTransferService" />
+			</list>
+		</property>
+	</bean>
+
 	<bean id="patientTransferListService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
 		<property name="transactionManager">
 			<ref bean="transactionManager" />
@@ -197,6 +267,8 @@
 		<property name="target">
 			<bean class="org.openmrs.module.transferapp.api.impl.PatientTransferListServiceImpl">
 				<property name="transferService" ref="transferService" />
+				<property name="maternityTransferService" ref="maternityTransferService" />
+				<property name="neonatalTransferService" ref="neonatalTransferService" />
 				<property name="transferAdminService" ref="transferAdminService" />
 			</bean>
 		</property>
@@ -224,6 +296,8 @@
 		<property name="target">
 			<bean class="org.openmrs.module.transferapp.api.impl.FacilityTransferRecordsServiceImpl">
 				<property name="transferDao" ref="transferDao" />
+				<property name="maternityTransferDao" ref="maternityTransferDao" />
+				<property name="neonatalTransferDao" ref="neonatalTransferDao" />
 				<property name="transferAdminService" ref="transferAdminService" />
 			</bean>
 		</property>
@@ -350,6 +424,62 @@
 		</property>
 	</bean>
 
+	<bean id="newMaternityTransferOutService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+		<property name="transactionManager">
+			<ref bean="transactionManager" />
+		</property>
+		<property name="target">
+			<bean class="org.openmrs.module.transferapp.api.impl.NewMaternityTransferOutServiceImpl">
+				<property name="transferDao" ref="transferDao" />
+				<property name="maternityTransferDao" ref="maternityTransferDao" />
+				<property name="transferAdminService" ref="transferAdminService" />
+			</bean>
+		</property>
+		<property name="preInterceptors">
+			<ref bean="serviceInterceptors" />
+		</property>
+		<property name="transactionAttributeSource">
+			<ref bean="transactionAttributeSource" />
+		</property>
+	</bean>
+
+	<bean parent="serviceContext">
+		<property name="moduleService">
+			<list>
+				<value>org.openmrs.module.transferapp.api.NewMaternityTransferOutService</value>
+				<ref bean="newMaternityTransferOutService" />
+			</list>
+		</property>
+	</bean>
+
+	<bean id="newNeonatalTransferOutService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+		<property name="transactionManager">
+			<ref bean="transactionManager" />
+		</property>
+		<property name="target">
+			<bean class="org.openmrs.module.transferapp.api.impl.NewNeonatalTransferOutServiceImpl">
+				<property name="transferDao" ref="transferDao" />
+				<property name="neonatalTransferDao" ref="neonatalTransferDao" />
+				<property name="transferAdminService" ref="transferAdminService" />
+			</bean>
+		</property>
+		<property name="preInterceptors">
+			<ref bean="serviceInterceptors" />
+		</property>
+		<property name="transactionAttributeSource">
+			<ref bean="transactionAttributeSource" />
+		</property>
+	</bean>
+
+	<bean parent="serviceContext">
+		<property name="moduleService">
+			<list>
+				<value>org.openmrs.module.transferapp.api.NewNeonatalTransferOutService</value>
+				<ref bean="newNeonatalTransferOutService" />
+			</list>
+		</property>
+	</bean>
+
 	<bean id="intouchSmsProperties" class="org.openmrs.module.transferapp.sms.IntouchSmsProperties" />
 
 	<bean id="transferIntouchSmsClient" class="org.openmrs.module.transferapp.sms.TransferIntouchSmsClient">
@@ -416,6 +546,66 @@
 			<list>
 				<value>org.openmrs.module.transferapp.api.TransferHieSubmissionService</value>
 				<ref bean="transferHieSubmissionService" />
+			</list>
+		</property>
+	</bean>
+
+	<bean id="neonatalTransferHieSubmissionServiceTarget"
+			class="org.openmrs.module.transferapp.api.impl.NeonatalTransferHieSubmissionServiceImpl">
+		<property name="neonatalTransferDao" ref="neonatalTransferDao" />
+		<property name="transferAdminService" ref="transferAdminService" />
+	</bean>
+
+	<bean id="neonatalTransferHieSubmissionService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+		<property name="transactionManager">
+			<ref bean="transactionManager" />
+		</property>
+		<property name="target">
+			<ref bean="neonatalTransferHieSubmissionServiceTarget" />
+		</property>
+		<property name="preInterceptors">
+			<ref bean="serviceInterceptors" />
+		</property>
+		<property name="transactionAttributeSource">
+			<ref bean="transactionAttributeSource" />
+		</property>
+	</bean>
+
+	<bean parent="serviceContext">
+		<property name="moduleService">
+			<list>
+				<value>org.openmrs.module.transferapp.api.NeonatalTransferHieSubmissionService</value>
+				<ref bean="neonatalTransferHieSubmissionService" />
+			</list>
+		</property>
+	</bean>
+
+	<bean id="maternityTransferHieSubmissionServiceTarget"
+			class="org.openmrs.module.transferapp.api.impl.MaternityTransferHieSubmissionServiceImpl">
+		<property name="maternityTransferDao" ref="maternityTransferDao" />
+		<property name="transferAdminService" ref="transferAdminService" />
+	</bean>
+
+	<bean id="maternityTransferHieSubmissionService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+		<property name="transactionManager">
+			<ref bean="transactionManager" />
+		</property>
+		<property name="target">
+			<ref bean="maternityTransferHieSubmissionServiceTarget" />
+		</property>
+		<property name="preInterceptors">
+			<ref bean="serviceInterceptors" />
+		</property>
+		<property name="transactionAttributeSource">
+			<ref bean="transactionAttributeSource" />
+		</property>
+	</bean>
+
+	<bean parent="serviceContext">
+		<property name="moduleService">
+			<list>
+				<value>org.openmrs.module.transferapp.api.MaternityTransferHieSubmissionService</value>
+				<ref bean="maternityTransferHieSubmissionService" />
 			</list>
 		</property>
 	</bean>

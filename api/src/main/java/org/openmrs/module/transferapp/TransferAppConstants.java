@@ -113,11 +113,7 @@ public final class TransferAppConstants {
 
 	public static final String GP_HIE_URL = "transferapp.hie.url";
 
-	public static final String DEFAULT_HIE_URL = "http://197.243.24.138:5001";
-
 	public static final String GP_HIE_USERNAME = "transferapp.hie.username";
-
-	public static final String DEFAULT_HIE_USERNAME = "MRS_TEST";
 
 	public static final String GP_HIE_PASSWORD = "transferapp.hie.password";
 

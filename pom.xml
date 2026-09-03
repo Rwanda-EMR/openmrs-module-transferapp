@@ -40,7 +40,7 @@
 		<registrationcoreVersion>1.13.0</registrationcoreVersion>
 		<addresshierarchyVersion>2.21.0</addresshierarchyVersion>
 		<initializerVersion>2.10.0</initializerVersion>
-		<mohbillingVersion>2.2.1-SNAPSHOT</mohbillingVersion>
+		<mohbillingVersion>2.2.2-SNAPSHOT</mohbillingVersion>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 

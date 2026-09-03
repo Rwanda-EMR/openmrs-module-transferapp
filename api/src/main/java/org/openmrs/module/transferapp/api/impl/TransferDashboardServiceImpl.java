@@ -24,6 +24,8 @@ import org.openmrs.module.transferapp.TransferAppConstants;
 import org.openmrs.module.transferapp.api.TransferAdminService;
 import org.openmrs.module.transferapp.api.TransferDashboardService;
 import org.openmrs.module.transferapp.api.TransferReceivedStatistics;
+import org.openmrs.module.transferapp.api.dao.MaternityTransferDao;
+import org.openmrs.module.transferapp.api.dao.NeonatalTransferDao;
 import org.openmrs.module.transferapp.api.dao.TransferDao;
 
 import java.util.Calendar;
@@ -42,10 +44,22 @@ public class TransferDashboardServiceImpl implements TransferDashboardService {
 
 	private TransferDao transferDao;
 
+	private MaternityTransferDao maternityTransferDao;
+
+	private NeonatalTransferDao neonatalTransferDao;
+
 	private TransferAdminService transferAdminService;
 
 	public void setTransferDao(TransferDao transferDao) {
 		this.transferDao = transferDao;
+	}
+
+	public void setMaternityTransferDao(MaternityTransferDao maternityTransferDao) {
+		this.maternityTransferDao = maternityTransferDao;
+	}
+
+	public void setNeonatalTransferDao(NeonatalTransferDao neonatalTransferDao) {
+		this.neonatalTransferDao = neonatalTransferDao;
 	}
 
 	public void setTransferAdminService(TransferAdminService transferAdminService) {
@@ -87,10 +101,32 @@ public class TransferDashboardServiceImpl implements TransferDashboardService {
 		Date startOfToday = startOfToday();
 		Date startOfWeek = startOfThisWeek();
 
-		statistics.setToday(transferDao.countOutboundTransfers(facilityName, startOfToday, null));
-		statistics.setThisWeek(transferDao.countOutboundTransfers(facilityName, startOfWeek, null));
-		statistics.setTotal(transferDao.countOutboundTransfers(facilityName, null, null));
-		statistics.setPending(transferDao.countOutboundTransfers(facilityName, null, Boolean.FALSE));
+		int maternityToday = maternityTransferDao != null
+				? maternityTransferDao.countOutboundMaternityTransfers(facilityName, startOfToday) : 0;
+		int maternityThisWeek = maternityTransferDao != null
+				? maternityTransferDao.countOutboundMaternityTransfers(facilityName, startOfWeek) : 0;
+		int maternityTotal = maternityTransferDao != null
+				? maternityTransferDao.countOutboundMaternityTransfers(facilityName, null) : 0;
+		int maternityPending = maternityTransferDao != null
+				? maternityTransferDao.countOutboundMaternityTransfers(facilityName, null, Boolean.FALSE) : 0;
+
+		int neonatalToday = neonatalTransferDao != null
+				? neonatalTransferDao.countOutboundNeonatalTransfers(facilityName, startOfToday) : 0;
+		int neonatalThisWeek = neonatalTransferDao != null
+				? neonatalTransferDao.countOutboundNeonatalTransfers(facilityName, startOfWeek) : 0;
+		int neonatalTotal = neonatalTransferDao != null
+				? neonatalTransferDao.countOutboundNeonatalTransfers(facilityName, null) : 0;
+		int neonatalPending = neonatalTransferDao != null
+				? neonatalTransferDao.countOutboundNeonatalTransfers(facilityName, null, Boolean.FALSE) : 0;
+
+		statistics.setToday(transferDao.countOutboundTransfers(facilityName, startOfToday, null)
+				+ maternityToday + neonatalToday);
+		statistics.setThisWeek(transferDao.countOutboundTransfers(facilityName, startOfWeek, null)
+				+ maternityThisWeek + neonatalThisWeek);
+		statistics.setTotal(transferDao.countOutboundTransfers(facilityName, null, null)
+				+ maternityTotal + neonatalTotal);
+		statistics.setPending(transferDao.countOutboundTransfers(facilityName, null, Boolean.FALSE)
+				+ maternityPending + neonatalPending);
 
 		return statistics;
 	}

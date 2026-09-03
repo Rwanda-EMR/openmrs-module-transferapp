@@ -61,10 +61,22 @@ public class ClientRegistryPatientPayloadBuilder {
 	}
 
 	public String buildPatientJson(Patient patient, Transfer transfer) {
+		return buildPatientJson(patient,
+				transfer != null ? transfer.getEmrId() : null,
+				transfer != null ? transfer.getClientTelephone() : null,
+				transfer != null ? transfer.getCaregiverTelephone() : null);
+	}
+
+	/**
+	 * Form-agnostic overload: builds the same Client Registry patient payload without requiring
+	 * an External-transfer-specific {@link Transfer} object. {@code upiFallback} and the two phone
+	 * fallbacks are only used when the patient's own OpenMRS UPID / phone can't be resolved.
+	 */
+	public String buildPatientJson(Patient patient, String upiFallback, String phoneFallback1, String phoneFallback2) {
 		if (patient == null) {
 			throw new HieApiException("Cannot build Client Registry patient: OpenMRS patient is required");
 		}
-		String upi = resolveUpi(patient, transfer);
+		String upi = resolveUpi(patient, upiFallback);
 		if (StringUtils.isBlank(upi)) {
 			throw new HieApiException("Cannot build Client Registry patient: UPID/UPI is required");
 		}
@@ -96,8 +108,8 @@ public class ClientRegistryPatientPayloadBuilder {
 
 			String phone = firstNonBlank(
 					patientSnapshotResolver.resolvePatientPhone(patient),
-					transfer != null ? transfer.getClientTelephone() : null,
-					transfer != null ? transfer.getCaregiverTelephone() : null);
+					phoneFallback1,
+					phoneFallback2);
 			if (StringUtils.isNotBlank(phone)) {
 				root.putArray("telecom").addObject().put("value", phone.trim());
 			}
@@ -174,10 +186,10 @@ public class ClientRegistryPatientPayloadBuilder {
 		}
 	}
 
-	private String resolveUpi(Patient patient, Transfer transfer) {
+	private String resolveUpi(Patient patient, String upiFallback) {
 		String upi = patientSnapshotResolver.resolveUpid(patient);
-		if (StringUtils.isBlank(upi) && transfer != null) {
-			upi = firstNonBlank(transfer.getEmrId(), null);
+		if (StringUtils.isBlank(upi)) {
+			upi = firstNonBlank(upiFallback, null);
 		}
 		return StringUtils.trimToNull(upi);
 	}
