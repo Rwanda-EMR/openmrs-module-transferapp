@@ -250,6 +250,12 @@ public class Transfer extends BaseOpenmrsData {
 	@Column(name = "signed_time", length = 8)
 	private String signedTime;
 
+	/**
+	 * Optional future date when reception may re-accept this (previously validated) transfer.
+	 */
+	@Column(name = "reuse_rendezvous_date")
+	private Date reuseRendezvousDate;
+
 	@Override
 	public Integer getId() {
 		return getTransferId();
@@ -762,6 +768,14 @@ public class Transfer extends BaseOpenmrsData {
 
 	public void setSignedTime(String signedTime) {
 		this.signedTime = signedTime;
+	}
+
+	public Date getReuseRendezvousDate() {
+		return reuseRendezvousDate;
+	}
+
+	public void setReuseRendezvousDate(Date reuseRendezvousDate) {
+		this.reuseRendezvousDate = reuseRendezvousDate;
 	}
 
 	public PatientSmsNotificationStatus getPatientSmsStatus() {

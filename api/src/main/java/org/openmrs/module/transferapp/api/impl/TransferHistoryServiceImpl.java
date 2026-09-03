@@ -25,9 +25,12 @@ import org.openmrs.api.APIException;
 import org.openmrs.api.PatientService;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.transferapp.TransferAppConstants;
+import org.openmrs.module.transferapp.api.TransferHieReceiveService;
 import org.openmrs.module.transferapp.api.TransferHistoryService;
 import org.openmrs.module.transferapp.api.TransferPatientSnapshotResolver;
 import org.openmrs.module.transferapp.api.TransferVerificationUrlService;
+import org.openmrs.module.transferapp.api.dao.TransferDao;
+import org.openmrs.module.transferapp.model.Transfer;
 import org.openmrs.module.transferapp.model.TransferHistoryItem;
 
 import java.text.ParseException;
@@ -46,10 +49,22 @@ public class TransferHistoryServiceImpl implements TransferHistoryService {
 
 	private PatientService patientService;
 
+	private TransferDao transferDao;
+
+	private TransferHieReceiveService transferHieReceiveService;
+
 	private TransferPatientSnapshotResolver patientSnapshotResolver = new TransferPatientSnapshotResolver();
 
 	public void setPatientService(PatientService patientService) {
 		this.patientService = patientService;
+	}
+
+	public void setTransferDao(TransferDao transferDao) {
+		this.transferDao = transferDao;
+	}
+
+	public void setTransferHieReceiveService(TransferHieReceiveService transferHieReceiveService) {
+		this.transferHieReceiveService = transferHieReceiveService;
 	}
 
 	public void setPatientSnapshotResolver(TransferPatientSnapshotResolver patientSnapshotResolver) {
@@ -150,6 +165,7 @@ public class TransferHistoryServiceImpl implements TransferHistoryService {
 			if (encounter.getLocation() != null) {
 				item.setLocationName(encounter.getLocation().getName());
 			}
+			item.setReuseRendezvousDate(resolveReuseRendezvousDate(rowPatient.getPatientId(), transferId));
 			items.add(item);
 		}
 
@@ -171,6 +187,90 @@ public class TransferHistoryServiceImpl implements TransferHistoryService {
 			}
 		});
 		return items;
+	}
+
+	@Override
+	public Transfer setReuseRendezvousDate(Integer patientId, String hieTransferId, String reuseDateYyyyMmDd) {
+		if (patientId == null) {
+			throw new APIException("Patient is required");
+		}
+		String transferId = StringUtils.trimToNull(hieTransferId);
+		if (transferId == null) {
+			throw new APIException("HIE transfer id is required");
+		}
+		TransferVerificationUrlService verificationUrlService =
+				Context.getService(TransferVerificationUrlService.class);
+		if (verificationUrlService == null
+				|| !verificationUrlService.isValidVerificationTransferId(transferId)) {
+			throw new APIException("A valid HIE transfer UUID is required");
+		}
+
+		Transfer transfer = transferDao != null
+				? transferDao.getTransferByHieTransferId(patientId, transferId)
+				: null;
+		if (transfer == null) {
+			if (transferHieReceiveService == null) {
+				throw new APIException("Unable to store transfer from HIE for reuse scheduling");
+			}
+			transfer = transferHieReceiveService.receiveTransferFromHie(patientId, transferId);
+		}
+		if (transfer == null) {
+			throw new APIException("Unable to load transfer for reuse scheduling");
+		}
+
+		String dateText = StringUtils.trimToNull(reuseDateYyyyMmDd);
+		if (dateText == null) {
+			transfer.setReuseRendezvousDate(null);
+		}
+		else {
+			Date reuseDate = parseReuseDate(dateText);
+			assertReuseDateNotBeforeToday(reuseDate);
+			transfer.setReuseRendezvousDate(reuseDate);
+		}
+		transfer.setChangedBy(Context.getAuthenticatedUser());
+		transfer.setDateChanged(new Date());
+		return transferDao.saveTransfer(transfer);
+	}
+
+	private String resolveReuseRendezvousDate(Integer patientId, String hieTransferId) {
+		if (transferDao == null || patientId == null || StringUtils.isBlank(hieTransferId)) {
+			return null;
+		}
+		Transfer local = transferDao.getTransferByHieTransferId(patientId, hieTransferId.trim());
+		if (local == null || local.getReuseRendezvousDate() == null) {
+			return null;
+		}
+		return new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(local.getReuseRendezvousDate());
+	}
+
+	private static Date parseReuseDate(String value) {
+		try {
+			SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH);
+			format.setLenient(false);
+			Date parsed = format.parse(value.trim());
+			Calendar calendar = Calendar.getInstance();
+			calendar.setTime(parsed);
+			clearTimeStatic(calendar);
+			return calendar.getTime();
+		}
+		catch (ParseException ex) {
+			throw new APIException("Reuse date must use yyyy-MM-dd format");
+		}
+	}
+
+	private static void assertReuseDateNotBeforeToday(Date reuseDate) {
+		Calendar today = Calendar.getInstance();
+		clearTimeStatic(today);
+		if (reuseDate.before(today.getTime())) {
+			throw new APIException("Reuse rendez-vous date must be today or a future date");
+		}
+	}
+
+	private static void clearTimeStatic(Calendar calendar) {
+		calendar.set(Calendar.HOUR_OF_DAY, 0);
+		calendar.set(Calendar.MINUTE, 0);
+		calendar.set(Calendar.SECOND, 0);
+		calendar.set(Calendar.MILLISECOND, 0);
 	}
 
 	/**

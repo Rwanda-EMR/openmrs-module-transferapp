@@ -24,29 +24,52 @@ import org.openmrs.module.transferapp.api.TransferAdminService;
 import org.openmrs.module.transferapp.api.TransferProfileService;
 import org.openmrs.module.transferapp.model.ReceivingFacility;
 import org.openmrs.module.transferapp.model.Transfer;
-import org.openmrs.module.transferapp.model.TransferFormKind;
 import org.openmrs.module.transferapp.model.TransferProfile;
 
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
 import java.util.Locale;
-import java.util.TimeZone;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
+/**
+ * Builds the External (General) Transfer Encounter payload to match
+ * {@code devs/transfer.json}:
+ * <ul>
+ *   <li>{@code status=in-progress}, {@code class=IMP}</li>
+ *   <li>{@code patient-phone}, {@code doctor-details}, {@code transfer-details}</li>
+ *   <li>{@code transfer-type}: NORMAL_TRANSFER / REFERRAL / COUNTER_REFERRAL</li>
+ *   <li>{@code transport} nested under transfer-details</li>
+ *   <li>{@code subject}, {@code participant} (ATND), {@code diagnosis},
+ *       {@code hospitalization}, {@code location}, {@code serviceProvider}</li>
+ * </ul>
+ * Optional sections from the sample (referral-feedback, counter-referral) are omitted
+ * when the form has no data for them. Referral linkage is included when a previous
+ * HIE encounter id is known.
+ */
 public class TransferEncounterPayloadBuilder {
 
-	private static final TimeZone RWANDA = TimeZone.getTimeZone("Africa/Kigali");
+	private static final String FOSA_ID_SYSTEM = "http://example.rw/fhir/fosa-id";
 
-	private static final String SNOMED_SYSTEM = "http://snomed.info/sct";
+	private static final String LICENSE_SYSTEM = "http://example.rw/practitioner/license-number";
 
-	private static final String SNOMED_UNKNOWN_REASON_CODE = "261665006";
+	private static final String DOCTOR_DETAILS_URL =
+			"http://example.rw/fhir/StructureDefinition/doctor-details";
 
-	private static final String SNOMED_UNKNOWN_REASON_DISPLAY = "Unknown (qualifier)";
+	private static final String TRANSFER_DETAILS_URL =
+			"http://example.rw/fhir/StructureDefinition/transfer-details";
 
-	private static final Pattern AGE_ONLY = Pattern.compile("^(\\d+)\\s*years?$", Pattern.CASE_INSENSITIVE);
+	private static final String TRANSFER_TYPE_SYSTEM =
+			"http://example.rw/fhir/CodeSystem/transfer-type";
+
+	private static final String TRANSPORT_TYPE_SYSTEM =
+			"http://example.rw/fhir/CodeSystem/transfer-transport-type";
+
+	private static final String AMBULANCE_SOURCE_SYSTEM =
+			"http://example.rw/fhir/CodeSystem/ambulance-source";
+
+	private static final String QUALIFICATION_SYSTEM =
+			"http://example.rw/fhir/CodeSystem/doctor-qualification";
+
+	private static final String SPECIALTY_SYSTEM =
+			"http://example.rw/fhir/CodeSystem/doctor-specialty";
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -74,6 +97,8 @@ public class TransferEncounterPayloadBuilder {
 
 	/**
 	 * @param forcedEncounterId when set, reused as Encounter.id so HIE updates the same resource
+	 * @param externalReceivingFacility retained for callers; insurance-agent flag is not part of
+	 *        the {@code transfer.json} shape and is not emitted here
 	 */
 	public String buildEncounterJson(Transfer transfer, User user, String receivingFacilityLabel,
 			boolean externalReceivingFacility, String forcedEncounterId) {
@@ -82,28 +107,25 @@ public class TransferEncounterPayloadBuilder {
 			String encounterId = StringUtils.isNotBlank(forcedEncounterId)
 					? forcedEncounterId.trim()
 					: (transfer.getUuid() != null ? transfer.getUuid() : UUID.randomUUID().toString());
+			String transferBusinessId = resolveTransferBusinessId(transfer, encounterId);
+			TransferProfile profile = resolveProfile(user);
+			String license = resolveLicense(transfer, user, profile);
+			String providerDisplay = resolveProviderDisplayName(transfer, user);
+
 			ObjectNode encounter = objectMapper.createObjectNode();
 			encounter.put("resourceType", "Encounter");
 			encounter.put("id", encounterId);
-			encounter.put("status", "finished");
+			encounter.put("status", "in-progress");
 
-			addMeta(encounter);
-			addExtensions(encounter, transfer, user, receivingFacilityLabel, externalReceivingFacility);
-			addClass(encounter, transfer.getTransferType());
-			addType(encounter);
-			addServiceType(encounter, transfer.getReceivingService());
+			addClass(encounter);
+			addTopLevelExtensions(encounter, transfer, user, profile, license, upi, transferBusinessId,
+					encounterId);
 			addSubject(encounter, upi, transfer.getClientName());
-			addParticipant(encounter, transfer, user);
-
-			Date periodStart = requireDecisionToTransferAt(transfer);
-			Date periodEnd = periodStart;
-			addPeriod(encounter, periodStart, periodEnd);
-			addLength(encounter, periodStart, periodEnd);
-			addReasonCode(encounter, transfer.getReasonForTransfer());
-			addDiagnosis(encounter, transfer);
+			addParticipant(encounter, user, license, providerDisplay);
+			addDiagnosis(encounter, transfer, encounterId);
 			addHospitalization(encounter, transfer, receivingFacilityLabel);
-			addLocation(encounter, transfer, periodStart, periodEnd);
-			addPartOf(encounter, transfer);
+			addLocation(encounter, transfer, receivingFacilityLabel);
+			addServiceProvider(encounter, transfer, receivingFacilityLabel);
 
 			return objectMapper.writeValueAsString(encounter);
 		}
@@ -115,16 +137,10 @@ public class TransferEncounterPayloadBuilder {
 		}
 	}
 
-	/**
-	 * Reads Destinations configuration for the transfer's selected receiving facility code.
-	 */
 	public boolean isExternalReceivingFacility(Transfer transfer) {
 		return resolveExternalReceivingFacility(transfer);
 	}
 
-	/**
-	 * Reads Destinations configuration for the transfer's selected receiving facility code.
-	 */
 	private boolean resolveExternalReceivingFacility(Transfer transfer) {
 		if (transfer == null || StringUtils.isBlank(transfer.getReceivingFacilityCode())) {
 			return false;
@@ -155,456 +171,348 @@ public class TransferEncounterPayloadBuilder {
 		}
 	}
 
-	private void addMeta(ObjectNode encounter) {
-		ObjectNode meta = encounter.putObject("meta");
-		ObjectNode tag = addObjectNode(meta.putArray("tag"));
-		tag.put("system", "http://fhir.openmrs.org/ext/encounter-tag");
-		tag.put("code", "encounter");
-		tag.put("display", "Encounter");
-	}
-
-	private void addExtensions(ObjectNode encounter, Transfer transfer, User user, String receivingFacilityLabel,
-			boolean externalReceivingFacility) {
-		addTransferFormKindExtension(encounter, transfer);
-		addTransferTypeExtension(encounter, transfer.getTransferType());
-		// Dedicated timestamps (not derived from Encounter.period / length calculations).
-		addDateTimeExtension(encounter, "http://example.org/fhir/StructureDefinition/admission-datetime",
-				transfer.getAdmissionAt());
-		addDateTimeExtension(encounter, "http://example.org/fhir/StructureDefinition/decision-to-transfer-datetime",
-				transfer.getDecisionToTransferAt());
-		// Calling time is when the receiving facility staff was contacted (with staff name/phone).
-		addDateTimeExtension(encounter, "http://example.org/fhir/StructureDefinition/calling-time",
-				combineDateAndTime(transfer.getDecisionToTransferAt(), transfer.getCallingTime()));
-		// Ambulance call time applies to emergency / ambulance transfers only.
-		addDateTimeExtension(encounter, "http://example.org/fhir/StructureDefinition/ambulance-call-time",
-				combineDateAndTime(transfer.getDecisionToTransferAt(), transfer.getAmbulanceCallTime()));
-		addDateTimeExtension(encounter, "http://example.org/fhir/StructureDefinition/departure-time",
-				combineDateAndTime(transfer.getDecisionToTransferAt(), transfer.getDepartRefTime()));
-		// Dedicated referring unit (not only hospitalization.admitSource) so other systems can read it.
-		addStringExtension(encounter, "http://example.org/fhir/StructureDefinition/referring-department",
-				transfer.getReferringUnit());
-		addReceivingClinicianContactExtension(encounter, transfer);
-		addStringExtension(encounter, "http://example.org/fhir/StructureDefinition/receiving-province",
-				transfer.getReceivingProvince());
-		addStringExtension(encounter, "http://example.org/fhir/StructureDefinition/receiving-district",
-				transfer.getReceivingDistrict());
-		addInsuranceExtension(encounter, transfer.getHealthInsuranceType());
-		addExternalFacilityExtension(encounter, externalReceivingFacility);
-		addCaregiverExtension(encounter, transfer);
-		addStringExtension(encounter, "http://example.org/fhir/StructureDefinition/vital-signs", formatVitals(transfer));
-		addStringExtension(encounter, "http://example.org/fhir/StructureDefinition/clinical-presentation",
-				transfer.getClinicalPresentation());
-		addStringExtension(encounter, "http://example.org/fhir/StructureDefinition/lab-results",
-				transfer.getLaboratory());
-		addStringExtension(encounter, "http://example.org/fhir/StructureDefinition/others-notes",
-				transfer.getOtherNotes());
-		addStringExtension(encounter, "http://example.org/fhir/StructureDefinition/procedures-treatments",
-				transfer.getProceduresTreatments());
-		addTransportExtension(encounter, transfer.getTransportType());
-		addAmbulanceProviderFacilityExtension(encounter, transfer);
-		addPatientDemographicsExtension(encounter, transfer);
-		addPatientAddressExtension(encounter, transfer);
-		addPractitionerInfoExtension(encounter, transfer, user);
-	}
-
-	private void addClass(ObjectNode encounter, String transferType) {
+	private void addClass(ObjectNode encounter) {
 		ObjectNode classNode = encounter.putObject("class");
 		classNode.put("system", "http://terminology.hl7.org/CodeSystem/v3-ActCode");
-		boolean emergency = "EMERGENCY".equals(transferType);
-		classNode.put("code", emergency ? "EMER" : "AMB");
-		classNode.put("display", emergency ? "Emergency" : transferTypeLabel(transferType));
+		classNode.put("code", "IMP");
+		classNode.put("display", "inpatient encounter");
 	}
 
-	private void addType(ObjectNode encounter) {
-		ObjectNode typeEntry = addObjectNode(encounter.putArray("type"));
-		ObjectNode coding = addObjectNode(typeEntry.putArray("coding"));
-		coding.put("code", "TRANSFER_ENCOUNTER");
-		coding.put("display", "TRANSFER_ENCOUNTER");
-		typeEntry.put("text", "External Transfer");
+	private void addTopLevelExtensions(ObjectNode encounter, Transfer transfer, User user,
+			TransferProfile profile, String license, String upi, String transferBusinessId,
+			String encounterId) {
+		ArrayNode extensions = encounter.putArray("extension");
+
+		String patientPhone = firstNonBlank(transfer.getClientTelephone(), transfer.getCaregiverTelephone());
+		if (StringUtils.isNotBlank(patientPhone)) {
+			ObjectNode phoneExt = addObjectNode(extensions);
+			phoneExt.put("url", "patient-phone");
+			phoneExt.put("valueString", patientPhone.trim());
+		}
+
+		addDoctorDetailsExtension(extensions, transfer, profile, license);
+		addTransferDetailsExtension(extensions, transfer, upi, transferBusinessId, encounterId);
 	}
 
-	private void addServiceType(ObjectNode encounter, String receivingService) {
-		ObjectNode serviceType = encounter.putObject("serviceType");
-		ObjectNode coding = addObjectNode(serviceType.putArray("coding"));
-		coding.put("system", "http://terminology.hl7.org/CodeSystem/service-type");
-		coding.put("code", "253");
-		coding.put("display", StringUtils.isNotBlank(receivingService) ? receivingService.trim() : "");
+	private void addDoctorDetailsExtension(ArrayNode extensions, Transfer transfer, TransferProfile profile,
+			String license) {
+		String qualification = firstNonBlank(
+				transfer.getProviderQualification(),
+				profile != null ? profile.getQualification() : null);
+		String specialty = profile != null ? StringUtils.trimToNull(profile.getSpeciality()) : null;
+		String phone = firstNonBlank(
+				transfer.getProviderPhone(),
+				profile != null ? profile.getPhoneNumber() : null);
+		if (StringUtils.isBlank(license) && StringUtils.isBlank(qualification)
+				&& StringUtils.isBlank(specialty) && StringUtils.isBlank(phone)) {
+			return;
+		}
+
+		ObjectNode doctorDetails = addObjectNode(extensions);
+		doctorDetails.put("url", DOCTOR_DETAILS_URL);
+		ArrayNode nested = doctorDetails.putArray("extension");
+
+		if (StringUtils.isNotBlank(license)) {
+			ObjectNode licenseExt = addObjectNode(nested);
+			licenseExt.put("url", "license-number");
+			licenseExt.put("valueString", license.trim());
+		}
+		if (StringUtils.isNotBlank(qualification)) {
+			addCodeableConceptNested(nested, "qualification", QUALIFICATION_SYSTEM,
+					toCodeToken(qualification), qualification.trim());
+		}
+		if (StringUtils.isNotBlank(specialty)) {
+			addCodeableConceptNested(nested, "specialty", SPECIALTY_SYSTEM,
+					toCodeToken(specialty), specialty.trim());
+		}
+		if (StringUtils.isNotBlank(phone)) {
+			ObjectNode phoneExt = addObjectNode(nested);
+			phoneExt.put("url", "phone-number");
+			phoneExt.put("valueString", phone.trim());
+		}
+	}
+
+	private void addTransferDetailsExtension(ArrayNode extensions, Transfer transfer, String upi,
+			String transferBusinessId, String encounterId) {
+		ObjectNode transferDetails = addObjectNode(extensions);
+		transferDetails.put("url", TRANSFER_DETAILS_URL);
+		ArrayNode nested = transferDetails.putArray("extension");
+
+		// transfer-id — optional in sample
+		ObjectNode transferIdExt = addObjectNode(nested);
+		transferIdExt.put("url", "transfer-id");
+		transferIdExt.put("valueString", transferBusinessId);
+
+		// transfer-type: NORMAL_TRANSFER | REFERRAL | COUNTER_REFERRAL
+		String workflowType = resolveWorkflowTransferType(transfer);
+		ObjectNode typeExt = addObjectNode(nested);
+		typeExt.put("url", "transfer-type");
+		ObjectNode typeCoding = typeExt.putObject("valueCoding");
+		typeCoding.put("system", TRANSFER_TYPE_SYSTEM);
+		typeCoding.put("code", workflowType);
+		typeCoding.put("display", workflowTransferTypeDisplay(workflowType));
+
+		ObjectNode qrExt = addObjectNode(nested);
+		qrExt.put("url", "qr-code");
+		qrExt.put("valueString", "TRF:" + transferBusinessId + "|PATIENT:" + upi);
+
+		// previous-encounter is required when linking to a prior transfer encounter
+		addReferralLinkageIfPresent(nested, transfer, encounterId);
+
+		addTransportExtension(nested, transfer);
+	}
+
+	/**
+	 * External Transfer Form urgency (EMERGENCY / NOT_EMERGENCY / FOLLOW_UP) is separate from
+	 * FHIR workflow transfer-type. Outbound general transfers are REFERRAL by default;
+	 * FOLLOW_UP maps to NORMAL_TRANSFER; explicit counter-referral is not collected on this form.
+	 */
+	private static String resolveWorkflowTransferType(Transfer transfer) {
+		String urgency = transfer != null ? StringUtils.trimToEmpty(transfer.getTransferType()) : "";
+		if ("FOLLOW_UP".equals(urgency)) {
+			return "NORMAL_TRANSFER";
+		}
+		return "REFERRAL";
+	}
+
+	private static String workflowTransferTypeDisplay(String code) {
+		if ("NORMAL_TRANSFER".equals(code)) {
+			return "Normal Transfer";
+		}
+		if ("COUNTER_REFERRAL".equals(code)) {
+			return "Counter Referral";
+		}
+		return "Referral";
+	}
+
+	private void addReferralLinkageIfPresent(ArrayNode transferDetailsNested, Transfer transfer,
+			String currentEncounterId) {
+		String previousEncounterId = StringUtils.trimToNull(transfer.getHieTransferId());
+		if (previousEncounterId == null || previousEncounterId.equals(currentEncounterId)) {
+			return;
+		}
+		ObjectNode referral = addObjectNode(transferDetailsNested);
+		referral.put("url", "referral");
+		ArrayNode nested = referral.putArray("extension");
+
+		ObjectNode previous = addObjectNode(nested);
+		previous.put("url", "previous-encounter");
+		ObjectNode ref = previous.putObject("valueReference");
+		ref.put("reference", "Encounter/" + previousEncounterId);
+		ref.put("type", "Encounter");
+	}
+
+	private void addTransportExtension(ArrayNode transferDetailsNested, Transfer transfer) {
+		String transportType = StringUtils.trimToNull(transfer.getTransportType());
+		boolean ambulance = "AMBULANCE".equals(transportType);
+		boolean other = "OTHER".equals(transportType);
+		boolean na = "NA".equals(transportType);
+		boolean emergency = "EMERGENCY".equals(StringUtils.trimToEmpty(transfer.getTransferType()));
+		boolean required = ambulance || emergency;
+
+		if (transportType == null && !required) {
+			return;
+		}
+
+		ObjectNode transport = addObjectNode(transferDetailsNested);
+		transport.put("url", "transport");
+		ArrayNode nested = transport.putArray("extension");
+
+		ObjectNode requiredExt = addObjectNode(nested);
+		requiredExt.put("url", "required");
+		requiredExt.put("valueBoolean", required);
+
+		if (ambulance || other) {
+			ObjectNode typeExt = addObjectNode(nested);
+			typeExt.put("url", "transport-type");
+			ObjectNode coding = typeExt.putObject("valueCoding");
+			coding.put("system", TRANSPORT_TYPE_SYSTEM);
+			if (ambulance) {
+				coding.put("code", "AMBULANCE");
+				coding.put("display", "Ambulance");
+			}
+			else {
+				coding.put("code", "OTHER");
+				coding.put("display", "Other");
+			}
+		}
+		else if (na) {
+			ObjectNode typeExt = addObjectNode(nested);
+			typeExt.put("url", "transport-type");
+			ObjectNode coding = typeExt.putObject("valueCoding");
+			coding.put("system", TRANSPORT_TYPE_SYSTEM);
+			coding.put("code", "OTHER");
+			coding.put("display", "Other");
+		}
+
+		if (ambulance) {
+			addAmbulanceSourceAndProvider(nested, transfer);
+		}
+
+		String comments = firstNonBlank(transfer.getTransportOther(), transfer.getOtherNotes());
+		if (StringUtils.isNotBlank(comments)) {
+			ObjectNode commentsExt = addObjectNode(nested);
+			commentsExt.put("url", "transport-comments");
+			commentsExt.put("valueString", comments.trim());
+		}
+	}
+
+	private void addAmbulanceSourceAndProvider(ArrayNode transportNested, Transfer transfer) {
+		String providerFosa = StringUtils.trimToNull(transfer.getAmbulanceProviderFosaId());
+		String providerName = StringUtils.trimToNull(transfer.getAmbulanceProviderName());
+		String sendingFosa = resolveSendingFosaId();
+		boolean ownAmbulance = providerFosa == null
+				|| (sendingFosa != null && sendingFosa.equalsIgnoreCase(providerFosa));
+
+		ObjectNode sourceExt = addObjectNode(transportNested);
+		sourceExt.put("url", "ambulance-source");
+		ObjectNode sourceCoding = sourceExt.putObject("valueCoding");
+		sourceCoding.put("system", AMBULANCE_SOURCE_SYSTEM);
+		if (ownAmbulance) {
+			sourceCoding.put("code", "OWN");
+			sourceCoding.put("display", "Facility-owned ambulance");
+		}
+		else {
+			sourceCoding.put("code", "BORROWED_FACILITY");
+			sourceCoding.put("display", "Borrowed from another health facility");
+		}
+
+		if (StringUtils.isNotBlank(providerName)) {
+			ObjectNode nameExt = addObjectNode(transportNested);
+			nameExt.put("url", "facility-name");
+			nameExt.put("valueString", providerName);
+		}
+		if (StringUtils.isNotBlank(providerFosa)) {
+			ObjectNode fosaExt = addObjectNode(transportNested);
+			fosaExt.put("url", "fosa-id");
+			fosaExt.put("valueString", providerFosa);
+		}
 	}
 
 	private void addSubject(ObjectNode encounter, String upi, String clientName) {
 		ObjectNode subject = encounter.putObject("subject");
 		subject.put("reference", "Patient/" + upi);
 		subject.put("type", "Patient");
-		ObjectNode subjectIdentifier = subject.putObject("identifier");
-		ObjectNode identifierType = subjectIdentifier.putObject("type");
-		ObjectNode upiCoding = addObjectNode(identifierType.putArray("coding"));
-		upiCoding.put("code", "UPI");
-		upiCoding.put("display", "UPI");
-		subjectIdentifier.put("value", upi);
+		ObjectNode identifier = subject.putObject("identifier");
+		identifier.put("system", "UPI");
+		identifier.put("value", upi);
 		subject.put("display", blankToDefault(clientName, "Patient"));
 	}
 
-	private void addParticipant(ObjectNode encounter, Transfer transfer, User user) {
-		String practitionerId = resolvePractitionerId(user);
-		String displayName = formatReferringProviderName(transfer, user);
-
+	private void addParticipant(ObjectNode encounter, User user, String license, String displayName) {
+		String practitionerId = resolvePractitionerId(user, license);
 		ObjectNode participant = addObjectNode(encounter.putArray("participant"));
 		ObjectNode participantType = addObjectNode(participant.putArray("type"));
 		ObjectNode participantCoding = addObjectNode(participantType.putArray("coding"));
 		participantCoding.put("system", "http://terminology.hl7.org/CodeSystem/v3-ParticipationType");
-		participantCoding.put("code", "REF");
-		participantCoding.put("display", "Referrer");
+		participantCoding.put("code", "ATND");
+		participantCoding.put("display", "attender");
+
 		ObjectNode individual = participant.putObject("individual");
 		individual.put("reference", "Practitioner/" + practitionerId);
 		individual.put("type", "Practitioner");
-		individual.putObject("identifier").put("value", practitionerId);
-		individual.put("display", displayName);
+		if (StringUtils.isNotBlank(license)) {
+			ObjectNode identifier = individual.putObject("identifier");
+			identifier.put("system", LICENSE_SYSTEM);
+			identifier.put("value", license.trim());
+		}
+		individual.put("display", blankToDefault(displayName, "Referring provider"));
 	}
 
-	private void addPeriod(ObjectNode encounter, Date periodStart, Date periodEnd) {
-		ObjectNode period = encounter.putObject("period");
-		String start = formatDateTime(periodStart);
-		String end = formatDateTime(periodEnd);
-		if (start != null) {
-			period.put("start", start);
-		}
-		if (end != null) {
-			period.put("end", end);
-		}
-	}
-
-	private void addLength(ObjectNode encounter, Date periodStart, Date periodEnd) {
-		if (periodStart == null || periodEnd == null) {
-			return;
-		}
-		long diffMs = Math.max(0, periodEnd.getTime() - periodStart.getTime());
-		long hours = Math.max(1, diffMs / (1000L * 60L * 60L));
-		ObjectNode length = encounter.putObject("length");
-		length.put("value", hours);
-		length.put("unit", "hours");
-		length.put("system", "http://unitsofmeasure.org");
-		length.put("code", "h");
-	}
-
-	private void addReasonCode(ObjectNode encounter, String reasonForTransfer) {
-		ObjectNode reason = addObjectNode(encounter.putArray("reasonCode"));
-		ObjectNode coding = addObjectNode(reason.putArray("coding"));
-		coding.put("system", SNOMED_SYSTEM);
-		coding.put("code", SNOMED_UNKNOWN_REASON_CODE);
-		coding.put("display", SNOMED_UNKNOWN_REASON_DISPLAY);
-		if (StringUtils.isNotBlank(reasonForTransfer)) {
-			reason.put("text", reasonForTransfer.trim());
-		}
-	}
-
-	private void addDiagnosis(ObjectNode encounter, Transfer transfer) {
-		String conditionRef = transfer.getTransferId() != null
-				? "Condition/transfer-diagnosis-" + transfer.getTransferId()
-				: "Condition/transfer-diagnosis";
-		String display = StringUtils.isNotBlank(transfer.getDiagnosis())
-				? transfer.getDiagnosis().trim()
-				: "";
-
+	private void addDiagnosis(ObjectNode encounter, Transfer transfer, String encounterId) {
+		String display = firstNonBlank(transfer.getDiagnosis(), transfer.getReasonForTransfer());
 		ObjectNode diagnosis = addObjectNode(encounter.putArray("diagnosis"));
 		ObjectNode condition = diagnosis.putObject("condition");
-		condition.put("reference", conditionRef);
-		condition.put("display", display);
+		condition.put("reference", "Condition/transfer-diagnosis-" + encounterId);
+		condition.put("type", "Condition");
+		condition.put("display", blankToDefault(display, ""));
 		ObjectNode use = diagnosis.putObject("use");
 		ObjectNode useCoding = addObjectNode(use.putArray("coding"));
 		useCoding.put("system", "http://terminology.hl7.org/CodeSystem/diagnosis-role");
 		useCoding.put("code", "AD");
 		useCoding.put("display", "Admission diagnosis");
+		diagnosis.put("rank", 1);
 	}
 
 	private void addHospitalization(ObjectNode encounter, Transfer transfer, String receivingFacilityLabel) {
 		ObjectNode hospitalization = encounter.putObject("hospitalization");
 
 		ObjectNode origin = hospitalization.putObject("origin");
-		populateLocationReference(origin, resolveSendingFosaId(), transfer.getSendingFacility(), "Referring facility");
-
-		ObjectNode admitSource = hospitalization.putObject("admitSource");
-		ObjectNode admitCoding = addObjectNode(admitSource.putArray("coding"));
-		admitCoding.put("system", "http://terminology.hl7.org/CodeSystem/admit-source");
-		admitCoding.put("code", "hosp-trans");
-		admitCoding.put("display", blankToDefault(transfer.getReferringUnit(), "Hospital Transfer"));
+		populateFacilityReference(origin, "Location", resolveSendingFosaId(),
+				transfer.getSendingFacility(), "Referring facility");
 
 		ObjectNode destination = hospitalization.putObject("destination");
-		populateLocationReference(destination, transfer.getReceivingFacilityCode(), receivingFacilityLabel, "Receiving facility");
-
-		ObjectNode dischargeDisposition = hospitalization.putObject("dischargeDisposition");
-		ObjectNode dischargeCoding = addObjectNode(dischargeDisposition.putArray("coding"));
-		dischargeCoding.put("system", "http://terminology.hl7.org/CodeSystem/discharge-disposition");
-		dischargeCoding.put("code", "hosp");
-		dischargeCoding.put("display", blankToDefault(transfer.getReceivingService(), "Hospital"));
+		populateFacilityReference(destination, "Location", transfer.getReceivingFacilityCode(),
+				receivingFacilityLabel, "Receiving facility");
 	}
 
-	private void addLocation(ObjectNode encounter, Transfer transfer, Date periodStart, Date periodEnd) {
+	private void addLocation(ObjectNode encounter, Transfer transfer, String receivingFacilityLabel) {
 		ObjectNode locationEntry = addObjectNode(encounter.putArray("location"));
 		ObjectNode location = locationEntry.putObject("location");
-		populateLocationReference(location, resolveSendingFosaId(), transfer.getSendingFacility(), "Referring facility");
-		locationEntry.put("status", "completed");
-
-		ObjectNode period = locationEntry.putObject("period");
-		String start = formatDateTime(periodStart);
-		String end = formatDateTime(periodEnd);
-		if (start != null) {
-			period.put("start", start);
+		String receivingCode = StringUtils.trimToNull(transfer.getReceivingFacilityCode());
+		String service = StringUtils.trimToNull(transfer.getReceivingService());
+		String display = firstNonBlank(
+				service != null && receivingFacilityLabel != null
+						? receivingFacilityLabel.trim() + " " + service
+						: null,
+				receivingFacilityLabel,
+				service,
+				"Receiving facility");
+		if (receivingCode != null) {
+			String ref = service != null
+					? "Location/" + receivingCode + "-" + toCodeToken(service).toLowerCase(Locale.ENGLISH)
+					: "Location/" + receivingCode;
+			location.put("reference", ref);
 		}
-		if (end != null) {
-			period.put("end", end);
-		}
+		location.put("type", "Location");
+		location.put("display", display);
+		locationEntry.put("status", "active");
 	}
 
-	private void addPartOf(ObjectNode encounter, Transfer transfer) {
-		if (transfer.getTransferId() == null) {
-			return;
+	private void addServiceProvider(ObjectNode encounter, Transfer transfer, String receivingFacilityLabel) {
+		ObjectNode serviceProvider = encounter.putObject("serviceProvider");
+		populateFacilityReference(serviceProvider, "Organization", transfer.getReceivingFacilityCode(),
+				receivingFacilityLabel, "Receiving facility");
+	}
+
+	private void populateFacilityReference(ObjectNode node, String resourceType, String fosaId,
+			String displayName, String fallbackDisplay) {
+		String display = blankToDefault(displayName, fallbackDisplay);
+		String code = StringUtils.trimToNull(fosaId);
+		if (code != null) {
+			node.put("reference", resourceType + "/" + code);
 		}
-		encounter.putObject("partOf").put("reference", "Encounter/transfer-admission-" + transfer.getTransferId());
+		node.put("type", resourceType);
+		if (code != null) {
+			ObjectNode identifier = node.putObject("identifier");
+			identifier.put("system", FOSA_ID_SYSTEM);
+			identifier.put("value", code);
+		}
+		node.put("display", display);
 	}
 
-	private ObjectNode addObjectNode(ArrayNode arrayNode) {
-		return (ObjectNode) arrayNode.addObject();
-	}
-
-	private void addCodeableConceptExtension(ObjectNode encounter, String url, String system, String code, String display) {
-		ObjectNode extension = addObjectNode(extensionsArray(encounter));
-		extension.put("url", url);
-		ObjectNode value = extension.putObject("valueCodeableConcept");
+	private void addCodeableConceptNested(ArrayNode nested, String url, String system, String code,
+			String display) {
+		ObjectNode ext = addObjectNode(nested);
+		ext.put("url", url);
+		ObjectNode value = ext.putObject("valueCodeableConcept");
 		ObjectNode coding = addObjectNode(value.putArray("coding"));
 		coding.put("system", system);
 		coding.put("code", code);
 		coding.put("display", display);
 	}
 
-	private void populateLocationReference(ObjectNode node, String facilityCode, String displayName, String fallbackDisplay) {
-		String display = blankToDefault(displayName, fallbackDisplay);
-		node.put("display", display);
-		if (StringUtils.isNotBlank(facilityCode)) {
-			node.put("reference", "Location/" + facilityCode.trim());
-			ObjectNode identifier = node.putObject("identifier");
-			identifier.put("system", "FOSAID");
-			identifier.put("value", facilityCode.trim());
-		}
+	private ObjectNode addObjectNode(ArrayNode arrayNode) {
+		return (ObjectNode) arrayNode.addObject();
 	}
 
-	private String resolveSendingFosaId() {
-		String fosaId = Context.getAdministrationService().getGlobalProperty(
-				TransferAppConstants.GP_SENDING_FOSA_ID,
-				TransferAppConstants.DEFAULT_SENDING_FOSA_ID);
-		return StringUtils.trimToNull(fosaId);
-	}
-
-	/**
-	 * Marks which transfer form this Encounter represents so consumers can choose the
-	 * correct preview / PDF layout (external vs maternity vs neonatal).
-	 */
-	private void addTransferFormKindExtension(ObjectNode encounter, Transfer transfer) {
-		TransferFormKind kind = transfer != null && transfer.getFormKind() != null
-				? transfer.getFormKind()
-				: TransferFormKind.GENERAL;
-		addCodeableConceptExtension(encounter,
-				TransferFormKind.EXTENSION_URL,
-				TransferFormKind.CODE_SYSTEM,
-				kind.getCode(),
-				kind.getDisplay());
-	}
-
-	private void addTransferTypeExtension(ObjectNode encounter, String transferType) {
-		if (StringUtils.isBlank(transferType)) {
-			return;
-		}
-		String code;
-		String display = transferTypeLabel(transferType);
-		if ("EMERGENCY".equals(transferType)) {
-			code = "emergency";
-		}
-		else if ("NOT_EMERGENCY".equals(transferType)) {
-			code = "not-emergency";
-		}
-		else if ("FOLLOW_UP".equals(transferType)) {
-			code = "follow-up";
-		}
-		else {
-			code = transferType.toLowerCase(Locale.ENGLISH);
-		}
-		ObjectNode extension = addObjectNode(extensionsArray(encounter));
-		extension.put("url", "http://example.org/fhir/StructureDefinition/transfer-type");
-		ObjectNode value = extension.putObject("valueCodeableConcept");
-		ObjectNode coding = addObjectNode(value.putArray("coding"));
-		coding.put("system", "http://example.org/fhir/CodeSystem/transfer-type");
-		coding.put("code", code);
-		coding.put("display", display);
-	}
-
-	private void addInsuranceExtension(ObjectNode encounter, String insuranceType) {
-		if (StringUtils.isBlank(insuranceType)) {
-			return;
-		}
-		String code;
-		String display;
-		if ("CBHI".equals(insuranceType)) {
-			code = "cbhi";
-			display = "CBHI (mutuelle)";
-		}
-		else if ("RSSB".equals(insuranceType)) {
-			code = "rssb";
-			display = "RSSB";
-		}
-		else if ("MMI".equals(insuranceType)) {
-			code = "mmi";
-			display = "MMI";
-		}
-		else if ("OTHER".equals(insuranceType)) {
-			code = "other";
-			display = "Other (Specify)";
-		}
-		else if ("NONE".equals(insuranceType)) {
-			code = "none";
-			display = "None";
-		}
-		else {
-			code = insuranceType.toLowerCase(Locale.ENGLISH);
-			display = insuranceType;
-		}
-		addCodeableConceptExtension(encounter,
-				"http://example.org/fhir/StructureDefinition/insurance-type",
-				"http://example.org/fhir/CodeSystem/insurance-type",
-				code,
-				display);
-	}
-
-	private void addTransportExtension(ObjectNode encounter, String transportType) {
-		if (StringUtils.isBlank(transportType)) {
-			return;
-		}
-		String code;
-		String display;
-		if ("AMBULANCE".equals(transportType)) {
-			code = "ambulance";
-			display = "Ambulance";
-		}
-		else if ("OTHER".equals(transportType)) {
-			code = "other";
-			display = "Other (specify)";
-		}
-		else if ("NA".equals(transportType)) {
-			code = "na";
-			display = "NA";
-		}
-		else {
-			code = transportType.toLowerCase(Locale.ENGLISH);
-			display = transportType;
-		}
-		addCodeableConceptExtension(encounter,
-				"http://example.org/fhir/StructureDefinition/transport-type",
-				"http://example.org/fhir/CodeSystem/transport-type",
-				code,
-				display);
-	}
-
-	/**
-	 * Publishes which facility provides the ambulance so peers can match their FOSA id
-	 * and create the ambulance bill when appropriate.
-	 */
-	private void addAmbulanceProviderFacilityExtension(ObjectNode encounter, Transfer transfer) {
-		if (transfer == null || !"AMBULANCE".equals(StringUtils.trimToEmpty(transfer.getTransportType()))) {
-			return;
-		}
-		String fosaId = StringUtils.trimToNull(transfer.getAmbulanceProviderFosaId());
-		String name = StringUtils.trimToNull(transfer.getAmbulanceProviderName());
-		if (fosaId == null && name == null) {
-			return;
-		}
-		ObjectNode extension = addObjectNode(extensionsArray(encounter));
-		extension.put("url", TransferAppConstants.EXT_AMBULANCE_PROVIDER_FACILITY);
-		ArrayNode nested = extension.putArray("extension");
-		addNestedExtensionField(nested, TransferAppConstants.EXT_AMBULANCE_PROVIDER_FOSA_ID, fosaId);
-		addNestedExtensionField(nested, TransferAppConstants.EXT_AMBULANCE_PROVIDER_NAME, name);
-	}
-
-	private void addExternalFacilityExtension(ObjectNode encounter, boolean externalReceivingFacility) {
-		if (!externalReceivingFacility) {
-			return;
-		}
-		ObjectNode extension = addObjectNode(extensionsArray(encounter));
-		extension.put("url", "http://example.org/fhir/StructureDefinition/requires-insurance-agent-verification");
-		extension.put("valueBoolean", true);
-	}
-
-	private void addCaregiverExtension(ObjectNode encounter, Transfer transfer) {
-		if (StringUtils.isBlank(transfer.getCaregiverName()) && StringUtils.isBlank(transfer.getCaregiverTelephone())) {
-			return;
-		}
-		ObjectNode extension = addObjectNode(extensionsArray(encounter));
-		extension.put("url", "http://example.org/fhir/StructureDefinition/caregiver-info");
-		ArrayNode nested = extension.putArray("extension");
-		if (StringUtils.isNotBlank(transfer.getCaregiverName())) {
-			ObjectNode nameExtension = addObjectNode(nested);
-			nameExtension.put("url", "name");
-			nameExtension.put("valueString", transfer.getCaregiverName().trim());
-		}
-		if (StringUtils.isNotBlank(transfer.getCaregiverTelephone())) {
-			ObjectNode phoneExtension = addObjectNode(nested);
-			phoneExtension.put("url", "phone");
-			phoneExtension.put("valueString", transfer.getCaregiverTelephone().trim());
-		}
-	}
-
-	/**
-	 * Staff contacted at receiving facility, with optional nested calling-time.
-	 * FHIR forbids combining value[x] with nested extensions on the same element.
-	 */
-	private void addReceivingClinicianContactExtension(ObjectNode encounter, Transfer transfer) {
-		String name = StringUtils.trimToNull(transfer.getStaffContactedName());
-		String phone = StringUtils.trimToNull(transfer.getStaffContactedPhone());
-		Date callingAt = combineDateAndTime(transfer.getDecisionToTransferAt(), transfer.getCallingTime());
-		if (name == null && phone == null && callingAt == null) {
-			return;
-		}
-
-		ObjectNode extension = addObjectNode(extensionsArray(encounter));
-		extension.put("url", "http://example.org/fhir/StructureDefinition/receiving-clinician-contact");
-		ArrayNode nested = extension.putArray("extension");
-		addNestedExtensionField(nested, "name", name);
-		addNestedExtensionField(nested, "phone", phone);
-		if (callingAt != null) {
-			ObjectNode callingTimeExtension = addObjectNode(nested);
-			callingTimeExtension.put("url", "calling-time");
-			callingTimeExtension.put("valueDateTime", formatDateTime(callingAt));
-		}
-	}
-
-	private void addPractitionerInfoExtension(ObjectNode encounter, Transfer transfer, User user) {
-		String license = resolveReferringProviderLicense(user);
-		String name = formatReferringProviderName(transfer, user);
-		String qualification = StringUtils.trimToNull(transfer.getProviderQualification());
-		String phone = StringUtils.trimToNull(transfer.getProviderPhone());
-		if (StringUtils.isBlank(name) && qualification == null && phone == null && StringUtils.isBlank(license)) {
-			return;
-		}
-
-		ObjectNode extension = addObjectNode(extensionsArray(encounter));
-		extension.put("url", "http://example.org/fhir/StructureDefinition/practitioner-info");
-		ArrayNode nested = extension.putArray("extension");
-		addNestedExtensionField(nested, "name", name);
-		addNestedExtensionField(nested, "qualification", qualification);
-		addNestedExtensionField(nested, "phone", phone);
-		addNestedExtensionField(nested, "license-number", license);
-	}
-
-	private String formatReferringProviderName(Transfer transfer, User user) {
-		String rawName = blankToDefault(transfer.getReferringProviderName(), resolveUserDisplayName(user));
-		return TransferProfile.formatCareProviderName(rawName, resolveReferringProviderLicense(user));
-	}
-
-	private String resolveReferringProviderLicense(User user) {
+	private TransferProfile resolveProfile(User user) {
 		TransferProfileService profileService = getTransferProfileService();
 		if (profileService == null || user == null) {
 			return null;
 		}
 		try {
-			TransferProfile profile = profileService.getProfileForUser(user);
-			return profile != null ? StringUtils.trimToNull(profile.getLicenseNumber()) : null;
+			return profileService.getProfileForUser(user);
 		}
 		catch (Exception ignored) {
 			return null;
@@ -616,7 +524,8 @@ public class TransferEncounterPayloadBuilder {
 			return transferProfileService;
 		}
 		try {
-			transferProfileService = Context.getRegisteredComponent("transferProfileService", TransferProfileService.class);
+			transferProfileService = Context.getRegisteredComponent("transferProfileService",
+					TransferProfileService.class);
 			return transferProfileService;
 		}
 		catch (Exception ignored) {
@@ -624,78 +533,59 @@ public class TransferEncounterPayloadBuilder {
 		}
 	}
 
-	private void addPatientDemographicsExtension(ObjectNode encounter, Transfer transfer) {
-		String age = parseAge(transfer.getAgeOrDob());
-		String gender = formatDemographicsGender(transfer.getSex());
-		if (StringUtils.isBlank(transfer.getClientName())
-				&& StringUtils.isBlank(age)
-				&& StringUtils.isBlank(gender)
-				&& StringUtils.isBlank(transfer.getClientTelephone())
-				&& StringUtils.isBlank(transfer.getEmrId())) {
-			return;
+	private String resolveLicense(Transfer transfer, User user, TransferProfile profile) {
+		if (profile != null && StringUtils.isNotBlank(profile.getLicenseNumber())) {
+			return profile.getLicenseNumber().trim();
 		}
-
-		ObjectNode extension = addObjectNode(extensionsArray(encounter));
-		extension.put("url", "http://example.org/fhir/StructureDefinition/patient-demographics");
-		ArrayNode nested = extension.putArray("extension");
-		addNestedExtensionField(nested, "name", transfer.getClientName());
-		addNestedExtensionField(nested, "dob", null);
-		addNestedExtensionField(nested, "gender", gender);
-		addNestedExtensionField(nested, "age", age);
-		addNestedExtensionField(nested, "phone", StringUtils.isNotBlank(transfer.getClientTelephone())
-				? transfer.getClientTelephone()
-				: "N/A");
-		addNestedExtensionField(nested, "serial-number", transfer.getEmrId());
+		// Referring provider name may already be formatted as Name(LICENSE)
+		String formatted = transfer != null ? StringUtils.trimToNull(transfer.getReferringProviderName()) : null;
+		if (formatted != null) {
+			int open = formatted.lastIndexOf('(');
+			int close = formatted.lastIndexOf(')');
+			if (open >= 0 && close > open + 1) {
+				return formatted.substring(open + 1, close).trim();
+			}
+		}
+		return null;
 	}
 
-	private void addPatientAddressExtension(ObjectNode encounter, Transfer transfer) {
-		if (StringUtils.isBlank(transfer.getClientDistrict())
-				&& StringUtils.isBlank(transfer.getSector())
-				&& StringUtils.isBlank(transfer.getCell())
-				&& StringUtils.isBlank(transfer.getVillage())) {
-			return;
+	private String resolveProviderDisplayName(Transfer transfer, User user) {
+		String raw = transfer != null ? StringUtils.trimToNull(transfer.getReferringProviderName()) : null;
+		if (raw != null) {
+			int open = raw.lastIndexOf('(');
+			if (open > 0) {
+				return raw.substring(0, open).trim();
+			}
+			return raw;
 		}
-		ObjectNode extension = addObjectNode(extensionsArray(encounter));
-		extension.put("url", "http://example.org/fhir/StructureDefinition/patient-address");
-		ArrayNode nested = extension.putArray("extension");
-		addNestedExtensionField(nested, "district", transfer.getClientDistrict());
-		addNestedExtensionField(nested, "sector", transfer.getSector());
-		addNestedExtensionField(nested, "cell", transfer.getCell());
-		addNestedExtensionField(nested, "village", transfer.getVillage());
+		return resolveUserDisplayName(user);
 	}
 
-	private void addNestedExtensionField(ArrayNode nested, String url, String value) {
-		if (StringUtils.isBlank(value)) {
-			return;
+	private static String resolveTransferBusinessId(Transfer transfer, String encounterId) {
+		if (transfer != null && transfer.getTransferId() != null) {
+			return "TRF-" + transfer.getTransferId();
 		}
-		ObjectNode nestedExtension = addObjectNode(nested);
-		nestedExtension.put("url", url);
-		nestedExtension.put("valueString", value.trim());
+		if (transfer != null && StringUtils.isNotBlank(transfer.getUuid())) {
+			return transfer.getUuid().trim();
+		}
+		return encounterId;
 	}
 
-	private ArrayNode extensionsArray(ObjectNode encounter) {
-		if (encounter.get("extension") instanceof ArrayNode) {
-			return (ArrayNode) encounter.get("extension");
+	private static String resolvePractitionerId(User user, String license) {
+		if (StringUtils.isNotBlank(license)) {
+			return "doctor-" + toCodeToken(license).toLowerCase(Locale.ENGLISH);
 		}
-		return encounter.putArray("extension");
+		if (user != null && user.getUserId() != null) {
+			return "transferapp-user-" + user.getUserId();
+		}
+		return "transferapp-user-unknown";
 	}
 
-	private void addStringExtension(ObjectNode encounter, String url, String value) {
-		if (StringUtils.isBlank(value)) {
-			return;
-		}
-		ObjectNode extension = addObjectNode(extensionsArray(encounter));
-		extension.put("url", url);
-		extension.put("valueString", value.trim());
-	}
-
-	private void addDateTimeExtension(ObjectNode encounter, String url, Date dateTime) {
-		if (dateTime == null) {
-			return;
-		}
-		ObjectNode extension = addObjectNode(extensionsArray(encounter));
-		extension.put("url", url);
-		extension.put("valueDateTime", formatDateTime(dateTime));
+	private String resolveSendingFosaId() {
+		String fosaId = Context.getAdministrationService().getGlobalProperty(
+				TransferAppConstants.GP_SENDING_FOSA_ID,
+				TransferAppConstants.DEFAULT_SENDING_FOSA_ID);
+		return StringUtils.trimToNull(fosaId);
 	}
 
 	private static String requireUpi(Transfer transfer) {
@@ -705,20 +595,6 @@ public class TransferEncounterPayloadBuilder {
 		return transfer.getEmrId().trim();
 	}
 
-	private static Date requireDecisionToTransferAt(Transfer transfer) {
-		if (transfer == null || transfer.getDecisionToTransferAt() == null) {
-			throw new HieApiException("Cannot submit transfer: Date and time of decision to transfer is required.");
-		}
-		return transfer.getDecisionToTransferAt();
-	}
-
-	private static String resolvePractitionerId(User user) {
-		if (user != null && user.getUserId() != null) {
-			return "transferapp-user-" + user.getUserId();
-		}
-		return "transferapp-user-unknown";
-	}
-
 	private static String resolveUserDisplayName(User user) {
 		if (user != null && user.getPerson() != null && user.getPerson().getPersonName() != null) {
 			return user.getPerson().getPersonName().getFullName();
@@ -726,101 +602,26 @@ public class TransferEncounterPayloadBuilder {
 		return "Referring provider";
 	}
 
-	private static String formatVitals(Transfer transfer) {
-		StringBuilder builder = new StringBuilder();
-		appendVital(builder, "T", transfer.getVitalTemp());
-		appendVital(builder, "SpO2", transfer.getVitalSpo2());
-		appendVital(builder, "RR", transfer.getVitalRr());
-		appendVital(builder, "Pulse", transfer.getVitalPulse());
-		appendVital(builder, "BP", transfer.getVitalBp());
-		appendVital(builder, "Weight", transfer.getVitalWt());
-		appendVital(builder, "Height", transfer.getVitalHt());
-		appendVital(builder, "MUAC", transfer.getVitalMuac());
-		return builder.length() > 0 ? builder.toString() : null;
+	private static String toCodeToken(String value) {
+		return StringUtils.trimToEmpty(value)
+				.toUpperCase(Locale.ENGLISH)
+				.replaceAll("[^A-Z0-9]+", "_")
+				.replaceAll("^_|_$", "");
 	}
 
-	private static void appendVital(StringBuilder builder, String label, String value) {
-		if (StringUtils.isBlank(value)) {
-			return;
-		}
-		if (builder.length() > 0) {
-			builder.append(", ");
-		}
-		builder.append(label).append(": ").append(value.trim());
-	}
-
-	private static String formatDateTime(Date date) {
-		if (date == null) {
+	private static String firstNonBlank(String... values) {
+		if (values == null) {
 			return null;
 		}
-		SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
-		formatter.setTimeZone(RWANDA);
-		return formatter.format(date);
-	}
-
-	private static Date combineDateAndTime(Date baseDate, String timeValue) {
-		if (StringUtils.isBlank(timeValue)) {
-			return null;
-		}
-		Calendar calendar = Calendar.getInstance(RWANDA);
-		if (baseDate != null) {
-			calendar.setTime(baseDate);
-		}
-		String[] parts = timeValue.trim().split(":");
-		if (parts.length >= 2) {
-			try {
-				calendar.set(Calendar.SECOND, 0);
-				calendar.set(Calendar.MILLISECOND, 0);
-				calendar.set(Calendar.HOUR_OF_DAY, Integer.parseInt(parts[0]));
-				calendar.set(Calendar.MINUTE, Integer.parseInt(parts[1]));
-				return calendar.getTime();
-			}
-			catch (NumberFormatException ignored) {
-				return null;
+		for (String value : values) {
+			if (StringUtils.isNotBlank(value)) {
+				return value.trim();
 			}
 		}
 		return null;
 	}
 
-	private static String parseAge(String ageOrDob) {
-		if (StringUtils.isBlank(ageOrDob)) {
-			return null;
-		}
-		Matcher matcher = AGE_ONLY.matcher(ageOrDob.trim());
-		if (matcher.matches()) {
-			return matcher.group(1);
-		}
-		return ageOrDob.trim();
-	}
-
-	private static String formatDemographicsGender(String sex) {
-		if (StringUtils.isBlank(sex)) {
-			return null;
-		}
-		if ("MALE".equalsIgnoreCase(sex.trim()) || "M".equalsIgnoreCase(sex.trim())) {
-			return "Male";
-		}
-		if ("FEMALE".equalsIgnoreCase(sex.trim()) || "F".equalsIgnoreCase(sex.trim())) {
-			return "Female";
-		}
-		return sex.trim();
-	}
-
-	private static String transferTypeLabel(String transferType) {
-		if ("EMERGENCY".equals(transferType)) {
-			return "Emergency";
-		}
-		if ("NOT_EMERGENCY".equals(transferType)) {
-			return "Not-Emergency";
-		}
-		if ("FOLLOW_UP".equals(transferType)) {
-			return "Follow up";
-		}
-		return transferType;
-	}
-
 	private static String blankToDefault(String value, String defaultValue) {
 		return StringUtils.isNotBlank(value) ? value.trim() : defaultValue;
 	}
-
 }

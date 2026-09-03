@@ -21,11 +21,24 @@
     window.transferOpenmrsPath = openmrsContextPath;
     window.transferHistoryConfig = {
         restUrl: openmrsContextPath + "/ws/rest/v1/transferapp/transfer",
+        reuseUrl: openmrsContextPath + "/ws/rest/v1/transferapp/transfer/reuseRendezvous",
+        canCreateTransfer: ${ canCreateTransfer ? 'true' : 'false' },
         messages: {
             loading: "${ ui.encodeJavaScript(ui.message('transferapp.history.preview.loading')) }",
             missingIds: "${ ui.encodeJavaScript(ui.message('transferapp.history.preview.missingIds')) }",
             loadError: "${ ui.encodeJavaScript(ui.message('transferapp.history.preview.loadError')) }",
-            empty: "${ ui.encodeJavaScript(ui.message('transferapp.history.preview.empty')) }"
+            empty: "${ ui.encodeJavaScript(ui.message('transferapp.history.preview.empty')) }",
+            reuseTitle: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.title')) }",
+            reuseHint: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.hint')) }",
+            reuseSave: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.save')) }",
+            reuseClear: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.clear')) }",
+            reuseCancel: "${ ui.encodeJavaScript(ui.message('coreapps.cancel')) }",
+            reuseSuccess: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.success')) }",
+            reuseCleared: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.cleared')) }",
+            reuseError: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.error')) }",
+            reusePastDate: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.pastDate')) }",
+            reuseAction: "${ ui.encodeJavaScript(ui.message('transferapp.history.action.reuse')) }",
+            reuseNone: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.none')) }"
         }
     };
 </script>
@@ -90,6 +103,32 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "histo
     </div>
 </div>
 
+<div id="transfer-history-reuse-overlay" style="display:none;"></div>
+<div id="transfer-history-reuse-dialog" class="dialog" style="display:none;">
+    <div class="dialog-header">
+        <i class="icon-calendar"></i>
+        <h3>${ ui.message("transferapp.history.reuse.title") }</h3>
+    </div>
+    <div class="dialog-content">
+        <p id="transfer-history-reuse-hint">${ ui.message("transferapp.history.reuse.hint") }</p>
+        <p id="transfer-history-reuse-patient" style="margin:8px 0;font-weight:600;"></p>
+        <label for="transfer-history-reuse-date">${ ui.message("transferapp.history.reuse.dateLabel") }</label>
+        <input type="date" id="transfer-history-reuse-date" />
+        <p id="transfer-history-reuse-status" class="transfer-history-reuse-status" style="display:none;margin-top:8px;"></p>
+        <div class="transfer-preview-actions" style="margin-top:14px;">
+            <button type="button" id="transfer-history-reuse-save" class="confirm">
+                ${ ui.message("transferapp.history.reuse.save") }
+            </button>
+            <button type="button" id="transfer-history-reuse-clear" class="button">
+                ${ ui.message("transferapp.history.reuse.clear") }
+            </button>
+            <button type="button" id="transfer-history-reuse-cancel" class="cancel">
+                ${ ui.message("coreapps.cancel") }
+            </button>
+        </div>
+    </div>
+</div>
+
 <% if (!hasHistory) { %>
 <div class="transfer-records-empty">${ ui.message("transferapp.history.empty") }</div>
 <% } else { %>
@@ -102,6 +141,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "histo
                 <th>${ ui.message("transferapp.history.column.upid") }</th>
                 <th>${ ui.message("transferapp.history.column.location") }</th>
                 <th>${ ui.message("transferapp.history.column.phone") }</th>
+                <th>${ ui.message("transferapp.history.column.reuseDate") }</th>
                 <th>${ ui.message("transferapp.history.column.action") }</th>
             </tr>
         </thead>
@@ -109,7 +149,10 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "histo
             <% historyItems.each { item -> %>
             <tr class="transfer-history-row"
                 data-transfer-id="${ ui.encodeHtmlAttribute(item.transferId ?: '') }"
-                data-upid="${ ui.encodeHtmlAttribute(item.upid ?: '') }">
+                data-upid="${ ui.encodeHtmlAttribute(item.upid ?: '') }"
+                data-patient-id="${ item.patientId != null ? item.patientId : '' }"
+                data-reuse-date="${ ui.encodeHtmlAttribute(item.reuseRendezvousDate ?: '') }"
+                data-patient-name="${ ui.encodeHtmlAttribute(item.patientName ?: '') }">
                 <td>${ ui.format(item.encounterDatetime) }</td>
                 <td>
                     <% if (item.patientId != null) { %>
@@ -123,6 +166,13 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "histo
                 <td>${ ui.encodeHtmlContent(item.upid ?: '') }</td>
                 <td>${ ui.encodeHtmlContent(item.locationName ?: '') }</td>
                 <td>${ ui.encodeHtmlContent(item.phoneNumber ?: '') }</td>
+                <td class="transfer-history-reuse-date-cell">
+                    <% if (item.reuseRendezvousDate) { %>
+                    <span class="transfer-history-reuse-date-value">${ ui.encodeHtmlContent(item.reuseRendezvousDate) }</span>
+                    <% } else { %>
+                    <span class="transfer-history-reuse-date-value transfer-history-reuse-none">${ ui.message("transferapp.history.reuse.none") }</span>
+                    <% } %>
+                </td>
                 <td>
                     <% if (item.transferId && item.upid) { %>
                     <a class="transfer-history-view-link"
@@ -132,6 +182,19 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "histo
                        title="${ ui.encodeHtmlAttribute(ui.message('transferapp.history.action.preview')) }">
                         <i class="icon-eye-open"></i> ${ ui.message("transferapp.history.action.preview") }
                     </a>
+                    <% if (canCreateTransfer && item.patientId != null) { %>
+                    &nbsp;
+                    <a class="transfer-history-reuse-link"
+                       href="javascript:void(0);"
+                       data-transfer-id="${ ui.encodeHtmlAttribute(item.transferId) }"
+                       data-upid="${ ui.encodeHtmlAttribute(item.upid) }"
+                       data-patient-id="${ item.patientId }"
+                       data-reuse-date="${ ui.encodeHtmlAttribute(item.reuseRendezvousDate ?: '') }"
+                       data-patient-name="${ ui.encodeHtmlAttribute(item.patientName ?: '') }"
+                       title="${ ui.encodeHtmlAttribute(ui.message('transferapp.history.action.reuse')) }">
+                        <i class="icon-calendar"></i> ${ ui.message("transferapp.history.action.reuse") }
+                    </a>
+                    <% } %>
                     <% } else { %>
                     <span class="transfer-history-missing">${ ui.message("transferapp.history.action.unavailable") }</span>
                     <% } %>

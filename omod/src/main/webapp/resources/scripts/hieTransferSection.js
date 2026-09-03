@@ -788,7 +788,12 @@
             var destination = resolveDestination(item);
             var status = item.status || "";
             var statusClass = "transfer-status-pending";
-            if (item.agentRejected === true || item.agentRejected === "true") {
+            if (item.reuseScheduled === true || item.reuseScheduled === "true") {
+                statusClass = "transfer-status-approved";
+                if (!status) {
+                    status = "Scheduled reuse";
+                }
+            } else if (item.agentRejected === true || item.agentRejected === "true") {
                 statusClass = "transfer-status-rejected";
             } else if (item.agentDecisionApproved === true || item.agentDecisionApproved === "true") {
                 statusClass = "transfer-status-approved";

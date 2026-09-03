@@ -1409,9 +1409,7 @@ public class TransferSaveController {
 
 		String transferType = nullToEmpty(transfer.getTransferType());
 		preview.put("transferType", transferType);
-		preview.put("isEmergency", "EMERGENCY".equals(transferType));
-		preview.put("isNonEmergency", "NOT_EMERGENCY".equals(transferType));
-		preview.put("isFollowUp", "FOLLOW_UP".equals(transferType));
+		putTransferTypeFlags(preview, transferType);
 		preview.put("ambulanceCalledTime", nullToEmpty(transfer.getAmbulanceCallTime()));
 		preview.put("departureFromReferringTime", nullToEmpty(transfer.getDepartRefTime()));
 		preview.put("reasonForTransfer", nullToEmpty(transfer.getReasonForTransfer()));
@@ -1483,6 +1481,9 @@ public class TransferSaveController {
 		Map<String, Object> preview = new HashMap<String, Object>();
 		preview.put("uuid", transfer.getUuid());
 		preview.put("formType", FORM_TYPE_MATERNITY);
+		preview.put("formKind", org.openmrs.module.transferapp.model.TransferFormKind.MATERNITY.name());
+		preview.put("formKindCode", org.openmrs.module.transferapp.model.TransferFormKind.MATERNITY.getCode());
+		preview.put("formKindDisplay", org.openmrs.module.transferapp.model.TransferFormKind.MATERNITY.getDisplay());
 		preview.put("hieSent", transfer.isSentToHie());
 		preview.put("hieSentAt", formatDateTime(transfer.getHieSentAt()));
 		preview.put("hieTransferId", nullToEmpty(transfer.getHieTransferId()));
@@ -1515,9 +1516,7 @@ public class TransferSaveController {
 
 		String transferType = nullToEmpty(transfer.getTransferType());
 		preview.put("transferType", transferType);
-		preview.put("isEmergency", "EMERGENCY".equals(transferType));
-		preview.put("isNonEmergency", "NOT_EMERGENCY".equals(transferType));
-		preview.put("isFollowUp", "FOLLOW_UP".equals(transferType));
+		putTransferTypeFlags(preview, transferType);
 		preview.put("ambulanceCalledTime", nullToEmpty(transfer.getAmbulanceCalledTime()));
 		preview.put("departureFromReferringTime", nullToEmpty(transfer.getDepartureFromReferringTime()));
 		preview.put("partographAttached", Boolean.TRUE.equals(transfer.getPartographAttached()));
@@ -1619,6 +1618,9 @@ public class TransferSaveController {
 		Map<String, Object> preview = new HashMap<String, Object>();
 		preview.put("uuid", transfer.getUuid());
 		preview.put("formType", FORM_TYPE_NEONATAL);
+		preview.put("formKind", org.openmrs.module.transferapp.model.TransferFormKind.NEONATAL.name());
+		preview.put("formKindCode", org.openmrs.module.transferapp.model.TransferFormKind.NEONATAL.getCode());
+		preview.put("formKindDisplay", org.openmrs.module.transferapp.model.TransferFormKind.NEONATAL.getDisplay());
 		preview.put("hieSent", transfer.isSentToHie());
 		preview.put("hieSentAt", formatDateTime(transfer.getHieSentAt()));
 		preview.put("hieTransferId", nullToEmpty(transfer.getHieTransferId()));
@@ -1646,9 +1648,7 @@ public class TransferSaveController {
 
 		String transferType = nullToEmpty(transfer.getTransferType());
 		preview.put("transferType", transferType);
-		preview.put("isEmergency", "EMERGENCY".equals(transferType));
-		preview.put("isNonEmergency", "NOT_EMERGENCY".equals(transferType));
-		preview.put("isFollowUp", "FOLLOW_UP".equals(transferType));
+		putTransferTypeFlags(preview, transferType);
 
 		preview.put("receivingFacility", resolveFacilityLabel(transfer.getReceivingFacilityCode()));
 		preview.put("receivingFacilityCode", nullToEmpty(transfer.getReceivingFacilityCode()));
@@ -1974,6 +1974,13 @@ public class TransferSaveController {
 		if (TransferPrivilegeHelper.isPrivilegeException(exception)) {
 			data.put("requiredPrivilege", requiredPrivilege);
 		}
+	}
+
+	private void putTransferTypeFlags(Map<String, Object> preview, String transferType) {
+		String kind = org.openmrs.module.transferapp.hie.HieTransferResponseParser.classifyTransferType(transferType);
+		preview.put("isEmergency", "EMERGENCY".equals(kind));
+		preview.put("isNonEmergency", "NOT_EMERGENCY".equals(kind));
+		preview.put("isFollowUp", "FOLLOW_UP".equals(kind));
 	}
 
 	private void writeJson(HttpServletResponse response, Map<String, Object> data) throws Exception {

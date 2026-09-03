@@ -40,6 +40,8 @@
 		<property name="target">
 			<bean class="org.openmrs.module.transferapp.api.impl.TransferHistoryServiceImpl">
 				<property name="patientService" ref="patientService" />
+				<property name="transferDao" ref="transferDao" />
+				<property name="transferHieReceiveService" ref="transferAppHieReceiveService" />
 			</bean>
 		</property>
 		<property name="preInterceptors">
@@ -354,7 +356,9 @@
 			<ref bean="transactionManager" />
 		</property>
 		<property name="target">
-			<bean class="org.openmrs.module.transferapp.api.impl.TransferHieSearchServiceImpl" />
+			<bean class="org.openmrs.module.transferapp.api.impl.TransferHieSearchServiceImpl">
+				<property name="transferDao" ref="transferDao" />
+			</bean>
 		</property>
 		<property name="preInterceptors">
 			<ref bean="serviceInterceptors" />
