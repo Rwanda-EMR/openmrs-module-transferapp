@@ -26,11 +26,13 @@ import org.openmrs.api.ObsService;
 import org.openmrs.api.PatientService;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.transferapp.TransferAppConstants;
+import org.openmrs.module.transferapp.api.TransferHieReceiveService;
 import org.openmrs.module.transferapp.api.TransferHieSearchService;
 import org.openmrs.module.transferapp.api.TransferPatientSnapshotResolver;
 import org.openmrs.module.transferapp.api.TransferRegistrationObsService;
 import org.openmrs.module.transferapp.api.TransferSendingLocationResolver;
 import org.openmrs.module.transferapp.api.TransferVerificationUrlService;
+import org.openmrs.module.transferapp.model.Transfer;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,6 +53,8 @@ public class TransferRegistrationObsServiceImpl implements TransferRegistrationO
 
 	private TransferHieSearchService transferHieSearchService;
 
+	private TransferHieReceiveService transferHieReceiveService;
+
 	private TransferSendingLocationResolver sendingLocationResolver = new TransferSendingLocationResolver();
 
 	private TransferPatientSnapshotResolver patientSnapshotResolver = new TransferPatientSnapshotResolver();
@@ -65,6 +69,10 @@ public class TransferRegistrationObsServiceImpl implements TransferRegistrationO
 
 	public void setTransferHieSearchService(TransferHieSearchService transferHieSearchService) {
 		this.transferHieSearchService = transferHieSearchService;
+	}
+
+	public void setTransferHieReceiveService(TransferHieReceiveService transferHieReceiveService) {
+		this.transferHieReceiveService = transferHieReceiveService;
 	}
 
 	@Override
@@ -303,11 +311,23 @@ public class TransferRegistrationObsServiceImpl implements TransferRegistrationO
 		log.info("Saved Transfer Id obs on registration encounter "
 				+ registrationEncounter.getEncounterId() + " for patient " + patientId);
 
+		Transfer localTransfer = null;
+		if (transferHieReceiveService != null) {
+			localTransfer = transferHieReceiveService.storeReceivedTransfer(patientId, hieTransfer);
+		}
+
 		result.put("status", "success");
-		result.put("message", "Transfer validated and recorded on registration");
+		result.put("message", localTransfer != null
+				? "Transfer validated, recorded on registration, and saved locally"
+				: "Transfer validated and recorded on registration");
 		result.put("encounterId", registrationEncounter.getEncounterId());
 		result.put("transferId", hieTransferId.trim());
 		result.put("destination", destination);
+		if (localTransfer != null) {
+			result.put("localTransferUuid", localTransfer.getUuid());
+			result.put("localTransferId", localTransfer.getTransferId());
+			result.put("receivedFromHie", Boolean.TRUE);
+		}
 		return result;
 	}
 

@@ -174,6 +174,7 @@
 		<property name="transferProfileService" ref="transferProfileService" />
 		<property name="queueService" ref="queueService" />
 		<property name="transferAmbulanceBillingService" ref="transferAmbulanceBillingService" />
+		<property name="transferFacilityRegistryService" ref="transferFacilityRegistryService" />
 	</bean>
 
 	<bean id="transferService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
@@ -327,6 +328,8 @@
 				<property name="transferDao" ref="transferDao" />
 				<property name="transferAdminService" ref="transferAdminService" />
 				<property name="patientInsuranceService" ref="patientInsuranceService" />
+				<property name="transferHieReceiveService" ref="transferAppHieReceiveService" />
+				<property name="transferAmbulanceBillingService" ref="transferAmbulanceBillingService" />
 			</bean>
 		</property>
 		<property name="preInterceptors">
@@ -644,6 +647,7 @@
 		<property name="patientService" ref="patientService" />
 		<property name="obsService" ref="obsService" />
 		<property name="transferHieSearchService" ref="transferAppHieSearchService" />
+		<property name="transferHieReceiveService" ref="transferAppHieReceiveService" />
 	</bean>
 
 	<bean id="transferAppRegistrationObsService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">

@@ -198,6 +198,12 @@
 	</globalProperty>
 
 	<globalProperty>
+		<property>transferapp.production</property>
+		<defaultValue>true</defaultValue>
+		<description>When true, ambulance voucher billing requires the current facility to be the designated ambulance provider. Set to false for testing so any facility can create ambulance bills regardless of provider FOSA. Patient registration from HIE search always follows the Pending workflow (any new patient)</description>
+	</globalProperty>
+
+	<globalProperty>
 		<property>transferapp.sendingFacilityName</property>
 		<defaultValue></defaultValue>
 		<description>Comma-separated facility name aliases for inbound destination matching and pending targetOrg queries (including older/alternate HIE names). Example: Munini DH, Munini District Hospital. When blank, falls back to outboundFacilityName then session location</description>

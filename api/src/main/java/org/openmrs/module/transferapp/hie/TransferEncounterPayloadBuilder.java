@@ -95,8 +95,8 @@ public class TransferEncounterPayloadBuilder {
 			addSubject(encounter, upi, transfer.getClientName());
 			addParticipant(encounter, transfer, user);
 
-			Date periodStart = transfer.getAdmissionAt() != null ? transfer.getAdmissionAt() : transfer.getDecisionToTransferAt();
-			Date periodEnd = transfer.getDecisionToTransferAt() != null ? transfer.getDecisionToTransferAt() : periodStart;
+			Date periodStart = requireDecisionToTransferAt(transfer);
+			Date periodEnd = periodStart;
 			addPeriod(encounter, periodStart, periodEnd);
 			addLength(encounter, periodStart, periodEnd);
 			addReasonCode(encounter, transfer.getReasonForTransfer());
@@ -201,6 +201,7 @@ public class TransferEncounterPayloadBuilder {
 		addStringExtension(encounter, "http://example.org/fhir/StructureDefinition/procedures-treatments",
 				transfer.getProceduresTreatments());
 		addTransportExtension(encounter, transfer.getTransportType());
+		addAmbulanceProviderFacilityExtension(encounter, transfer);
 		addPatientDemographicsExtension(encounter, transfer);
 		addPatientAddressExtension(encounter, transfer);
 		addPractitionerInfoExtension(encounter, transfer, user);
@@ -501,6 +502,26 @@ public class TransferEncounterPayloadBuilder {
 				display);
 	}
 
+	/**
+	 * Publishes which facility provides the ambulance so peers can match their FOSA id
+	 * and create the ambulance bill when appropriate.
+	 */
+	private void addAmbulanceProviderFacilityExtension(ObjectNode encounter, Transfer transfer) {
+		if (transfer == null || !"AMBULANCE".equals(StringUtils.trimToEmpty(transfer.getTransportType()))) {
+			return;
+		}
+		String fosaId = StringUtils.trimToNull(transfer.getAmbulanceProviderFosaId());
+		String name = StringUtils.trimToNull(transfer.getAmbulanceProviderName());
+		if (fosaId == null && name == null) {
+			return;
+		}
+		ObjectNode extension = addObjectNode(extensionsArray(encounter));
+		extension.put("url", TransferAppConstants.EXT_AMBULANCE_PROVIDER_FACILITY);
+		ArrayNode nested = extension.putArray("extension");
+		addNestedExtensionField(nested, TransferAppConstants.EXT_AMBULANCE_PROVIDER_FOSA_ID, fosaId);
+		addNestedExtensionField(nested, TransferAppConstants.EXT_AMBULANCE_PROVIDER_NAME, name);
+	}
+
 	private void addExternalFacilityExtension(ObjectNode encounter, boolean externalReceivingFacility) {
 		if (!externalReceivingFacility) {
 			return;
@@ -682,6 +703,13 @@ public class TransferEncounterPayloadBuilder {
 			throw new HieApiException("Cannot submit transfer: patient UPI (EMR ID) is missing.");
 		}
 		return transfer.getEmrId().trim();
+	}
+
+	private static Date requireDecisionToTransferAt(Transfer transfer) {
+		if (transfer == null || transfer.getDecisionToTransferAt() == null) {
+			throw new HieApiException("Cannot submit transfer: Date and time of decision to transfer is required.");
+		}
+		return transfer.getDecisionToTransferAt();
 	}
 
 	private static String resolvePractitionerId(User user) {

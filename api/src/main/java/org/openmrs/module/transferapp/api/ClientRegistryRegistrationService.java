@@ -32,6 +32,13 @@ public interface ClientRegistryRegistrationService {
 	Map<String, Object> findRegistrationFieldsByUpid(String upid);
 
 	/**
+	 * Looks up a patient in the Client Registry by National ID (NID) and returns their UPID.
+	 *
+	 * @return UPID when a unique match is found; {@code null} otherwise
+	 */
+	String findUpidByNationalId(String nationalId);
+
+	/**
 	 * Retrieves the HIE patient and saves it through the normal OpenMRS registration service.
 	 * Returns the existing patient without creating a duplicate when the UPID is already registered.
 	 */

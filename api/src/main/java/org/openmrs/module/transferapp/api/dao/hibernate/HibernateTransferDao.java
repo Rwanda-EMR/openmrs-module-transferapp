@@ -124,9 +124,9 @@ public class HibernateTransferDao implements TransferDao {
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public List<Transfer> getAmbulanceVoucherTransfers(String sendingFacility, Date startDate, Date endDate,
-			Integer firstResult, Integer maxResults) {
-		Criteria criteria = createAmbulanceVoucherCriteria(sendingFacility, startDate, endDate);
+	public List<Transfer> getAmbulanceVoucherTransfers(String sendingFacility, String ambulanceProviderFosaId,
+			Date startDate, Date endDate, Integer firstResult, Integer maxResults) {
+		Criteria criteria = createAmbulanceVoucherCriteria(sendingFacility, ambulanceProviderFosaId, startDate, endDate);
 		if (criteria == null) {
 			return Collections.emptyList();
 		}
@@ -142,8 +142,9 @@ public class HibernateTransferDao implements TransferDao {
 	}
 
 	@Override
-	public int countAmbulanceVoucherTransfers(String sendingFacility, Date startDate, Date endDate) {
-		Criteria criteria = createAmbulanceVoucherCriteria(sendingFacility, startDate, endDate);
+	public int countAmbulanceVoucherTransfers(String sendingFacility, String ambulanceProviderFosaId,
+			Date startDate, Date endDate) {
+		Criteria criteria = createAmbulanceVoucherCriteria(sendingFacility, ambulanceProviderFosaId, startDate, endDate);
 		if (criteria == null) {
 			return 0;
 		}
@@ -152,25 +153,30 @@ public class HibernateTransferDao implements TransferDao {
 		return count == null ? 0 : count.intValue();
 	}
 
-	private Criteria createAmbulanceVoucherCriteria(String sendingFacility, Date startDate, Date endDate) {
-		if (StringUtils.isBlank(sendingFacility)) {
+	private Criteria createAmbulanceVoucherCriteria(String sendingFacility, String ambulanceProviderFosaId,
+			Date startDate, Date endDate) {
+		String facility = StringUtils.trimToNull(sendingFacility);
+		String providerFosaId = StringUtils.trimToNull(ambulanceProviderFosaId);
+		if (facility == null && providerFosaId == null) {
 			return null;
 		}
 		Criteria criteria = getSession().createCriteria(Transfer.class);
 		criteria.add(Restrictions.eq("voided", false));
-		criteria.add(Restrictions.eq("sendingFacility", sendingFacility.trim()));
 		criteria.add(Restrictions.isNotNull("ambulanceConsommationId"));
+		if (facility != null && providerFosaId != null) {
+			criteria.add(Restrictions.or(
+					Restrictions.eq("sendingFacility", facility),
+					Restrictions.eq("ambulanceProviderFosaId", providerFosaId)));
+		} else if (facility != null) {
+			criteria.add(Restrictions.eq("sendingFacility", facility));
+		} else {
+			criteria.add(Restrictions.eq("ambulanceProviderFosaId", providerFosaId));
+		}
 		if (startDate != null) {
-			criteria.add(Restrictions.sqlRestriction(
-					"COALESCE({alias}.decision_to_transfer_at, {alias}.date_created) >= ?",
-					startDate,
-					StandardBasicTypes.TIMESTAMP));
+			criteria.add(Restrictions.ge("dateCreated", startDate));
 		}
 		if (endDate != null) {
-			criteria.add(Restrictions.sqlRestriction(
-					"COALESCE({alias}.decision_to_transfer_at, {alias}.date_created) <= ?",
-					endDate,
-					StandardBasicTypes.TIMESTAMP));
+			criteria.add(Restrictions.le("dateCreated", endDate));
 		}
 		return criteria;
 	}

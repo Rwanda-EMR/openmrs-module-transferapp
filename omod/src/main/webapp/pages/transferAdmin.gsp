@@ -20,9 +20,6 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "admin
     ${ ui.encodeHtmlContent(adminAccessDeniedMessage) }
 </div>
 <% } else { %>
-
-<p class="transfer-admin-intro">${ ui.message("transferapp.admin.description") }</p>
-
 <div class="transfer-admin-location">
     <label for="transfer-admin-location-select">${ ui.message("transferapp.admin.sendingFacility") }</label>
     <select id="transfer-admin-location-select" class="transfer-admin-location-select">
@@ -42,8 +39,6 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "admin
 
 <div class="transfer-admin-section">
     <h3 class="transfer-admin-section-title">${ ui.message("transferapp.admin.receivingFacilities.title") }</h3>
-    <p class="transfer-admin-section-help">${ ui.message("transferapp.admin.receivingFacilities.help") }</p>
-
     <form id="transfer-admin-add-facility-form" class="transfer-admin-add-form">
         <input type="hidden" name="sendingLocationId" value="${ selectedLocationId }" />
         <div class="transfer-admin-form-row">
@@ -141,8 +136,6 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "admin
 
 <div class="transfer-admin-section">
     <h3 class="transfer-admin-section-title">${ ui.message("transferapp.admin.receivingServices.title") }</h3>
-    <p class="transfer-admin-section-help">${ ui.message("transferapp.admin.receivingServices.help") }</p>
-
     <% if (receivingFacilities == null || receivingFacilities.isEmpty()) { %>
     <div class="transfer-admin-empty">${ ui.message("transferapp.admin.receivingServices.noFacility") }</div>
     <% } else { %>

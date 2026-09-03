@@ -18,10 +18,18 @@ import org.openmrs.module.transferapp.TransferAppActivator;
 import org.openmrs.module.transferapp.model.Transfer;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
+
 @Transactional
 public interface TransferHieReceiveService {
 
 	@Authorized(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
 	Transfer receiveTransferFromHie(Integer patientId, String hieTransferId);
+
+	/**
+	 * Persists a parsed HIE transfer map into {@code transfers} when the row does not exist yet.
+	 */
+	@Authorized(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
+	Transfer storeReceivedTransfer(Integer patientId, Map<String, Object> hieTransfer);
 
 }

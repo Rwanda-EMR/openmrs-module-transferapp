@@ -132,6 +132,36 @@ public class TransferDashboardServiceImpl implements TransferDashboardService {
 	}
 
 	@Override
+	public TransferReceivedStatistics getAmbulanceVoucherStatistics() {
+		TransferReceivedStatistics statistics = new TransferReceivedStatistics();
+		if (transferDao == null || transferAdminService == null) {
+			return statistics;
+		}
+
+		String sendingFacility = transferAdminService.resolveOutboundFacilityName();
+		if (StringUtils.isBlank(sendingFacility)) {
+			sendingFacility = transferAdminService.resolveCurrentSendingFacilityName();
+		}
+		String ambulanceProviderFosaId = StringUtils.trimToNull(getAdministrationService().getGlobalProperty(
+				TransferAppConstants.GP_SENDING_FOSA_ID,
+				TransferAppConstants.DEFAULT_SENDING_FOSA_ID));
+		sendingFacility = StringUtils.trimToNull(sendingFacility);
+		if (sendingFacility == null && ambulanceProviderFosaId == null) {
+			return statistics;
+		}
+
+		Date startOfToday = startOfToday();
+		Date startOfWeek = startOfThisWeek();
+		statistics.setToday(transferDao.countAmbulanceVoucherTransfers(
+				sendingFacility, ambulanceProviderFosaId, startOfToday, null));
+		statistics.setThisWeek(transferDao.countAmbulanceVoucherTransfers(
+				sendingFacility, ambulanceProviderFosaId, startOfWeek, null));
+		statistics.setTotal(transferDao.countAmbulanceVoucherTransfers(
+				sendingFacility, ambulanceProviderFosaId, null, null));
+		return statistics;
+	}
+
+	@Override
 	public Concept getReceivedTransferConcept() {
 		String conceptUuid = getAdministrationService().getGlobalProperty(
 				TransferAppConstants.GP_RECEIVED_TRANSFER_CONCEPT_UUID,

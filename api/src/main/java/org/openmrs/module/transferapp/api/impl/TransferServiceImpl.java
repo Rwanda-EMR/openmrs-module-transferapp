@@ -24,12 +24,14 @@ import org.openmrs.module.transferapp.TransferAppConstants;
 import org.openmrs.module.transferapp.api.PatientInsuranceService;
 import org.openmrs.module.transferapp.api.TransferAdminService;
 import org.openmrs.module.transferapp.api.TransferAmbulanceBillingService;
+import org.openmrs.module.transferapp.api.TransferFacilityRegistryService;
 import org.openmrs.module.transferapp.api.TransferPatientSnapshotResolver;
 import org.openmrs.module.transferapp.api.TransferProfileService;
 import org.openmrs.module.transferapp.api.TransferService;
 import org.openmrs.module.transferapp.api.dao.TransferDao;
 import org.openmrs.module.transferapp.model.PatientInsuranceInfo;
 import org.openmrs.module.transferapp.model.ReceivingFacility;
+import org.openmrs.module.transferapp.model.RegistryFacility;
 import org.openmrs.module.transferapp.model.Transfer;
 import org.openmrs.module.transferapp.model.TransferFormExtras;
 import org.openmrs.module.transferapp.model.TransferFormKind;
@@ -69,6 +71,8 @@ public class TransferServiceImpl implements TransferService {
 
 	private TransferAmbulanceBillingService transferAmbulanceBillingService;
 
+	private TransferFacilityRegistryService transferFacilityRegistryService;
+
 	public void setTransferDao(TransferDao transferDao) {
 		this.transferDao = transferDao;
 	}
@@ -97,6 +101,10 @@ public class TransferServiceImpl implements TransferService {
 		this.transferAmbulanceBillingService = transferAmbulanceBillingService;
 	}
 
+	public void setTransferFacilityRegistryService(TransferFacilityRegistryService transferFacilityRegistryService) {
+		this.transferFacilityRegistryService = transferFacilityRegistryService;
+	}
+
 	@Override
 	public Transfer saveReferralTransfer(Integer patientId,
 			String decisionToTransferAt,
@@ -112,10 +120,10 @@ public class TransferServiceImpl implements TransferService {
 			String transportationType,
 			String transportationOtherSpec,
 			String reasonForTransfer) {
-		return saveReferralTransfer(patientId, decisionToTransferAt, callingTime, receivingFacilityCode,
+		return saveReferralTransfer(patientId, null, decisionToTransferAt, callingTime, receivingFacilityCode,
 				receivingFacilityId, receivingService, staffContactedName, staffContactedPhone, transferType,
 				ambulanceCalledTime, departureFromReferringTime, transportationType, transportationOtherSpec,
-				reasonForTransfer, null);
+				null, null, reasonForTransfer, null);
 	}
 
 	@Override
@@ -137,7 +145,7 @@ public class TransferServiceImpl implements TransferService {
 		return saveReferralTransfer(patientId, null, decisionToTransferAt, callingTime, receivingFacilityCode,
 				receivingFacilityId, receivingService, staffContactedName, staffContactedPhone, transferType,
 				ambulanceCalledTime, departureFromReferringTime, transportationType, transportationOtherSpec,
-				reasonForTransfer, formExtras);
+				null, null, reasonForTransfer, formExtras);
 	}
 
 	@Override
@@ -157,6 +165,31 @@ public class TransferServiceImpl implements TransferService {
 			String transportationOtherSpec,
 			String reasonForTransfer,
 			TransferFormExtras formExtras) {
+		return saveReferralTransfer(patientId, transferUuid, decisionToTransferAt, callingTime, receivingFacilityCode,
+				receivingFacilityId, receivingService, staffContactedName, staffContactedPhone, transferType,
+				ambulanceCalledTime, departureFromReferringTime, transportationType, transportationOtherSpec,
+				null, null, reasonForTransfer, formExtras);
+	}
+
+	@Override
+	public Transfer saveReferralTransfer(Integer patientId,
+			String transferUuid,
+			String decisionToTransferAt,
+			String callingTime,
+			String receivingFacilityCode,
+			Integer receivingFacilityId,
+			String receivingService,
+			String staffContactedName,
+			String staffContactedPhone,
+			String transferType,
+			String ambulanceCalledTime,
+			String departureFromReferringTime,
+			String transportationType,
+			String transportationOtherSpec,
+			String ambulanceProviderFosaId,
+			String ambulanceProviderName,
+			String reasonForTransfer,
+			TransferFormExtras formExtras) {
 
 		if (patientId == null) {
 			throw new APIException("Patient is required");
@@ -169,7 +202,8 @@ public class TransferServiceImpl implements TransferService {
 
 		String normalizedTransferType = StringUtils.trimToNull(transferType);
 		validateTransferTypeFields(normalizedTransferType, ambulanceCalledTime, departureFromReferringTime);
-		validateTransportationFields(normalizedTransferType, transportationType, transportationOtherSpec);
+		validateTransportationFields(normalizedTransferType, transportationType, transportationOtherSpec,
+				ambulanceProviderFosaId, ambulanceProviderName);
 		ensureReceivingServiceConfigured(receivingFacilityCode, receivingFacilityId, receivingService);
 
 		boolean isUpdate = StringUtils.isNotBlank(transferUuid);
@@ -207,6 +241,9 @@ public class TransferServiceImpl implements TransferService {
 		}
 
 		transfer.setDecisionToTransferAt(parseDateTimeLocal(decisionToTransferAt));
+		if (transfer.getDecisionToTransferAt() == null) {
+			throw new APIException("Date and time of decision to transfer is required");
+		}
 		transfer.setCallingTime(StringUtils.trimToNull(callingTime));
 		transfer.setReceivingFacilityCode(StringUtils.trimToNull(receivingFacilityCode));
 		applyReceivingFacilitySnapshot(transfer, receivingFacilityCode, receivingFacilityId);
@@ -222,7 +259,8 @@ public class TransferServiceImpl implements TransferService {
 			transfer.setAmbulanceCallTime(null);
 			transfer.setDepartRefTime(null);
 		}
-		applyTransportationSnapshot(transfer, normalizedTransferType, transportationType, transportationOtherSpec);
+		applyTransportationSnapshot(transfer, normalizedTransferType, transportationType, transportationOtherSpec,
+				ambulanceProviderFosaId, ambulanceProviderName);
 		transfer.setReasonForTransfer(StringUtils.trimToNull(reasonForTransfer));
 		if (StringUtils.isBlank(transfer.getReasonForTransfer())) {
 			throw new APIException("Reason for Transfer is required");
@@ -498,30 +536,38 @@ public class TransferServiceImpl implements TransferService {
 	}
 
 	private void validateTransportationFields(String transferType, String transportationType,
-			String transportationOtherSpec) {
-		if (TRANSFER_TYPE_EMERGENCY.equals(transferType)) {
-			return;
-		}
-		String transport = StringUtils.trimToNull(transportationType);
-		if (transport == null) {
-			throw new APIException("Type of transportation is required");
+			String transportationOtherSpec, String ambulanceProviderFosaId, String ambulanceProviderName) {
+		boolean emergency = TRANSFER_TYPE_EMERGENCY.equals(transferType);
+		String transport = emergency ? TRANSPORT_TYPE_AMBULANCE : StringUtils.trimToNull(transportationType);
+		if (!emergency) {
+			if (transport == null) {
+				throw new APIException("Type of transportation is required");
+			}
+			if (TRANSPORT_TYPE_AMBULANCE.equals(transport)) {
+				throw new APIException("Ambulance transportation is only allowed for emergency transfers");
+			}
+			if (!Arrays.asList("OTHER", "NA").contains(transport)) {
+				throw new APIException("Invalid type of transportation");
+			}
+			if ("OTHER".equals(transport) && StringUtils.isBlank(transportationOtherSpec)) {
+				throw new APIException("Please specify other transportation type");
+			}
 		}
 		if (TRANSPORT_TYPE_AMBULANCE.equals(transport)) {
-			throw new APIException("Ambulance transportation is only allowed for emergency transfers");
-		}
-		if (!Arrays.asList("OTHER", "NA").contains(transport)) {
-			throw new APIException("Invalid type of transportation");
-		}
-		if ("OTHER".equals(transport) && StringUtils.isBlank(transportationOtherSpec)) {
-			throw new APIException("Please specify other transportation type");
+			if (StringUtils.isBlank(ambulanceProviderFosaId) || StringUtils.isBlank(ambulanceProviderName)) {
+				throw new APIException("Select the facility that will provide the ambulance vehicle");
+			}
 		}
 	}
 
 	private void applyTransportationSnapshot(Transfer transfer, String transferType, String transportationType,
-			String transportationOtherSpec) {
+			String transportationOtherSpec, String ambulanceProviderFosaId, String ambulanceProviderName) {
 		if (TRANSFER_TYPE_EMERGENCY.equals(transferType)) {
 			transfer.setTransportType(TRANSPORT_TYPE_AMBULANCE);
 			transfer.setTransportOther(null);
+			String fosaId = StringUtils.trimToNull(ambulanceProviderFosaId);
+			transfer.setAmbulanceProviderFosaId(fosaId);
+			transfer.setAmbulanceProviderName(resolveAmbulanceProviderName(fosaId, ambulanceProviderName));
 			return;
 		}
 		String transport = StringUtils.trimToNull(transportationType);
@@ -532,6 +578,60 @@ public class TransferServiceImpl implements TransferService {
 		else {
 			transfer.setTransportOther(null);
 		}
+		transfer.setAmbulanceProviderFosaId(null);
+		transfer.setAmbulanceProviderName(null);
+	}
+
+	/**
+	 * Prefer the Facility Registry display name for the selected FOSA id so a stale
+	 * hidden-field value (e.g. current facility) cannot be persisted with the wrong code.
+	 */
+	private String resolveAmbulanceProviderName(String ambulanceProviderFosaId, String submittedName) {
+		String fosaId = StringUtils.trimToNull(ambulanceProviderFosaId);
+		if (fosaId == null) {
+			return null;
+		}
+		String fromRegistry = findAmbulanceProviderNameInRegistry(fosaId);
+		if (StringUtils.isNotBlank(fromRegistry)) {
+			return fromRegistry.trim();
+		}
+		return StringUtils.trimToNull(submittedName);
+	}
+
+	private String findAmbulanceProviderNameInRegistry(String fosaId) {
+		if (transferFacilityRegistryService == null || StringUtils.isBlank(fosaId)) {
+			return null;
+		}
+		try {
+			List<RegistryFacility> facilities = transferFacilityRegistryService.listAmbulanceProviderFacilitiesFromHie();
+			if (facilities == null || facilities.isEmpty()) {
+				return null;
+			}
+			String normalizedTarget = normalizeFosaCode(fosaId);
+			for (RegistryFacility facility : facilities) {
+				if (facility == null || StringUtils.isBlank(facility.getCode())) {
+					continue;
+				}
+				if (fosaId.equals(facility.getCode())
+						|| normalizedTarget.equals(normalizeFosaCode(facility.getCode()))) {
+					return StringUtils.trimToNull(facility.getName());
+				}
+			}
+		}
+		catch (Exception ignored) {
+			// Fall back to submitted name when registry lookup fails.
+		}
+		return null;
+	}
+
+	private static String normalizeFosaCode(String code) {
+		String value = StringUtils.trimToEmpty(code);
+		if (StringUtils.isNumeric(value) && value.length() < 4) {
+			while (value.length() < 4) {
+				value = "0" + value;
+			}
+		}
+		return value;
 	}
 
 	@Override

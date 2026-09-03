@@ -33,4 +33,11 @@ public interface TransferAmbulanceBillingService {
 	 */
 	Transfer syncAmbulanceBill(Transfer transfer, String previousReceivingFacilityCode, String previousTransportType);
 
+	/**
+	 * Creates an ambulance bill for an already-stored transfer using the same mohbilling
+	 * {@code createAmbulanceBill} path as outbound transfers, with caller-supplied distance
+	 * and description (e.g. From / Via / To route text).
+	 */
+	Transfer createAmbulanceBillWithRoute(Transfer transfer, int kilometers, String description);
+
 }

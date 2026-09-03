@@ -67,6 +67,74 @@
   text-decoration: underline;
 }
 
+.ambulance-voucher-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.ambulance-voucher-transfer-preview-link {
+  color: #0f766e;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ambulance-voucher-transfer-preview-link:hover {
+  text-decoration: underline;
+}
+
+.transfer-ambulance-voucher-list-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 10px;
+}
+
+.ambulance-voucher-transfer-preview-overlay {
+  z-index: 20000;
+}
+
+.ambulance-voucher-transfer-preview-dialog.dialog {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 20001 !important;
+  width: min(1400px, 96vw) !important;
+  max-height: 92vh !important;
+  margin: 0 !important;
+  display: none;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #00473f;
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.ambulance-voucher-transfer-preview-dialog .dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: #00473f;
+  color: #fff;
+}
+
+.ambulance-voucher-transfer-preview-dialog .dialog-header h3,
+.ambulance-voucher-transfer-preview-dialog .dialog-header i {
+  color: #fff;
+  margin: 0;
+}
+
+.ambulance-voucher-transfer-preview-dialog .dialog-content {
+  padding: 16px 18px 18px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
 .bon-loading,
 .bon-error {
   margin: 12px 0;

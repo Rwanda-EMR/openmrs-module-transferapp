@@ -153,6 +153,10 @@
         }
 
         function ensureTransferPreviewRenderer(callback) {
+            if (typeof ensureTransferPreviewAssets === "function") {
+                ensureTransferPreviewAssets(callback);
+                return;
+            }
             if (typeof buildTransferFormPreviewHtml === "function") {
                 callback();
                 return;
@@ -161,10 +165,7 @@
                 previewScriptsLoading.done(callback);
                 return;
             }
-            previewScriptsLoading = jq.getScript(previewResourcesBase + "transferMohLogo.js")
-                .then(function() {
-                    return jq.getScript(previewResourcesBase + "transferFormPreview.js");
-                })
+            previewScriptsLoading = jq.getScript(previewResourcesBase + "transferPreviewCommon.js")
                 .done(callback)
                 .fail(function() {
                     jq("#hie-transfer-preview-body").html("<p style='color:red;'>Unable to load transfer preview renderer.</p>");
@@ -261,6 +262,15 @@
         }
 
         function renderPreview(transfer) {
+            if (typeof renderTransferPreviewInto === "function") {
+                renderTransferPreviewInto("#hie-transfer-preview-body", transfer, function() {
+                    updateValidateButton(transfer);
+                    runtime.feedbackLoaded = false;
+                    hideReferralFeedback();
+                    updateProvideFeedbackButton(transfer);
+                });
+                return;
+            }
             var previewHtml = typeof buildTransferFormPreviewHtml === "function"
                 ? buildTransferFormPreviewHtml(transfer)
                 : "<p style='color:red;'>Preview renderer not loaded.</p>";

@@ -20,7 +20,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "dashb
 
 <div class="transfer-dashboard-section">
     <h3 class="transfer-dashboard-section-title">${ ui.message("transferapp.dashboard.received.title") }</h3>
-    <div class="transfer-stat-grid">
+    <div class="transfer-stat-grid transfer-stat-grid-3">
         <div class="transfer-stat-card transfer-stat-card-received">
             <div class="transfer-stat-label">${ ui.message("transferapp.dashboard.received.today") }</div>
             <div class="transfer-stat-value">${ transfersReceivedToday }</div>
@@ -32,10 +32,6 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "dashb
         <div class="transfer-stat-card transfer-stat-card-received">
             <div class="transfer-stat-label">${ ui.message("transferapp.dashboard.received.total") }</div>
             <div class="transfer-stat-value">${ transfersReceivedTotal }</div>
-        </div>
-        <div class="transfer-stat-card transfer-stat-card-received transfer-stat-card-pending">
-            <div class="transfer-stat-label">${ ui.message("transferapp.dashboard.received.pending") }</div>
-            <div class="transfer-stat-value">${ transfersReceivedPending }</div>
         </div>
     </div>
 </div>
@@ -58,6 +54,24 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "dashb
         <div class="transfer-stat-card transfer-stat-card-sent transfer-stat-card-pending">
             <div class="transfer-stat-label">${ ui.message("transferapp.dashboard.sent.pending") }</div>
             <div class="transfer-stat-value">${ transfersSentPending }</div>
+        </div>
+    </div>
+</div>
+
+<div class="transfer-dashboard-section">
+    <h3 class="transfer-dashboard-section-title">${ ui.message("transferapp.dashboard.ambulanceVoucher.title") }</h3>
+    <div class="transfer-stat-grid transfer-stat-grid-3">
+        <div class="transfer-stat-card transfer-stat-card-voucher">
+            <div class="transfer-stat-label">${ ui.message("transferapp.dashboard.ambulanceVoucher.today") }</div>
+            <div class="transfer-stat-value">${ ambulanceVouchersToday }</div>
+        </div>
+        <div class="transfer-stat-card transfer-stat-card-voucher">
+            <div class="transfer-stat-label">${ ui.message("transferapp.dashboard.ambulanceVoucher.thisWeek") }</div>
+            <div class="transfer-stat-value">${ ambulanceVouchersThisWeek }</div>
+        </div>
+        <div class="transfer-stat-card transfer-stat-card-voucher">
+            <div class="transfer-stat-label">${ ui.message("transferapp.dashboard.ambulanceVoucher.total") }</div>
+            <div class="transfer-stat-value">${ ambulanceVouchersTotal }</div>
         </div>
     </div>
 </div>

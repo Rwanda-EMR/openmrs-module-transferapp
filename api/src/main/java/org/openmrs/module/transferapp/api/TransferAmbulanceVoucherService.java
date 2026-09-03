@@ -15,9 +15,11 @@ package org.openmrs.module.transferapp.api;
 
 import org.openmrs.module.transferapp.model.AmbulanceVoucherPage;
 import org.openmrs.module.transferapp.model.AmbulanceVoucherPreview;
+import org.openmrs.module.transferapp.model.Transfer;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.Map;
 
 /**
  * Lists transfers that have a linked ambulance consommation (voucher).
@@ -37,5 +39,20 @@ public interface TransferAmbulanceVoucherService {
 	 */
 	@Transactional(readOnly = true)
 	AmbulanceVoucherPreview getVoucherPreview(String transferUuid);
+
+	/**
+	 * Receives an HIE transfer for a local patient (if not already stored) and creates the
+	 * ambulance consommation using the insurance card/policy number from the latest registration.
+	 * Distance and covered district are supplied by the user; bill description is
+	 * "{My Location} via {From} to {To}".
+	 */
+	Transfer createAmbulanceVoucherFromHie(Integer patientId, String hieTransferId, int kilometers,
+			String coveredDistrict);
+
+	/**
+	 * Local link state for an HIE transfer id (uuid / whether a voucher already exists).
+	 */
+	@Transactional(readOnly = true)
+	Map<String, Object> resolveLocalVoucherLink(Integer patientId, String hieTransferId);
 
 }

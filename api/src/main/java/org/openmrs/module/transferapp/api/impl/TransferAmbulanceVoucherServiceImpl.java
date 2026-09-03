@@ -23,13 +23,16 @@ import org.openmrs.module.mohbilling.model.PatientServiceBill;
 import org.openmrs.module.mohbilling.service.BillingService;
 import org.openmrs.module.transferapp.api.PatientInsuranceService;
 import org.openmrs.module.transferapp.api.TransferAdminService;
+import org.openmrs.module.transferapp.api.TransferAmbulanceBillingService;
 import org.openmrs.module.transferapp.api.TransferAmbulanceVoucherService;
+import org.openmrs.module.transferapp.api.TransferHieReceiveService;
 import org.openmrs.module.transferapp.api.dao.TransferDao;
 import org.openmrs.module.transferapp.model.AmbulanceVoucherItem;
 import org.openmrs.module.transferapp.model.AmbulanceVoucherPage;
 import org.openmrs.module.transferapp.model.AmbulanceVoucherPreview;
 import org.openmrs.module.transferapp.model.ReceivingFacility;
 import org.openmrs.module.transferapp.model.Transfer;
+import org.openmrs.Patient;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -38,19 +41,27 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 public class TransferAmbulanceVoucherServiceImpl implements TransferAmbulanceVoucherService {
 
 	private static final Log log = LogFactory.getLog(TransferAmbulanceVoucherServiceImpl.class);
 
+	private static final String TRANSPORT_TYPE_AMBULANCE = "AMBULANCE";
+
 	private TransferDao transferDao;
 
 	private TransferAdminService transferAdminService;
 
 	private PatientInsuranceService patientInsuranceService;
+
+	private TransferHieReceiveService transferHieReceiveService;
+
+	private TransferAmbulanceBillingService transferAmbulanceBillingService;
 
 	public void setTransferDao(TransferDao transferDao) {
 		this.transferDao = transferDao;
@@ -62,6 +73,177 @@ public class TransferAmbulanceVoucherServiceImpl implements TransferAmbulanceVou
 
 	public void setPatientInsuranceService(PatientInsuranceService patientInsuranceService) {
 		this.patientInsuranceService = patientInsuranceService;
+	}
+
+	public void setTransferHieReceiveService(TransferHieReceiveService transferHieReceiveService) {
+		this.transferHieReceiveService = transferHieReceiveService;
+	}
+
+	public void setTransferAmbulanceBillingService(TransferAmbulanceBillingService transferAmbulanceBillingService) {
+		this.transferAmbulanceBillingService = transferAmbulanceBillingService;
+	}
+
+	@Override
+	public Map<String, Object> resolveLocalVoucherLink(Integer patientId, String hieTransferId) {
+		Map<String, Object> link = new HashMap<String, Object>();
+		link.put("localTransferUuid", "");
+		link.put("hasAmbulanceVoucher", Boolean.FALSE);
+		link.put("ambulanceConsommationId", null);
+		if (patientId == null || StringUtils.isBlank(hieTransferId) || transferDao == null) {
+			return link;
+		}
+		Transfer local = transferDao.getTransferByHieTransferId(patientId, hieTransferId.trim());
+		if (local == null) {
+			return link;
+		}
+		link.put("localTransferUuid", StringUtils.defaultString(local.getUuid()));
+		boolean hasVoucher = local.getAmbulanceConsommationId() != null;
+		link.put("hasAmbulanceVoucher", Boolean.valueOf(hasVoucher));
+		link.put("ambulanceConsommationId", local.getAmbulanceConsommationId());
+		return link;
+	}
+
+	@Override
+	public Transfer createAmbulanceVoucherFromHie(Integer patientId, String hieTransferId, int kilometers,
+			String coveredDistrict) {
+		if (patientId == null) {
+			throw new APIException("Patient is required");
+		}
+		if (StringUtils.isBlank(hieTransferId)) {
+			throw new APIException("HIE transfer id is required");
+		}
+		if (kilometers <= 0) {
+			throw new APIException("Distance in kilometers must be greater than zero");
+		}
+		String district = StringUtils.trimToNull(coveredDistrict);
+		if (district == null) {
+			throw new APIException("Covered district is required");
+		}
+		if (transferHieReceiveService == null) {
+			throw new APIException("HIE receive service is not available");
+		}
+		if (transferAmbulanceBillingService == null) {
+			throw new APIException("Ambulance billing service is not available");
+		}
+
+		Patient patient = Context.getPatientService().getPatient(patientId);
+		if (patient == null) {
+			throw new APIException("Patient not found");
+		}
+		String insuranceCard = patientInsuranceService != null
+				? patientInsuranceService.resolveInsuranceCardNumber(patient)
+				: null;
+		if (StringUtils.isBlank(insuranceCard)) {
+			throw new APIException(
+					"Insurance card/policy number not found on the current registration encounter");
+		}
+
+		Transfer transfer = transferHieReceiveService.receiveTransferFromHie(patientId, hieTransferId.trim());
+		if (transfer == null) {
+			throw new APIException("Unable to store transfer from HIE");
+		}
+		if (transfer.getAmbulanceConsommationId() != null) {
+			return transfer;
+		}
+
+		// In production, only allow voucher creation when HIE names this facility as provider.
+		// Must check before overwriting provider fields for local billing.
+		assertAllowedToCreateAmbulanceVoucher(transfer);
+
+		if (!TRANSPORT_TYPE_AMBULANCE.equals(StringUtils.trimToEmpty(transfer.getTransportType()))) {
+			transfer.setTransportType(TRANSPORT_TYPE_AMBULANCE);
+		}
+		transfer.setReceivingDistrict(StringUtils.left(district, 120));
+		// Creating the voucher at this facility implies we are providing the ambulance.
+		String currentFosaId = StringUtils.trimToNull(Context.getAdministrationService().getGlobalProperty(
+				org.openmrs.module.transferapp.TransferAppConstants.GP_SENDING_FOSA_ID,
+				org.openmrs.module.transferapp.TransferAppConstants.DEFAULT_SENDING_FOSA_ID));
+		if (currentFosaId != null) {
+			transfer.setAmbulanceProviderFosaId(currentFosaId);
+		}
+		if (transferAdminService != null) {
+			String name = StringUtils.trimToNull(transferAdminService.resolveOutboundFacilityName());
+			if (name == null) {
+				name = StringUtils.trimToNull(transferAdminService.resolveCurrentSendingFacilityName());
+			}
+			if (name != null) {
+				transfer.setAmbulanceProviderName(name);
+			}
+		}
+		if (transferDao != null) {
+			transfer = transferDao.saveTransfer(transfer);
+		}
+
+		String description = buildReceivedAmbulanceBillDescription(transfer);
+		transfer = transferAmbulanceBillingService.createAmbulanceBillWithRoute(
+				transfer, kilometers, description);
+		if (transfer.getAmbulanceConsommationId() == null) {
+			throw new APIException("Unable to create ambulance voucher");
+		}
+		return transfer;
+	}
+
+	/**
+	 * Production requires the HIE transfer's ambulance provider to match this facility
+	 * ({@code transferapp.sendingFosaId} or {@code transferapp.outboundFacilityName}).
+	 * Non-production allows any transfer.
+	 */
+	private void assertAllowedToCreateAmbulanceVoucher(Transfer transfer) {
+		if (!org.openmrs.module.transferapp.TransferAppMode.isProduction()) {
+			return;
+		}
+		String providerFosaId = StringUtils.trimToNull(transfer != null ? transfer.getAmbulanceProviderFosaId() : null);
+		String providerName = StringUtils.trimToNull(transfer != null ? transfer.getAmbulanceProviderName() : null);
+		String currentFosaId = StringUtils.trimToNull(Context.getAdministrationService().getGlobalProperty(
+				org.openmrs.module.transferapp.TransferAppConstants.GP_SENDING_FOSA_ID,
+				org.openmrs.module.transferapp.TransferAppConstants.DEFAULT_SENDING_FOSA_ID));
+		String outboundName = null;
+		if (transferAdminService != null) {
+			outboundName = StringUtils.trimToNull(transferAdminService.resolveOutboundFacilityName());
+			if (outboundName == null) {
+				outboundName = StringUtils.trimToNull(transferAdminService.resolveCurrentSendingFacilityName());
+			}
+		}
+		boolean fosaMatch = providerFosaId != null && currentFosaId != null
+				&& currentFosaId.equalsIgnoreCase(providerFosaId);
+		boolean nameMatch = providerName != null && outboundName != null
+				&& outboundName.equalsIgnoreCase(providerName);
+		if (!fosaMatch && !nameMatch) {
+			throw new APIException(
+					"Ambulance voucher can only be created when this facility ("
+							+ (outboundName != null ? outboundName : "outbound facility")
+							+ ") is the ambulance provider, or when transferapp.production=false");
+		}
+	}
+
+	/**
+	 * My Location (outbound/current facility) via transfer origin to receiving facility.
+	 */
+	private String buildReceivedAmbulanceBillDescription(Transfer transfer) {
+		String myLocation = "";
+		if (transferAdminService != null) {
+			myLocation = StringUtils.trimToEmpty(transferAdminService.resolveOutboundFacilityName());
+			if (StringUtils.isBlank(myLocation)) {
+				myLocation = StringUtils.trimToEmpty(transferAdminService.resolveCurrentSendingFacilityName());
+			}
+		}
+		String viaFacility = StringUtils.trimToEmpty(transfer != null ? transfer.getSendingFacility() : null);
+		String toFacility = "";
+		if (transfer != null) {
+			toFacility = StringUtils.trimToEmpty(transfer.getReceivingFacilityCode());
+			if (transferAdminService != null && StringUtils.isNotBlank(toFacility)) {
+				Integer sendingLocationId = transferAdminService.resolveCurrentSendingLocationId();
+				String resolved = transferAdminService.resolveReceivingFacilityName(sendingLocationId, toFacility);
+				if (StringUtils.isNotBlank(resolved)) {
+					toFacility = resolved;
+				}
+			}
+		}
+		return blankAsNa(myLocation) + " via " + blankAsNa(viaFacility) + " to " + blankAsNa(toFacility);
+	}
+
+	private static String blankAsNa(String value) {
+		return StringUtils.isNotBlank(value) ? value.trim() : "N/A";
 	}
 
 	@Override
@@ -89,14 +271,17 @@ public class TransferAmbulanceVoucherServiceImpl implements TransferAmbulanceVou
 		if (StringUtils.isBlank(sendingFacility)) {
 			sendingFacility = transferAdminService.resolveCurrentSendingFacilityName();
 		}
-		if (StringUtils.isBlank(sendingFacility)) {
+		String ambulanceProviderFosaId = StringUtils.trimToNull(Context.getAdministrationService().getGlobalProperty(
+				org.openmrs.module.transferapp.TransferAppConstants.GP_SENDING_FOSA_ID,
+				org.openmrs.module.transferapp.TransferAppConstants.DEFAULT_SENDING_FOSA_ID));
+		if (StringUtils.isBlank(sendingFacility) && StringUtils.isBlank(ambulanceProviderFosaId)) {
 			result.setTotalCount(0);
 			result.setItems(Collections.<AmbulanceVoucherItem>emptyList());
 			return result;
 		}
 
 		List<Transfer> transfers = transferDao.getAmbulanceVoucherTransfers(
-				sendingFacility.trim(), rangeStart, rangeEnd, null, null);
+				StringUtils.trimToNull(sendingFacility), ambulanceProviderFosaId, rangeStart, rangeEnd, null, null);
 		if (transfers == null || transfers.isEmpty()) {
 			result.setTotalCount(0);
 			result.setItems(Collections.<AmbulanceVoucherItem>emptyList());
@@ -137,7 +322,7 @@ public class TransferAmbulanceVoucherServiceImpl implements TransferAmbulanceVou
 		preview.setTransferUuid(transfer.getUuid());
 		preview.setConsommationId(transfer.getAmbulanceConsommationId());
 		preview.setProvince("");
-		preview.setDistrict("");
+		preview.setDistrict(StringUtils.defaultString(transfer.getReceivingDistrict()));
 		preview.setSectionHospital(StringUtils.defaultString(transfer.getSendingFacility()));
 
 		Date transferDate = transfer.getDecisionToTransferAt() != null

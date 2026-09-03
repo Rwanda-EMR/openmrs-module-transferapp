@@ -46,13 +46,17 @@ public class DashboardPageController {
 			model.addAttribute("transfersReceivedToday", received.getToday());
 			model.addAttribute("transfersReceivedThisWeek", received.getThisWeek());
 			model.addAttribute("transfersReceivedTotal", received.getTotal());
-			model.addAttribute("transfersReceivedPending", received.getPending());
 
 			TransferReceivedStatistics sent = transferDashboardService.getSentTransferStatistics();
 			model.addAttribute("transfersSentToday", sent.getToday());
 			model.addAttribute("transfersSentThisWeek", sent.getThisWeek());
 			model.addAttribute("transfersSentTotal", sent.getTotal());
 			model.addAttribute("transfersSentPending", sent.getPending());
+
+			TransferReceivedStatistics vouchers = transferDashboardService.getAmbulanceVoucherStatistics();
+			model.addAttribute("ambulanceVouchersToday", vouchers.getToday());
+			model.addAttribute("ambulanceVouchersThisWeek", vouchers.getThisWeek());
+			model.addAttribute("ambulanceVouchersTotal", vouchers.getTotal());
 		}
 		catch (Exception ex) {
 			setZeroStats(model);
@@ -68,11 +72,13 @@ public class DashboardPageController {
 		model.addAttribute("transfersReceivedToday", 0);
 		model.addAttribute("transfersReceivedThisWeek", 0);
 		model.addAttribute("transfersReceivedTotal", 0);
-		model.addAttribute("transfersReceivedPending", 0);
 		model.addAttribute("transfersSentToday", 0);
 		model.addAttribute("transfersSentThisWeek", 0);
 		model.addAttribute("transfersSentTotal", 0);
 		model.addAttribute("transfersSentPending", 0);
+		model.addAttribute("ambulanceVouchersToday", 0);
+		model.addAttribute("ambulanceVouchersThisWeek", 0);
+		model.addAttribute("ambulanceVouchersTotal", 0);
 	}
 
 }

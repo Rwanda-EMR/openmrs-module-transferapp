@@ -120,6 +120,12 @@ public class Transfer extends BaseOpenmrsData {
 	@Column(name = "transport_other", length = 255)
 	private String transportOther;
 
+	@Column(name = "ambulance_provider_fosa_id", length = 64)
+	private String ambulanceProviderFosaId;
+
+	@Column(name = "ambulance_provider_name", length = 255)
+	private String ambulanceProviderName;
+
 	@Column(name = "emr_id", length = 64)
 	private String emrId;
 
@@ -460,6 +466,22 @@ public class Transfer extends BaseOpenmrsData {
 
 	public void setTransportOther(String transportOther) {
 		this.transportOther = transportOther;
+	}
+
+	public String getAmbulanceProviderFosaId() {
+		return ambulanceProviderFosaId;
+	}
+
+	public void setAmbulanceProviderFosaId(String ambulanceProviderFosaId) {
+		this.ambulanceProviderFosaId = ambulanceProviderFosaId;
+	}
+
+	public String getAmbulanceProviderName() {
+		return ambulanceProviderName;
+	}
+
+	public void setAmbulanceProviderName(String ambulanceProviderName) {
+		this.ambulanceProviderName = ambulanceProviderName;
 	}
 
 	public String getEmrId() {

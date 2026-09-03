@@ -123,6 +123,14 @@ public class NewTransferOutFormData {
 
 	private String transportationOtherSpec;
 
+	/** FOSA id of the facility that will provide the ambulance vehicle. */
+	private String ambulanceProviderFosaId;
+
+	private String ambulanceProviderName;
+
+	/** Current logged-in facility FOSA ({@code transferapp.sendingFosaId}) for default selection. */
+	private String currentSendingFosaId;
+
 	// Step 6
 	private String healthInsuranceType;
 
@@ -533,6 +541,30 @@ public class NewTransferOutFormData {
 
 	public void setTransportationOtherSpec(String transportationOtherSpec) {
 		this.transportationOtherSpec = transportationOtherSpec;
+	}
+
+	public String getAmbulanceProviderFosaId() {
+		return ambulanceProviderFosaId;
+	}
+
+	public void setAmbulanceProviderFosaId(String ambulanceProviderFosaId) {
+		this.ambulanceProviderFosaId = ambulanceProviderFosaId;
+	}
+
+	public String getAmbulanceProviderName() {
+		return ambulanceProviderName;
+	}
+
+	public void setAmbulanceProviderName(String ambulanceProviderName) {
+		this.ambulanceProviderName = ambulanceProviderName;
+	}
+
+	public String getCurrentSendingFosaId() {
+		return currentSendingFosaId;
+	}
+
+	public void setCurrentSendingFosaId(String currentSendingFosaId) {
+		this.currentSendingFosaId = currentSendingFosaId;
 	}
 
 	public String getHealthInsuranceType() {

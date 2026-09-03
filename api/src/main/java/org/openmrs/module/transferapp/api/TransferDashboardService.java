@@ -32,6 +32,14 @@ public interface TransferDashboardService {
 	@Transactional(readOnly = true)
 	TransferReceivedStatistics getSentTransferStatistics();
 
+	/**
+	 * Counts ambulance vouchers created at this facility (outbound transfers) and
+	 * vouchers created here for HIE transfers where this facility is the ambulance provider.
+	 */
+	@Authorized(TransferAppActivator.PRIVILEGE_DASHBOARD)
+	@Transactional(readOnly = true)
+	TransferReceivedStatistics getAmbulanceVoucherStatistics();
+
 	@Authorized(TransferAppActivator.PRIVILEGE_DASHBOARD)
 	@Transactional(readOnly = true)
 	Concept getReceivedTransferConcept();

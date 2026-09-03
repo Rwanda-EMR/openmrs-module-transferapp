@@ -332,16 +332,35 @@
 }
 
 .transfer-transport-other,
-.transfer-insurance-other {
+.transfer-insurance-other,
+.transfer-ambulance-provider {
   display: none;
   flex: 1 1 12rem;
   min-width: 10rem;
   max-width: 22rem;
 }
 
+.transfer-ambulance-provider {
+  flex: 1 1 16rem;
+  min-width: 14rem;
+  max-width: 28rem;
+}
+
 .transfer-transport-other.is-visible,
-.transfer-insurance-other.is-visible {
+.transfer-insurance-other.is-visible,
+.transfer-ambulance-provider.is-visible {
   display: block;
+}
+
+.transfer-ambulance-provider label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.transfer-ambulance-provider .select2-container {
+  width: 100% !important;
 }
 
 .transfer-vitals-grid {

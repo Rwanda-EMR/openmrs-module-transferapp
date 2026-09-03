@@ -1217,31 +1217,20 @@
     }
 
     function ensureTransferPreviewRenderer(callback) {
+        if (typeof ensureTransferPreviewAssets === "function") {
+            ensureTransferPreviewAssets(callback);
+            return;
+        }
         if (typeof buildTransferFormPreviewHtml === "function") {
             callback();
             return;
-        }
-        if (!document.getElementById("transfer-form-preview-css")) {
-            jq("head").append(
-                "<link id='transfer-form-preview-css' rel='stylesheet' type='text/css' href='"
-                + transferOpenmrsPath + "/moduleResources/transferapp/styles/transferFormPreview.css' />"
-            );
         }
         if (transferPreviewScriptsLoading) {
             transferPreviewScriptsLoading.done(callback);
             return;
         }
-        transferPreviewScriptsLoading = jq.getScript(transferPreviewResourcesBase + "transferMohLogo.js")
-            .then(function() {
-                return jq.getScript(transferPreviewResourcesBase + "transferFormPreview.js");
-            })
-            .done(function() {
-                if (typeof buildTransferFormPreviewHtml === "function") {
-                    callback();
-                } else {
-                    jq("#transfer-preview-body").html("<p style='color:red;'>Preview renderer failed to initialize.</p>");
-                }
-            })
+        transferPreviewScriptsLoading = jq.getScript(transferPreviewResourcesBase + "transferPreviewCommon.js")
+            .done(callback)
             .fail(function() {
                 jq("#transfer-preview-body").html("<p style='color:red;'>Unable to load preview scripts.</p>");
             });

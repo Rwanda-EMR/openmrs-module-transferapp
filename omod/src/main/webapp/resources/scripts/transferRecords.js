@@ -324,9 +324,17 @@
                 dataType: "json"
             }).done(function(response) {
                 if (response && response.status === "success" && response.transfer) {
-                    ensureTransferPreviewRenderer(function() {
-                        renderTransferPreview(response.transfer);
-                    });
+                    if (typeof renderTransferPreviewInto === "function") {
+                        renderTransferPreviewInto("#transfer-preview-body", response.transfer, function() {
+                            currentPreviewTransferSent = !!(response.transfer && (response.transfer.hieSent === true || response.transfer.hieSent === "true"));
+                            currentPreviewIsHieUpdate = !currentPreviewTransferSent && !!(response.transfer && String(response.transfer.hieTransferId || "").trim());
+                            syncTransferPreviewSubmitButton();
+                        });
+                    } else {
+                        ensureTransferPreviewRenderer(function() {
+                            renderTransferPreview(response.transfer);
+                        });
+                    }
                     return;
                 }
                 var message = response && response.message ? response.message : "Unable to load transfer details.";

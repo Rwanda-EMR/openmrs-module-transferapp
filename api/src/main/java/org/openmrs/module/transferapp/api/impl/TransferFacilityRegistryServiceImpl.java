@@ -70,6 +70,19 @@ public class TransferFacilityRegistryServiceImpl implements TransferFacilityRegi
 			"provincial hospital",
 			"district hospital")));
 
+	/**
+	 * Facilities allowed as ambulance vehicle providers on outbound transfers.
+	 */
+	private static final Set<String> AMBULANCE_PROVIDER_CATEGORIES = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+			"health center",
+			"health centre",
+			"district hospital",
+			"specialised hospital",
+			"specialized hospital",
+			"referral hospital",
+			"provincial hospital",
+			"medical clinic")));
+
 	private HieConnectionResolver hieConnectionResolver = new HieConnectionResolver();
 
 	private HieShrClient hieShrClient = new HieShrClient();
@@ -84,6 +97,11 @@ public class TransferFacilityRegistryServiceImpl implements TransferFacilityRegi
 	@Override
 	public List<RegistryFacility> listCounterReferralFacilitiesFromHie() {
 		return listFacilitiesFromHie(COUNTER_REFERRAL_CATEGORIES);
+	}
+
+	@Override
+	public List<RegistryFacility> listAmbulanceProviderFacilitiesFromHie() {
+		return listFacilitiesFromHie(AMBULANCE_PROVIDER_CATEGORIES);
 	}
 
 	private List<RegistryFacility> listFacilitiesFromHie(Set<String> allowedCategories) {

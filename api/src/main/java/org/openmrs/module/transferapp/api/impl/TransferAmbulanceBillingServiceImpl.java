@@ -69,10 +69,17 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 		String currentCode = StringUtils.trimToNull(transfer.getReceivingFacilityCode());
 		boolean destinationChanged = !StringUtils.equals(previousCode, currentCode)
 				&& (previousCode != null || currentCode != null);
+		boolean providedByCurrentFacility = isAmbulanceProvidedByCurrentFacility(transfer);
 
-		if (!nowAmbulance) {
+		if (!nowAmbulance || !providedByCurrentFacility) {
 			if (existingConsommationId != null) {
 				return deleteAmbulanceBillForTransfer(transfer, existingConsommationId);
+			}
+			if (nowAmbulance && !providedByCurrentFacility) {
+				log.info("Skipping ambulance bill for transfer " + transfer.getUuid()
+						+ ": ambulance provider FOSA "
+						+ StringUtils.defaultString(transfer.getAmbulanceProviderFosaId())
+						+ " is not the current facility");
 			}
 			return transfer;
 		}
@@ -87,37 +94,100 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 		return createAmbulanceBillForTransfer(transfer);
 	}
 
+	@Override
+	public Transfer createAmbulanceBillWithRoute(Transfer transfer, int kilometers, String description) {
+		if (transfer == null) {
+			throw new org.openmrs.api.APIException("Transfer is required");
+		}
+		if (kilometers <= 0) {
+			throw new org.openmrs.api.APIException("Distance in kilometers must be greater than zero");
+		}
+		String billDescription = StringUtils.trimToNull(description);
+		if (billDescription == null) {
+			throw new org.openmrs.api.APIException("Ambulance bill description is required");
+		}
+		if (transfer.getAmbulanceConsommationId() != null) {
+			return transfer;
+		}
+		if (!TRANSPORT_TYPE_AMBULANCE.equals(StringUtils.trimToEmpty(transfer.getTransportType()))) {
+			transfer.setTransportType(TRANSPORT_TYPE_AMBULANCE);
+		}
+		if (!isAmbulanceProvidedByCurrentFacility(transfer)) {
+			throw new org.openmrs.api.APIException(
+					"Ambulance voucher can only be created when this facility is the ambulance provider"
+							+ " (or transferapp.production=false)");
+		}
+
+		String insuranceCardNumber = patientInsuranceService != null
+				? patientInsuranceService.resolveInsuranceCardNumber(transfer.getPatient())
+				: null;
+		if (StringUtils.isBlank(insuranceCardNumber)) {
+			throw new org.openmrs.api.APIException(
+					"Insurance card/policy number not found on the current registration encounter");
+		}
+
+		BillingService billingService = resolveBillingService();
+		if (billingService == null) {
+			throw new org.openmrs.api.APIException("mohbilling BillingService is not available");
+		}
+
+		try {
+			Consommation consommation = billingService.createAmbulanceBill(
+					insuranceCardNumber, kilometers, billDescription);
+			if (consommation == null || consommation.getConsommationId() == null) {
+				throw new org.openmrs.api.APIException("createAmbulanceBill returned no consommation");
+			}
+			transfer.setAmbulanceConsommationId(consommation.getConsommationId());
+			transfer = saveTransfer(transfer);
+			log.info("Created ambulance bill consommationId=" + consommation.getConsommationId()
+					+ " for transfer " + transfer.getUuid() + " distance=" + kilometers
+					+ " description=" + billDescription);
+			return transfer;
+		}
+		catch (org.openmrs.api.APIException ex) {
+			throw ex;
+		}
+		catch (Exception ex) {
+			throw new org.openmrs.api.APIException(
+					"Unable to create ambulance bill: " + StringUtils.defaultString(ex.getMessage()), ex);
+		}
+	}
+
+	private boolean isAmbulanceProvidedByCurrentFacility(Transfer transfer) {
+		// Testing mode: skip ambulance-provider filter so any facility can voucher.
+		if (!org.openmrs.module.transferapp.TransferAppMode.isProduction()) {
+			return true;
+		}
+		String providerFosaId = StringUtils.trimToNull(transfer != null ? transfer.getAmbulanceProviderFosaId() : null);
+		String providerName = StringUtils.trimToNull(transfer != null ? transfer.getAmbulanceProviderName() : null);
+		String currentFosaId = StringUtils.trimToNull(Context.getAdministrationService().getGlobalProperty(
+				org.openmrs.module.transferapp.TransferAppConstants.GP_SENDING_FOSA_ID,
+				org.openmrs.module.transferapp.TransferAppConstants.DEFAULT_SENDING_FOSA_ID));
+		if (providerFosaId != null && currentFosaId != null && currentFosaId.equalsIgnoreCase(providerFosaId)) {
+			return true;
+		}
+		String outboundName = null;
+		if (transferAdminService != null) {
+			outboundName = StringUtils.trimToNull(transferAdminService.resolveOutboundFacilityName());
+			if (outboundName == null) {
+				outboundName = StringUtils.trimToNull(transferAdminService.resolveCurrentSendingFacilityName());
+			}
+		}
+		return providerName != null && outboundName != null && outboundName.equalsIgnoreCase(providerName);
+	}
+
 	private Transfer createAmbulanceBillForTransfer(Transfer transfer) {
 		AmbulanceBillParams params = resolveBillParams(transfer, "create");
 		if (params == null) {
 			return transfer;
 		}
-
-		BillingService billingService = resolveBillingService();
-		if (billingService == null) {
-			log.warn("Skipping ambulance bill for transfer " + transfer.getUuid()
-					+ ": mohbilling BillingService is not available");
-			return transfer;
-		}
-
 		try {
-			Consommation consommation = billingService.createAmbulanceBill(
-					params.insuranceCardNumber, params.kilometers, params.description);
-			if (consommation != null && consommation.getConsommationId() != null) {
-				transfer.setAmbulanceConsommationId(consommation.getConsommationId());
-				transfer = saveTransfer(transfer);
-				log.info("Created ambulance bill consommationId=" + consommation.getConsommationId()
-						+ " for transfer " + transfer.getUuid() + " distance=" + params.kilometers
-						+ " description=" + params.description);
-			}
-			else {
-				log.warn("createAmbulanceBill returned no consommation for transfer " + transfer.getUuid());
-			}
+			return createAmbulanceBillWithRoute(transfer, params.kilometers, params.description);
 		}
 		catch (Exception ex) {
 			log.warn("Skipping ambulance bill create for transfer " + transfer.getUuid() + ": " + ex.getMessage(), ex);
+			return transfer;
 		}
-		return transfer;
 	}
 
 	private Transfer updateAmbulanceBillForTransfer(Transfer transfer, Integer consommationId) {

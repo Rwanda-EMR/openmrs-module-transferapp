@@ -120,6 +120,31 @@ public class ClientRegistryRegistrationServiceImpl implements ClientRegistryRegi
 	}
 
 	@Override
+	public String findUpidByNationalId(String nationalId) {
+		String normalizedNid = StringUtils.trimToNull(nationalId);
+		if (normalizedNid == null) {
+			throw new IllegalArgumentException("National ID is required");
+		}
+		normalizedNid = normalizedNid.replaceAll("\\s+", "");
+		if (!normalizedNid.matches("\\d{16}")) {
+			throw new IllegalArgumentException(INVALID_NATIONAL_ID_MESSAGE);
+		}
+		if (!isHieEnabled()) {
+			throw new IllegalStateException("The HIE connection is not enabled on this server");
+		}
+		if (clientRegistryPatientProvider == null) {
+			return null;
+		}
+
+		ClientRegistryPatient registryPatient = clientRegistryPatientProvider.fetchPatientFromClientRegistry(
+				normalizedNid, IntegrationConfig.IDENTIFIER_SYSTEM_NID);
+		if (registryPatient == null) {
+			return null;
+		}
+		return StringUtils.trimToNull(registryPatient.getIdentifierValue(IntegrationConfig.IDENTIFIER_SYSTEM_UPI));
+	}
+
+	@Override
 	public synchronized HiePatientRegistrationResult registerPatientByUpid(String upid, Location identifierLocation) {
 		String normalizedUpid = StringUtils.trimToNull(upid);
 		if (normalizedUpid == null) {

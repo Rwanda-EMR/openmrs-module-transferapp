@@ -73,6 +73,10 @@
     }
 
     function renderPreview(transfer) {
+        if (typeof renderTransferPreviewInto === "function") {
+            renderTransferPreviewInto("#transfer-history-preview-body", transfer);
+            return;
+        }
         var previewHtml = typeof buildTransferFormPreviewHtml === "function"
             ? buildTransferFormPreviewHtml(transfer)
             : "<p style='color:red;'>Preview renderer not loaded.</p>";

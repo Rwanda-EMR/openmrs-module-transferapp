@@ -85,6 +85,7 @@ public class TransfersSectionFragmentController {
 				ui.includeCss("transferapp", "transferSection.css");
 				ui.includeJavascript("transferapp", "transferMohLogo.js");
 				ui.includeJavascript("transferapp", "transferFormPreview.js");
+				ui.includeJavascript("transferapp", "transferPreviewCommon.js");
 				ui.includeJavascript("transferapp", "hieTransferSection.js");
 				totalPatientTransfers = patientTransferListService.countPatientTransfers(patientWrapper.getPatient());
 				transfers = patientTransferListService.getPatientTransfers(

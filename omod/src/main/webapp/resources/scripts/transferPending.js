@@ -261,6 +261,10 @@
         }
 
         function renderTransferPreview(transfer) {
+            if (typeof renderTransferPreviewInto === "function") {
+                renderTransferPreviewInto("#transfer-preview-body", transfer);
+                return;
+            }
             var previewHtml = typeof buildTransferFormPreviewHtml === "function"
                 ? buildTransferFormPreviewHtml(transfer)
                 : "<p style='color:red;'>Preview renderer not loaded.</p>";
@@ -308,9 +312,13 @@
                 }
                 var items = response && response.data ? response.data : [];
                 if (items.length) {
-                    ensureTransferPreviewRenderer(function() {
-                        renderTransferPreview(items[0]);
-                    });
+                    if (typeof renderTransferPreviewInto === "function") {
+                        renderTransferPreviewInto("#transfer-preview-body", items[0]);
+                    } else {
+                        ensureTransferPreviewRenderer(function() {
+                            renderTransferPreview(items[0]);
+                        });
+                    }
                     return;
                 }
                 jq("#transfer-preview-body").html("<p style='color:red;'>Transfer not found in HIE.</p>");

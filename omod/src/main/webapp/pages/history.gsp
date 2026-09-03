@@ -7,6 +7,7 @@
     ui.includeJavascript("uicommons", "datatables/jquery.dataTables.min.js")
     ui.includeJavascript("transferapp", "transferMohLogo.js")
     ui.includeJavascript("transferapp", "transferFormPreview.js")
+    ui.includeJavascript("transferapp", "transferPreviewCommon.js")
     ui.includeJavascript("transferapp", "transferHistory.js")
 %>
 <script type="text/javascript">
@@ -33,8 +34,6 @@
 ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "history", app: appId ]) }
 
 <h3 class="transfer-records-title">${ ui.message("transferapp.history.title") }</h3>
-<p class="transfer-history-description">${ ui.message("transferapp.history.description") }</p>
-
 <% if (!canListTransfers) { %>
 <div class="transfer-records-empty">${ ui.encodeHtmlContent(listAccessDeniedMessage ?: ui.message("transferapp.patient.transfers.listNotAllowed")) }</div>
 <% } else { %>
@@ -74,15 +73,6 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "histo
             </a>
         </div>
     </div>
-    <% if (defaultModeToday) { %>
-    <p class="transfer-history-filter-hint">${ ui.message("transferapp.history.filter.hint.today") }</p>
-    <% } else if (filterUpid && filterMonth) { %>
-    <p class="transfer-history-filter-hint">${ ui.message("transferapp.history.filter.hint.patientMonth") }</p>
-    <% } else if (filterUpid) { %>
-    <p class="transfer-history-filter-hint">${ ui.message("transferapp.history.filter.hint.patient") }</p>
-    <% } else if (filterMonth) { %>
-    <p class="transfer-history-filter-hint">${ ui.message("transferapp.history.filter.hint.month") }</p>
-    <% } %>
 </form>
 
 <div id="transfer-history-preview-dialog" class="dialog transfer-preview-dialog" style="display: none;">

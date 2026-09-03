@@ -2,6 +2,11 @@
 ui.includeCss("transferapp", "styles/transferWizard.css")
 ui.includeCss("transferapp", "styles/flatpickr.min.css")
 ui.includeCss("transferapp", "styles/select2.min.css")
+def ambulanceFacilitiesCtxPath = (ui.contextPath() ?: "openmrs").toString()
+while (ambulanceFacilitiesCtxPath.startsWith("/")) {
+	ambulanceFacilitiesCtxPath = ambulanceFacilitiesCtxPath.substring(1)
+}
+def ambulanceProviderFacilitiesUrl = "/" + ambulanceFacilitiesCtxPath + "/module/transferapp/transfer/ambulanceProviderFacilities.form"
 %>
 
 <g:if test="${error != null && error.trim().length() > 0}">
@@ -189,12 +194,31 @@ ui.includeCss("transferapp", "styles/select2.min.css")
                         <label for="transportationType_${ ui.encodeHtmlAttribute(transport.value) }">${ ui.format(transport.label) }</label>
                     </span>
                     <% } %>
-                </div>
-                <div id="transportOtherField" class="transfer-transport-other transfer-wizard-field">
-                    <label for="transportationOtherSpec">${ ui.message("transferapp.patient.transfers.transportationOtherSpec") }</label>
-                    <input type="text" id="transportationOtherSpec" name="transportationOtherSpec" maxlength="255"
-                           value="${ ui.encodeHtmlAttribute(formData.transportationOtherSpec ?: '') }"
-                           placeholder="${ ui.message('transferapp.patient.transfers.transportationOtherSpec.placeholder') }" />
+                    <div id="transportOtherField" class="transfer-transport-other transfer-wizard-field">
+                        <label for="transportationOtherSpec">${ ui.message("transferapp.patient.transfers.transportationOtherSpec") }</label>
+                        <input type="text" id="transportationOtherSpec" name="transportationOtherSpec" maxlength="255"
+                               value="${ ui.encodeHtmlAttribute(formData.transportationOtherSpec ?: '') }"
+                               placeholder="${ ui.message('transferapp.patient.transfers.transportationOtherSpec.placeholder') }" />
+                    </div>
+                    <div id="ambulanceProviderField" class="transfer-ambulance-provider transfer-wizard-field"
+                         data-preferred-fosa-id="${ ui.encodeHtmlAttribute(formData.ambulanceProviderFosaId ?: '') }"
+                         data-preferred-name="${ ui.encodeHtmlAttribute(formData.ambulanceProviderName ?: '') }"
+                         data-current-fosa-id="${ ui.encodeHtmlAttribute(formData.currentSendingFosaId ?: '') }"
+                         data-facilities-url="${ ui.encodeHtmlAttribute(ambulanceProviderFacilitiesUrl) }">
+                        <label for="ambulanceProviderFosaId">${ ui.message("transferapp.patient.transfers.ambulanceProvider") }</label>
+                        <input type="hidden" id="ambulanceProviderName" name="ambulanceProviderName"
+                               value="${ ui.encodeHtmlAttribute(formData.ambulanceProviderName ?: '') }" />
+                        <select id="ambulanceProviderFosaId" name="ambulanceProviderFosaId"
+                                class="js-transfer-ambulance-provider-select"
+                                data-placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.transfers.ambulanceProvider.placeholder')) }">
+                            <option value=""></option>
+                            <% if (formData.ambulanceProviderFosaId) { %>
+                                <option value="${ ui.encodeHtmlAttribute(formData.ambulanceProviderFosaId) }" selected="selected">
+                                    ${ ui.encodeHtmlContent(formData.ambulanceProviderName ?: formData.ambulanceProviderFosaId) }
+                                </option>
+                            <% } %>
+                        </select>
+                    </div>
                 </div>
             </div>
 
