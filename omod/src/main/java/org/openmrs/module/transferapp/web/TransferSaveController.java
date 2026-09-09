@@ -493,6 +493,8 @@ public class TransferSaveController {
 					"Unable to load ambulance provider facilities");
 			data.put("facilities", new ArrayList<Map<String, Object>>());
 		}
+
+		writeJson(response, data);
 	}
 	@RequestMapping(value = "/module/transferapp/transfer/saveMaternity.form", method = RequestMethod.POST)
 	public void saveMaternityTransfer(HttpServletResponse response,
@@ -603,6 +605,14 @@ public class TransferSaveController {
 
 		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)) {
 			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+			return;
+		}
+
+		if (!transferAdminService.isOutboundFacilityNameConfigured()) {
+			data.put("status", "error");
+			data.put("message", Context.getMessageSourceService().getMessage(
+					"transferapp.patient.transfers.outboundFacilityRequired"));
+			writeJson(response, data);
 			return;
 		}
 
@@ -748,19 +758,21 @@ public class TransferSaveController {
 			@RequestParam("patientId") Integer patientId,
 			@RequestParam("hieTransferId") String hieTransferId,
 			@RequestParam("kilometers") Integer kilometers,
-			@RequestParam(value = "district", required = false) String district) throws Exception {
+			@RequestParam(value = "district", required = false) String district,
+			@RequestParam(value = "province", required = false) String province) throws Exception {
 
 		Map<String, Object> data = new HashMap<String, Object>();
 
 		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
 				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
-			if (kilometers == null || kilometers.intValue() <= 0) {
-				data.put("status", "error");
-				data.put("message", "Distance in kilometers must be greater than zero");
-			}
+			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+			return;
+		}
+		if (kilometers == null || kilometers.intValue() <= 0) {
+			data.put("status", "error");
+			data.put("message", "Distance in kilometers must be greater than zero");
 			writeJson(response, data);
 			return;
-			
 		}
 		if (StringUtils.isBlank(district)) {
 			data.put("status", "error");
@@ -771,7 +783,7 @@ public class TransferSaveController {
 
 		try {
 			Transfer transfer = transferAmbulanceVoucherService.createAmbulanceVoucherFromHie(
-					patientId, hieTransferId, kilometers.intValue(), district);
+					patientId, hieTransferId, kilometers.intValue(), district, province);
 			data.put("status", "success");
 			data.put("uuid", transfer.getUuid());
 			data.put("transferId", transfer.getTransferId());
@@ -783,6 +795,8 @@ public class TransferSaveController {
 			putError(data, e, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER,
 					"Unable to create ambulance voucher from HIE transfer");
 		}
+
+		writeJson(response, data);
 	}
 	@RequestMapping(value = "/module/transferapp/transfer/saveNeonatal.form", method = RequestMethod.POST)
 	public void saveNeonatalTransfer(HttpServletResponse response,
@@ -932,6 +946,14 @@ public class TransferSaveController {
 
 		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)) {
 			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+			return;
+		}
+
+		if (!transferAdminService.isOutboundFacilityNameConfigured()) {
+			data.put("status", "error");
+			data.put("message", Context.getMessageSourceService().getMessage(
+					"transferapp.patient.transfers.outboundFacilityRequired"));
+			writeJson(response, data);
 			return;
 		}
 
@@ -1849,6 +1871,9 @@ public class TransferSaveController {
 				transfer.get("district"),
 				transfer.get("receivingDistrict"),
 				transfer.get("patientDistrict")));
+		row.put("province", firstNonBlank(
+				transfer.get("province"),
+				transfer.get("receivingProvince")));
 		row.put("uuid", firstNonBlank(transfer.get("uuid"), transfer.get("id")));
 		return row;
 	}

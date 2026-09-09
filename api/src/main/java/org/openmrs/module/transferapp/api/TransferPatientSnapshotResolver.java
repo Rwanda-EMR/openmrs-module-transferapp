@@ -74,7 +74,7 @@ public class TransferPatientSnapshotResolver {
 			transfer.setClientName(patient.getPersonName().getFullName());
 		}
 
-		transfer.setEmrId(resolveUpid(patient));
+		ensureEmrIdFromPatient(transfer, patient);
 		transfer.setClientTelephone(resolvePatientPhone(patient, transferDao));
 		transfer.setAgeOrDob(resolveAgeOrDob(patient));
 		transfer.setSex(mapGender(patient.getGender()));
@@ -95,6 +95,28 @@ public class TransferPatientSnapshotResolver {
 		transfer.setSendingFacility(resolveCurrentFacilityName());
 		transfer.setReferringUnit(resolveReferringUnit());
 		transfer.setReferringProviderName(resolveReferringProviderName());
+	}
+
+	/**
+	 * Copies the patient's OpenMRS UPID onto {@code transfer.emrId} when available.
+	 * Returns the UPID used (existing or freshly resolved), or {@code null} when neither
+	 * the transfer nor the patient has a UPID.
+	 */
+	public String ensureEmrIdFromPatient(Transfer transfer, Patient patient) {
+		if (transfer == null) {
+			return null;
+		}
+		String existing = StringUtils.trimToNull(transfer.getEmrId());
+		String fromPatient = resolveUpid(patient);
+		if (StringUtils.isNotBlank(fromPatient)) {
+			transfer.setEmrId(fromPatient.trim());
+			return fromPatient.trim();
+		}
+		return existing;
+	}
+
+	public boolean patientHasUpid(Patient patient) {
+		return StringUtils.isNotBlank(resolveUpid(patient));
 	}
 
 	public PersonAddress resolveActivePersonAddress(Patient patient) {

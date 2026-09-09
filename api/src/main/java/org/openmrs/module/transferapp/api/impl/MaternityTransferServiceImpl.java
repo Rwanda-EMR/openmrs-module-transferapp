@@ -21,6 +21,7 @@ import org.openmrs.api.PatientService;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.transferapp.api.MaternityTransferService;
 import org.openmrs.module.transferapp.api.TransferAdminService;
+import org.openmrs.module.transferapp.api.TransferPatientSnapshotResolver;
 import org.openmrs.module.transferapp.api.dao.MaternityTransferDao;
 import org.openmrs.module.transferapp.model.MaternityTransfer;
 import org.openmrs.module.transferapp.model.MaternityTransferFormData;
@@ -50,6 +51,8 @@ public class MaternityTransferServiceImpl implements MaternityTransferService {
 	private PatientService patientService;
 
 	private TransferAdminService transferAdminService;
+
+	private final TransferPatientSnapshotResolver patientSnapshotResolver = new TransferPatientSnapshotResolver();
 
 	public void setMaternityTransferDao(MaternityTransferDao maternityTransferDao) {
 		this.maternityTransferDao = maternityTransferDao;
@@ -108,6 +111,12 @@ public class MaternityTransferServiceImpl implements MaternityTransferService {
 			transfer.setPatient(patient);
 		}
 
+		String patientUpid = StringUtils.trimToNull(patientSnapshotResolver.resolveUpid(patient));
+		if (StringUtils.isBlank(patientUpid)) {
+			throw new APIException(
+					"Patient UPID is required to save a maternity transfer. Register a UPID on the patient chart first.");
+		}
+
 		// Step 1 — client & referral info
 		transfer.setProvince(StringUtils.trimToNull(formData.getProvince()));
 		transfer.setDistrict(StringUtils.trimToNull(formData.getDistrict()));
@@ -115,7 +124,7 @@ public class MaternityTransferServiceImpl implements MaternityTransferService {
 		transfer.setReferringFacilityName(StringUtils.trimToNull(formData.getReferringFacilityName()));
 		transfer.setReferringUnit(StringUtils.trimToNull(formData.getReferringUnit()));
 		transfer.setClientName(StringUtils.trimToNull(formData.getClientName()));
-		transfer.setSerialNumberEmr(StringUtils.trimToNull(formData.getSerialNumberEmr()));
+		transfer.setSerialNumberEmr(patientUpid);
 		transfer.setAgeOrDob(StringUtils.trimToNull(formData.getAgeOrDob()));
 		transfer.setNextOfKinName(StringUtils.trimToNull(formData.getNextOfKinName()));
 		transfer.setNextOfKinTelephone(StringUtils.trimToNull(formData.getNextOfKinTelephone()));

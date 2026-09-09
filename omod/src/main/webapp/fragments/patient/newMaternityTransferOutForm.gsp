@@ -8,7 +8,7 @@ ui.includeCss("transferapp", "styles/select2.min.css")
     <p style="color: red;">${ ui.format(error) }</p>
 </g:if>
 
-<g:if test="${formData}">
+<g:if test="${formData != null}">
 <div class="transfer-wizard-shell">
     <header class="transfer-wizard-page-header">
         <h1 class="transfer-wizard-page-title" id="maternity-wizard-page-title">Maternity Transfer Form</h1>
@@ -27,6 +27,7 @@ ui.includeCss("transferapp", "styles/select2.min.css")
         <div class="transfer-wizard-scroll">
         <form id="moh-maternity-transfer-wizard-form" class="transfer-out-form" novalidate="novalidate"
               data-editing="${ formData.transferUuid ? 'true' : 'false' }"
+              data-preferred-receiving-service="${ ui.encodeHtmlAttribute(formData.receivingService ?: '') }"
               data-client-name="${ ui.encodeHtmlAttribute(formData.clientName ?: '') }">
             <input type="hidden" name="patientId" value="${ formData.patientId }" />
             <input type="hidden" name="transferUuid" value="${ ui.encodeHtmlAttribute(formData.transferUuid ?: '') }" />
@@ -138,6 +139,11 @@ ui.includeCss("transferapp", "styles/select2.min.css")
                             <select id="maternityReceivingService" name="receivingService" class="js-maternity-receiving-service-select" required
                                     data-placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.transfers.receivingService.placeholder')) }">
                                 <option value=""></option>
+                                <% if (formData.receivingService) { %>
+                                    <option value="${ ui.encodeHtmlAttribute(formData.receivingService) }" selected="selected">
+                                        ${ ui.encodeHtmlContent(formData.receivingService) }
+                                    </option>
+                                <% } %>
                             </select>
                         </div>
                         <div class="transfer-wizard-field">
@@ -169,12 +175,12 @@ ui.includeCss("transferapp", "styles/select2.min.css")
                         <div class="transfer-wizard-field">
                             <label for="maternityAmbulanceCalledTime">${ ui.message("transferapp.patient.transfers.ambulanceCalledTime") }</label>
                             <input type="text" class="js-time-picker" id="maternityAmbulanceCalledTime" name="ambulanceCalledTime"
-                                   value="" placeholder="Select time" autocomplete="off" data-emergency-required="true" />
+                                   value="${ ui.encodeHtmlAttribute(formData.ambulanceCalledTime ?: '') }" placeholder="Select time" autocomplete="off" data-emergency-required="true" />
                         </div>
                         <div class="transfer-wizard-field">
                             <label for="maternityDepartureFromReferringTime">${ ui.message("transferapp.patient.transfers.departureFromReferringTime") }</label>
                             <input type="text" class="js-time-picker" id="maternityDepartureFromReferringTime" name="departureFromReferringTime"
-                                   value="" placeholder="Select time" autocomplete="off" data-emergency-required="true" />
+                                   value="${ ui.encodeHtmlAttribute(formData.departureFromReferringTime ?: '') }" placeholder="Select time" autocomplete="off" data-emergency-required="true" />
                         </div>
                     </div>
                 </div>
@@ -187,7 +193,8 @@ ui.includeCss("transferapp", "styles/select2.min.css")
                 <div class="transfer-wizard-section">
                     <div class="transfer-wizard-row transfer-wizard-row-two-col">
                         <div class="transfer-wizard-field">
-                            <label><input type="checkbox" name="partographAttached" value="true" style="width:auto;display:inline-block;margin-right:0.4rem;" /> Partograph attached</label>
+                            <label><input type="checkbox" name="partographAttached" value="true" style="width:auto;display:inline-block;margin-right:0.4rem;"
+                                          <% if (formData.partographAttached == 'true' || formData.partographAttached == true) { %>checked="checked"<% } %> /> Partograph attached</label>
                         </div>
                         <div class="transfer-wizard-field">
                             <label for="maternityDisabilityType">If person with disability, type of disability</label>

@@ -133,6 +133,7 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 			applyProviderQualificationWithSpeciality(transfer);
 			applyConfiguredSendingFacility(transfer);
 			ensureCaregiverFromPatientIfBlank(transfer);
+			ensurePatientUpidPersisted(transfer);
 			HieBasicConnection connection = hieConnectionResolver.resolveConnection();
 			String receivingFacilityLabel = resolveReceivingFacilityLabel(transfer);
 			ensurePayloadBuilderConfigured();
@@ -343,6 +344,28 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 		return defaultFacilityLabel(facilityCode);
 	}
 
+	/**
+	 * Resolves the patient's UPID into {@code transfer.emrId} and persists it so the HIE
+	 * payload (and later resubmits) include the identifier.
+	 */
+	private void ensurePatientUpidPersisted(Transfer transfer) {
+		if (transfer == null) {
+			return;
+		}
+		String before = StringUtils.trimToNull(transfer.getEmrId());
+		String upid = patientSnapshotResolver.ensureEmrIdFromPatient(transfer, transfer.getPatient());
+		if (StringUtils.isBlank(upid)) {
+			throw new HieApiException(
+					"Cannot submit transfer: patient UPID is missing. Register a UPID on the patient chart, then edit and resubmit the transfer.");
+		}
+		String after = StringUtils.trimToNull(transfer.getEmrId());
+		if (!StringUtils.equals(before, after)) {
+			transfer.setChangedBy(Context.getAuthenticatedUser());
+			transfer.setDateChanged(new Date());
+			transferDao.saveTransfer(transfer);
+		}
+	}
+
 	private void ensurePayloadBuilderConfigured() {
 		if (payloadBuilder == null) {
 			payloadBuilder = new TransferEncounterPayloadBuilder();
@@ -352,6 +375,9 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 		}
 		if (transferProfileService != null) {
 			payloadBuilder.setTransferProfileService(transferProfileService);
+		}
+		if (patientSnapshotResolver != null) {
+			payloadBuilder.setPatientSnapshotResolver(patientSnapshotResolver);
 		}
 	}
 

@@ -14,6 +14,8 @@
 package org.openmrs.module.transferapp.api.impl;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.openmrs.Patient;
 import org.openmrs.PersonAddress;
 import org.openmrs.User;
@@ -38,6 +40,8 @@ import org.openmrs.module.transferapp.model.TransferFormKind;
 import org.openmrs.module.transferapp.model.TransferProfile;
 import org.openmrs.module.rwandaemr.queue.QueueService;
 import org.openmrs.module.rwandaemr.queue.model.QueueEntry;
+import org.springframework.transaction.support.TransactionSynchronizationAdapter;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -47,6 +51,8 @@ import java.util.List;
 import java.util.UUID;
 
 public class TransferServiceImpl implements TransferService {
+
+	private static final Log log = LogFactory.getLog(TransferServiceImpl.class);
 
 	private static final String DATETIME_LOCAL_PATTERN = "yyyy-MM-dd'T'HH:mm";
 	private static final String DATETIME_SPACE_PATTERN = "yyyy-MM-dd HH:mm";
@@ -266,7 +272,12 @@ public class TransferServiceImpl implements TransferService {
 			throw new APIException("Reason for Transfer is required");
 		}
 
+		String patientUpid = patientSnapshotResolver.resolveUpid(patient);
 		if (!isUpdate) {
+			if (StringUtils.isBlank(patientUpid)) {
+				throw new APIException(
+						"Patient UPID is required to create a transfer. Register a UPID on the patient chart first.");
+			}
 			applyHealthInsuranceSnapshot(transfer, patient);
 			patientSnapshotResolver.applyPatientSnapshot(transfer, patient, transferDao);
 
@@ -275,6 +286,14 @@ public class TransferServiceImpl implements TransferService {
 				personAddress = patientSnapshotResolver.resolveActivePersonAddress(patient);
 			}
 			patientSnapshotResolver.applyPersonAddressSnapshot(transfer, personAddress);
+		}
+		else {
+			// Keep EMR/UPID snapshot current so HIE resubmit payloads include UPID.
+			patientSnapshotResolver.ensureEmrIdFromPatient(transfer, patient);
+			if (StringUtils.isBlank(transfer.getEmrId())) {
+				throw new APIException(
+						"Patient UPID is required to update this transfer. Register a UPID on the patient chart first.");
+			}
 		}
 
 		applyFormExtras(transfer, formExtras, isUpdate);
@@ -296,11 +315,52 @@ public class TransferServiceImpl implements TransferService {
 		if (!isUpdate) {
 			markActiveQueueEntryTransferred(patient, savedTransfer, now);
 		}
-		if (transferAmbulanceBillingService != null) {
-			savedTransfer = transferAmbulanceBillingService.syncAmbulanceBill(
-					savedTransfer, previousReceivingFacilityCode, previousTransportType);
-		}
+		// Ambulance billing must not run inside this transaction: mohbilling can mark the
+		// shared TX rollback-only, and TransferAmbulanceBillingServiceImpl currently
+		// swallows those errors → UnexpectedRollbackException on commit.
+		scheduleAmbulanceBillSyncAfterCommit(savedTransfer, previousReceivingFacilityCode, previousTransportType);
 		return savedTransfer;
+	}
+
+	/**
+	 * Runs ambulance bill create/update/delete only after the transfer save has committed,
+	 * in a separate service transaction.
+	 */
+	private void scheduleAmbulanceBillSyncAfterCommit(final Transfer savedTransfer,
+			final String previousReceivingFacilityCode, final String previousTransportType) {
+		if (transferAmbulanceBillingService == null || savedTransfer == null
+				|| StringUtils.isBlank(savedTransfer.getUuid())) {
+			return;
+		}
+		final String transferUuid = savedTransfer.getUuid();
+		Runnable sync = new Runnable() {
+			@Override
+			public void run() {
+				try {
+					Transfer latest = transferDao.getTransferByUuid(transferUuid);
+					if (latest == null || latest.isVoided()) {
+						return;
+					}
+					transferAmbulanceBillingService.syncAmbulanceBill(
+							latest, previousReceivingFacilityCode, previousTransportType);
+				}
+				catch (Exception ex) {
+					log.warn("Ambulance bill sync failed after saving transfer " + transferUuid + ": "
+							+ StringUtils.defaultString(ex.getMessage()), ex);
+				}
+			}
+		};
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
+				@Override
+				public void afterCommit() {
+					sync.run();
+				}
+			});
+		}
+		else {
+			sync.run();
+		}
 	}
 
 	protected void markActiveQueueEntryTransferred(Patient patient, Transfer transfer, Date transferDate) {

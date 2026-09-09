@@ -28,7 +28,7 @@
 
 .transfer-history-filters-grid {
   display: grid;
-  grid-template-columns: minmax(200px, 1.2fr) minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(150px, 0.9fr) minmax(140px, 0.8fr) auto;
   gap: 14px 16px;
   align-items: end;
 }
@@ -399,11 +399,18 @@
 .transfer-records-filter-actions {
   display: flex;
   align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .transfer-records-filter-actions .confirm {
   white-space: nowrap;
   padding: 8px 16px;
+}
+
+.transfer-history-export-status {
+  margin: 8px 0 12px;
+  font-size: 13px;
 }
 
 .transfer-records-patient-filter {
@@ -422,6 +429,10 @@
 
 @media (max-width: 900px) {
   .transfer-records-filters-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .transfer-history-filters-grid {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -538,14 +549,33 @@
   margin: 10px 0;
 }
 
-#transfer-records-table_wrapper .dataTables_length,
 #transfer-records-table_wrapper .dataTables_filter,
-#transfer-pending-table_wrapper .dataTables_length,
 #transfer-pending-table_wrapper .dataTables_filter,
-#transfer-history-table_wrapper .dataTables_length,
-#transfer-history-table_wrapper .dataTables_filter {
-  float: none;
+#transfer-history-table_wrapper .dataTables_filter,
+#transfer-ambulance-voucher-table_wrapper .dataTables_filter {
+  float: left;
   width: auto;
+  text-align: left;
+}
+
+#transfer-records-table_wrapper .dataTables_length,
+#transfer-pending-table_wrapper .dataTables_length,
+#transfer-history-table_wrapper .dataTables_length,
+#transfer-ambulance-voucher-table_wrapper .dataTables_length {
+  float: right;
+  width: auto;
+  text-align: right;
+}
+
+#transfer-records-table_wrapper > table,
+#transfer-records-table_wrapper .dataTables_scroll,
+#transfer-pending-table_wrapper > table,
+#transfer-pending-table_wrapper .dataTables_scroll,
+#transfer-history-table_wrapper > table,
+#transfer-history-table_wrapper .dataTables_scroll,
+#transfer-ambulance-voucher-table_wrapper > table,
+#transfer-ambulance-voucher-table_wrapper .dataTables_scroll {
+  clear: both;
 }
 
 #transfer-records-table_wrapper .dataTables_info,
@@ -742,12 +772,6 @@ body.transfer-history-preview-open {
 #transfer-ambulance-voucher-table_wrapper .dataTables_info,
 #transfer-ambulance-voucher-table_wrapper .dataTables_paginate {
   margin: 10px 0;
-}
-
-#transfer-ambulance-voucher-table_wrapper .dataTables_length,
-#transfer-ambulance-voucher-table_wrapper .dataTables_filter {
-  float: none;
-  width: auto;
 }
 
 #transfer-ambulance-voucher-table_wrapper .dataTables_info {

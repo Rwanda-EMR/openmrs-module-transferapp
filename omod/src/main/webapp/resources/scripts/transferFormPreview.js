@@ -573,6 +573,7 @@
 				normalized.decisionToTransferAt,
 				normalized.transferDecisionDatetime,
 				normalized.periodStart
+				// deliberately ignore periodEnd — that is decision+1 month on outbound payloads
 			),
 			receivingFacility: firstNonBlank(
 				normalized.receivingFacility,
@@ -1281,6 +1282,8 @@
 			+ "@page{size:A4 portrait;margin:10mm 12mm;}"
 			+ "body{margin:0;background:#fff;}"
 			+ ".transfer-form-preview{max-width:210mm;margin:0 auto;}"
+			+ ".transfer-pdf-page{page-break-after:always;break-after:page;}"
+			+ ".transfer-pdf-page:last-child{page-break-after:auto;break-after:auto;}"
 			+ ".tf-sheet{border:1px solid #111;padding:6px 8px;font-family:'Times New Roman',Times,serif;}"
 			+ ".tf-head{width:100%;border-collapse:collapse;table-layout:fixed;}"
 			+ ".tf-head-brand{width:52%;vertical-align:top;text-align:left;padding:0 12px 0 0;}"

@@ -8,7 +8,7 @@ ui.includeCss("transferapp", "styles/select2.min.css")
     <p style="color: red;">${ ui.format(error) }</p>
 </g:if>
 
-<g:if test="${formData}">
+<g:if test="${formData != null}">
 <div class="transfer-wizard-shell">
     <header class="transfer-wizard-page-header">
         <h1 class="transfer-wizard-page-title" id="neonatal-wizard-page-title">Neonatal Transfer Form</h1>
@@ -29,6 +29,7 @@ ui.includeCss("transferapp", "styles/select2.min.css")
         <div class="transfer-wizard-scroll">
         <form id="moh-neonatal-transfer-wizard-form" class="transfer-out-form" novalidate="novalidate"
               data-editing="${ formData.transferUuid ? 'true' : 'false' }"
+              data-preferred-receiving-service="${ ui.encodeHtmlAttribute(formData.receivingService ?: '') }"
               data-client-name="${ ui.encodeHtmlAttribute(formData.babyName ?: '') }">
             <input type="hidden" name="patientId" value="${ formData.patientId }" />
             <input type="hidden" name="transferUuid" value="${ ui.encodeHtmlAttribute(formData.transferUuid ?: '') }" />
@@ -161,6 +162,11 @@ ui.includeCss("transferapp", "styles/select2.min.css")
                             <select id="neonatalReceivingService" name="receivingService" class="js-neonatal-receiving-service-select" required
                                     data-placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.transfers.receivingService.placeholder')) }">
                                 <option value=""></option>
+                                <% if (formData.receivingService) { %>
+                                    <option value="${ ui.encodeHtmlAttribute(formData.receivingService) }" selected="selected">
+                                        ${ ui.encodeHtmlContent(formData.receivingService) }
+                                    </option>
+                                <% } %>
                             </select>
                         </div>
                         <div class="transfer-wizard-field">

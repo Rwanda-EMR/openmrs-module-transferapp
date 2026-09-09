@@ -171,6 +171,15 @@ public class NewTransferOutServiceImpl implements NewTransferOutService {
 		if (StringUtils.isNotBlank(transfer.getProviderPhone())) {
 			formData.setReferringProviderPhone(transfer.getProviderPhone());
 		}
+
+		// Prefer live patient UPID so edit/resubmit can rebuild HIE payloads correctly.
+		String upid = patientSnapshotResolver.resolveUpid(patient);
+		if (StringUtils.isNotBlank(upid)) {
+			formData.setSerialNumberEmr(upid);
+		}
+		else if (StringUtils.isNotBlank(transfer.getEmrId())) {
+			formData.setSerialNumberEmr(transfer.getEmrId());
+		}
 	}
 
 	protected Integer resolveReceivingFacilityId(String facilityCode) {
@@ -197,11 +206,6 @@ public class NewTransferOutServiceImpl implements NewTransferOutService {
 		String upid = patientSnapshotResolver.resolveUpid(patient);
 		if (upid != null) {
 			formData.setSerialNumberEmr(upid);
-		} else {
-			PatientIdentifier openMrsId = patient.getPatientIdentifier();
-			if (openMrsId != null) {
-				formData.setSerialNumberEmr(openMrsId.getIdentifier());
-			}
 		}
 
 		PatientIdentifier nationalId = patientSnapshotResolver.resolveNationalIdentifier(patient);

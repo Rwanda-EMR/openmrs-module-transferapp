@@ -508,8 +508,12 @@
 		var currentFosaId = jq.trim($panel.attr('data-current-fosa-id') || '');
 		jq.getJSON(getAmbulanceProviderFacilitiesUrl())
 			.done(function (response) {
-				var facilities = (response && response.facilities) ? response.facilities : [];
-				if (response && response.currentFosaId) {
+				if (!response || response.status !== 'success') {
+					updateAmbulanceProviderOptions([], preferredFosaId, preferredName, currentFosaId);
+					return;
+				}
+				var facilities = response.facilities ? response.facilities : [];
+				if (response.currentFosaId) {
 					currentFosaId = jq.trim(response.currentFosaId);
 					$panel.attr('data-current-fosa-id', currentFosaId);
 				}

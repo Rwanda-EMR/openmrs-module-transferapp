@@ -27,6 +27,9 @@ public class HieTransferResponseParser {
             "http://example.org/fhir/StructureDefinition/admission-datetime";
     private static final String EXT_DECISION_TO_TRANSFER_DATETIME =
             "http://example.org/fhir/StructureDefinition/decision-to-transfer-datetime";
+    /** Alternate decision URL used by some sending EMRs (e.g. Nyanza sample). */
+    private static final String EXT_TRANSFER_DECISION =
+            "http://example.org/fhir/StructureDefinition/transfer-decision";
     private static final String EXT_PRACTITIONER_INFO =
             "http://example.org/fhir/StructureDefinition/practitioner-info";
     private static final String EXT_ETRANSFER_FORM =
@@ -81,6 +84,8 @@ public class HieTransferResponseParser {
             "http://example.rw/fhir/StructureDefinition/doctor-details";
     private static final String EXT_TRANSFER_DETAILS =
             "http://example.rw/fhir/StructureDefinition/transfer-details";
+    private static final String EXT_INSURANCE_DETAILS =
+            "http://example.rw/fhir/StructureDefinition/insurance-details";
 
     public List<Map<String, Object>> parse(String jsonData) throws Exception {
         return parsePage(jsonData).getTransfers();
@@ -177,6 +182,7 @@ public class HieTransferResponseParser {
             JsonNode period = resource.get("period");
             String startDateTime = "";
             if (period != null && !period.isNull()) {
+                // List "date" column uses period.start only — never period.end (+1 month window).
                 startDateTime = textOrDefault(period.get("start"), "");
             }
             transfer.put("date", toDateOnly(startDateTime));
@@ -288,6 +294,8 @@ public class HieTransferResponseParser {
         transfer.put("ambulanceProviderFosaId", "");
         transfer.put("ambulanceProviderName", "");
         transfer.put("healthInsurance", "");
+        transfer.put("insuranceId", "");
+        transfer.put("insuranceEligibilityStatus", "");
         transfer.put("isCbhiInsurance", "");
         transfer.put("isRssbInsurance", "");
         transfer.put("isMmiInsurance", "");
@@ -351,16 +359,26 @@ public class HieTransferResponseParser {
 
         JsonNode period = resource.get("period");
         String periodStart = "";
+        String periodEnd = "";
         if (period != null && !period.isNull()) {
             periodStart = textOrDefault(period.get("start"), "");
+            periodEnd = textOrDefault(period.get("end"), "");
         }
-		transfer.put("admissionDatetime", firstNonBlank(
-				extractExtensionDateTime(resource, EXT_ADMISSION_DATETIME),
-				extractNestedExtensionValue(resource, EXT_TRANSFER_FLAGS, "admission-date"),
-				periodStart));
-		transfer.put("transferDecisionDatetime", firstNonBlank(
-				extractExtensionDateTime(resource, EXT_DECISION_TO_TRANSFER_DATETIME),
-				periodStart));
+        // Expose both for debugging. NEVER use period.end as clinical decision/admission time —
+        // outbound payloads set period.end = decision + 1 month (active window), which caused
+        // receivers to show decision datetime shifted by one month when they mistook end for start.
+        transfer.put("periodStart", periodStart);
+        transfer.put("periodEnd", periodEnd);
+        // Clinical timestamps from dedicated extensions only here.
+        // Do NOT fall back to period.start yet — that would block etransfer-transfer-form
+        // admissionAt / decisionToTransferAt (Nyanza payloads use transfer-decision + form,
+        // not decision-to-transfer-datetime / admission-datetime). Never use period.end.
+        transfer.put("admissionDatetime", firstNonBlank(
+                extractExtensionDateTime(resource, EXT_ADMISSION_DATETIME),
+                extractNestedExtensionValue(resource, EXT_TRANSFER_FLAGS, "admission-date")));
+        transfer.put("transferDecisionDatetime", firstNonBlank(
+                extractExtensionDateTime(resource, EXT_DECISION_TO_TRANSFER_DATETIME),
+                extractExtensionDateTime(resource, EXT_TRANSFER_DECISION)));
 		transfer.put("departureTime", extractExtensionDateTime(resource, EXT_DEPARTURE_TIME));
         transfer.put("ambulanceCalledTime", extractExtensionDateTime(resource, EXT_AMBULANCE_CALL_TIME));
         transfer.put("callingTime", firstNonBlank(
@@ -513,8 +531,17 @@ public class HieTransferResponseParser {
 
         applyTransportFields(resource, transfer);
 
-        String insurance = extractExtensionDisplay(resource, EXT_INSURANCE_TYPE);
+        String insurance = firstNonBlank(
+                extractNestedCodingDisplay(resource, EXT_INSURANCE_DETAILS, "insurance-type"),
+                extractExtensionDisplay(resource, EXT_INSURANCE_TYPE));
         transfer.put("healthInsurance", insurance);
+        transfer.put("insuranceId", firstNonBlank(
+                extractNestedExtensionValue(resource, EXT_INSURANCE_DETAILS, "insurance-id"),
+                ""));
+        transfer.put("insuranceEligibilityStatus", firstNonBlank(
+                extractNestedCodingCode(resource, EXT_INSURANCE_DETAILS, "eligibility-status"),
+                extractNestedCodingDisplay(resource, EXT_INSURANCE_DETAILS, "eligibility-status"),
+                ""));
         String insuranceLower = insurance == null ? "" : insurance.toLowerCase().trim();
         boolean isCbhi = insuranceLower.contains("cbhi") || insuranceLower.contains("mutuelle");
         boolean isRssb = insuranceLower.contains("rssb");
@@ -562,12 +589,28 @@ public class HieTransferResponseParser {
 
         applyInsuranceAgentVerificationFlags(resource, transfer);
         applyEtransferFormFallback(transfer, extractEtransferFormNode(resource));
+        applyPeriodDatetimeFallbacks(transfer, periodStart, periodEnd);
         transfer.put("referringProviderName", TransferProfile.formatCareProviderName(
                 asString(transfer.get("referringProviderName")),
                 firstNonBlank(
                         extractNestedExtensionValue(resource, EXT_DOCTOR_DETAILS, "license-number"),
                         extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "license-number"),
                         referringProviderLicense)));
+    }
+
+    /**
+     * Last-resort clinical datetime fallbacks after extensions + etransfer form.
+     * period.start may equal decision on outbound payloads; period.end is always the
+     * +1 month active window and must never be used here.
+     */
+    private void applyPeriodDatetimeFallbacks(Map<String, Object> transfer, String periodStart, String periodEnd) {
+        putIfBlank(transfer, "transferDecisionDatetime", periodStart);
+        String admission = asString(transfer.get("admissionDatetime"));
+        if (admission.trim().isEmpty()) {
+            if (periodEnd.trim().isEmpty() || periodStart.equals(periodEnd)) {
+                putIfBlank(transfer, "admissionDatetime", periodStart);
+            }
+        }
     }
 
     private void applyTransferFormKind(JsonNode resource, Map<String, Object> transfer) {

@@ -755,203 +755,19 @@
         </createIndex>
     </changeSet>
 
+    <!-- Neonatal monolith create superseded by transferapp-20260904-neonatal-split-* -->
     <changeSet id="transferapp-20260811-create-neonatal-transfer-table" author="MoH Team">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <tableExists tableName="neonatal_transfers"/>
-            </not>
-        </preConditions>
-        <comment>Create neonatal_transfers table for outbound Neonatal referral records</comment>
-        <createTable tableName="neonatal_transfers">
-            <column name="neonatal_transfer_id" type="int" autoIncrement="true">
-                <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="uuid" type="char(38)">
-                <constraints nullable="false" unique="true"/>
-            </column>
-            <column name="patient_id" type="int">
-                <constraints nullable="false"/>
-            </column>
+        <!-- Accept checksum from prior monolith/TEXT create that already ran on some DBs -->
+        <validCheckSum>9:9f483172bd14668b07a7bd16982d9dfd</validCheckSum>
+        <validCheckSum>9:6a68455a2c7f71d76609a01bf5a61983</validCheckSum>
+        <comment>No-op: neonatal_transfers schema moved to category-split tables (20260904)</comment>
+        <sql>SELECT 1</sql>
+    </changeSet>
 
-            <!-- Step 1: baby & referral info -->
-            <column name="baby_name" type="varchar(255)"/>
-            <column name="sex" type="varchar(20)"/>
-            <column name="dob" type="date"/>
-            <column name="gestational_age_weeks" type="varchar(16)"/>
-            <column name="birth_weight_g" type="varchar(16)"/>
-            <column name="current_weight_g" type="varchar(16)"/>
-            <column name="current_age_days" type="varchar(16)"/>
-            <column name="mother_name" type="varchar(255)"/>
-            <column name="mother_age" type="varchar(16)"/>
-            <column name="mother_caregiver_phone" type="varchar(64)"/>
-            <column name="place_of_birth" type="varchar(255)"/>
-            <column name="reason_for_transfer" type="text"/>
-            <column name="mode_of_transport" type="varchar(32)"/>
-            <column name="transport_other" type="varchar(255)"/>
-            <column name="transfer_type" type="varchar(32)"/>
-            <column name="receiving_facility_code" type="varchar(64)"/>
-            <column name="receiving_service" type="varchar(255)"/>
-            <column name="calling_time" type="varchar(8)"/>
-            <column name="staff_contacted_name" type="varchar(255)"/>
-            <column name="staff_contacted_phone" type="varchar(64)"/>
-            <column name="decision_to_transfer_at" type="datetime"/>
-            <column name="sending_facility" type="varchar(255)"/>
-
-            <!-- Step 2: maternal history -->
-            <column name="mother_alive" type="varchar(16)"/>
-            <column name="obstetric_gravida" type="varchar(16)"/>
-            <column name="obstetric_parity" type="varchar(16)"/>
-            <column name="pregnancy_type" type="varchar(32)"/>
-            <column name="anc_screening" type="text"/>
-            <column name="pathologies_during_pregnancy" type="text"/>
-            <column name="pregnancy_treatment" type="text"/>
-            <column name="blood_group" type="varchar(16)"/>
-            <column name="rh_factor" type="varchar(16)"/>
-            <column name="hiv_status" type="varchar(32)"/>
-            <column name="hiv_regimen" type="varchar(255)"/>
-            <column name="hiv_recent_vl" type="varchar(64)"/>
-            <column name="hiv_cd4_count" type="varchar(64)"/>
-            <column name="hiv_opportunistic_infections" type="text"/>
-            <column name="tetanus_vaccine_doses" type="varchar(16)"/>
-            <column name="maternal_illicit_drug_history" type="text"/>
-
-            <!-- Step 3: labor details -->
-            <column name="rom_at" type="datetime"/>
-            <column name="af_quality" type="varchar(64)"/>
-            <column name="af_quantity" type="varchar(64)"/>
-            <column name="fever_timing" type="varchar(64)"/>
-            <column name="steroid_doses" type="varchar(16)"/>
-            <column name="last_steroid_dose_at" type="datetime"/>
-            <column name="mgso4_at" type="datetime"/>
-            <column name="mode_of_delivery" type="varchar(64)"/>
-            <column name="labor_complications" type="varchar(255)"/>
-            <column name="labor_complications_other" type="varchar(255)"/>
-            <column name="maternal_anesthesia" type="varchar(64)"/>
-            <column name="maternal_anesthesia_other" type="varchar(255)"/>
-            <column name="maternal_antibiotics" type="text"/>
-            <column name="other_drugs" type="text"/>
-            <column name="sepsis_risk_factors" type="text"/>
-
-            <!-- Step 4: neonatal history & drugs -->
-            <column name="resuscitation_at_birth" type="varchar(16)"/>
-            <column name="resuscitation_methods" type="text"/>
-            <column name="apgar_1min" type="varchar(8)"/>
-            <column name="apgar_5min" type="varchar(8)"/>
-            <column name="apgar_10min" type="varchar(8)"/>
-            <column name="hie" type="varchar(16)"/>
-            <column name="hie_grade" type="varchar(16)"/>
-            <column name="allergies" type="varchar(255)"/>
-            <column name="immunization" type="varchar(16)"/>
-            <column name="immunization_details" type="text"/>
-            <column name="vitamin_k" type="varchar(16)"/>
-            <column name="tetracycline_eye_ointment" type="varchar(16)"/>
-            <column name="surfactant" type="varchar(16)"/>
-
-            <!-- Step 5: chief complaint & diagnoses -->
-            <column name="chief_complaint_details" type="text"/>
-            <column name="spo2_preductal" type="varchar(16)"/>
-            <column name="spo2_postductal" type="varchar(16)"/>
-            <column name="condition_temp" type="varchar(16)"/>
-            <column name="condition_hr" type="varchar(16)"/>
-            <column name="condition_rr" type="varchar(16)"/>
-            <column name="condition_bp" type="varchar(32)"/>
-            <column name="neurological_status" type="varchar(64)"/>
-            <column name="seizures" type="boolean" defaultValueBoolean="false"/>
-            <column name="adverse_events_24h" type="text"/>
-            <column name="diagnosis_1" type="varchar(255)"/>
-            <column name="diagnosis_2" type="varchar(255)"/>
-            <column name="diagnosis_3" type="varchar(255)"/>
-            <column name="diagnosis_4" type="varchar(255)"/>
-
-            <!-- Step 6: management at referring facility -->
-            <column name="respiratory_support" type="varchar(64)"/>
-            <column name="ventilation_settings" type="text"/>
-            <column name="iv_fluid_vol" type="varchar(32)"/>
-            <column name="passed_urine" type="varchar(16)"/>
-            <column name="inotropes" type="varchar(255)"/>
-            <column name="peripheral_iv" type="varchar(16)"/>
-            <column name="central_iv" type="varchar(16)"/>
-            <column name="intraosseous_line" type="varchar(16)"/>
-            <column name="antibiotic1_name" type="varchar(255)"/>
-            <column name="antibiotic1_doses" type="varchar(120)"/>
-            <column name="antibiotic1_durations" type="varchar(120)"/>
-            <column name="antibiotic2_name" type="varchar(255)"/>
-            <column name="antibiotic2_doses" type="varchar(120)"/>
-            <column name="antibiotic2_durations" type="varchar(120)"/>
-            <column name="arvs" type="varchar(255)"/>
-            <column name="npo" type="varchar(16)"/>
-            <column name="last_feed_time" type="varchar(8)"/>
-            <column name="last_feed_amount" type="varchar(32)"/>
-            <column name="feed_vol" type="varchar(32)"/>
-            <column name="feed_type" type="varchar(64)"/>
-            <column name="passed_stool" type="varchar(16)"/>
-            <column name="nasogastric_tube" type="varchar(16)"/>
-            <column name="lab_glucose" type="varchar(32)"/>
-            <column name="lab_fbc" type="varchar(64)"/>
-            <column name="lab_hb" type="varchar(32)"/>
-            <column name="lab_wbc" type="varchar(32)"/>
-            <column name="lab_platelets" type="varchar(32)"/>
-            <column name="lab_crp" type="varchar(32)"/>
-            <column name="lab_bili_total" type="varchar(32)"/>
-            <column name="lab_bili_direct" type="varchar(32)"/>
-            <column name="lab_ue" type="varchar(64)"/>
-            <column name="lab_cultures" type="varchar(255)"/>
-            <column name="imaging_results" type="text"/>
-            <column name="pain_sedation_drugs" type="text"/>
-            <column name="imaging_report_attached" type="boolean" defaultValueBoolean="false"/>
-            <column name="lab_reports_attached" type="boolean" defaultValueBoolean="false"/>
-
-            <!-- Step 7: summary & sign-off -->
-            <column name="clinical_management_summary" type="text"/>
-            <column name="referring_provider_name" type="varchar(255)"/>
-            <column name="referring_provider_qualification" type="varchar(255)"/>
-            <column name="referring_signed_date" type="date"/>
-            <column name="referring_signed_time" type="varchar(8)"/>
-            <column name="referring_provider_phone" type="varchar(64)"/>
-
-            <column name="creator" type="int">
-                <constraints nullable="false"/>
-            </column>
-            <column name="date_created" type="datetime">
-                <constraints nullable="false"/>
-            </column>
-            <column name="changed_by" type="int"/>
-            <column name="date_changed" type="datetime"/>
-            <column name="voided" type="boolean" defaultValueBoolean="false">
-                <constraints nullable="false"/>
-            </column>
-            <column name="voided_by" type="int"/>
-            <column name="date_voided" type="datetime"/>
-            <column name="void_reason" type="varchar(255)"/>
-        </createTable>
-
-        <addForeignKeyConstraint constraintName="neonatal_transfers_patient_fk"
-                                 baseTableName="neonatal_transfers"
-                                 baseColumnNames="patient_id"
-                                 referencedTableName="patient"
-                                 referencedColumnNames="patient_id"/>
-
-        <addForeignKeyConstraint constraintName="neonatal_transfers_creator_fk"
-                                 baseTableName="neonatal_transfers"
-                                 baseColumnNames="creator"
-                                 referencedTableName="users"
-                                 referencedColumnNames="user_id"/>
-
-        <addForeignKeyConstraint constraintName="neonatal_transfers_changed_by_fk"
-                                 baseTableName="neonatal_transfers"
-                                 baseColumnNames="changed_by"
-                                 referencedTableName="users"
-                                 referencedColumnNames="user_id"/>
-
-        <addForeignKeyConstraint constraintName="neonatal_transfers_voided_by_fk"
-                                 baseTableName="neonatal_transfers"
-                                 baseColumnNames="voided_by"
-                                 referencedTableName="users"
-                                 referencedColumnNames="user_id"/>
-
-        <createIndex tableName="neonatal_transfers" indexName="neonatal_transfers_patient_idx">
-            <column name="patient_id"/>
-        </createIndex>
+    <changeSet id="transferapp-20260811-neonatal-transfer-table-fks" author="MoH Team">
+        <validCheckSum>9:6a68455a2c7f71d76609a01bf5a61983</validCheckSum>
+        <comment>No-op: FKs created with split schema (20260904)</comment>
+        <sql>SELECT 1</sql>
     </changeSet>
 
     <changeSet id="transferapp-20250813-transfer-profile-speciality" author="MoH Team">
@@ -1239,50 +1055,17 @@
     </changeSet>
 
     <changeSet id="transferapp-20260827-neonatal-mgh-spec-fields" author="MoH Team">
-        <preConditions onFail="MARK_RAN">
-            <and>
-                <tableExists tableName="neonatal_transfers"/>
-                <not>
-                    <columnExists tableName="neonatal_transfers" columnName="province"/>
-                </not>
-            </and>
-        </preConditions>
-        <comment>Add MoH Neonatal Transfer Form facility header fields and remaining spec fields (Blood Gas Analysis, FBC Done, Imaging Results Available, Inotropes specify)</comment>
-        <addColumn tableName="neonatal_transfers">
-            <column name="province" type="varchar(255)"/>
-            <column name="district" type="varchar(255)"/>
-            <column name="hospital_name" type="varchar(255)"/>
-            <column name="referring_facility_name" type="varchar(255)"/>
-            <column name="referring_unit" type="varchar(255)"/>
-            <column name="blood_gas_analysis" type="varchar(16)"/>
-            <column name="inotropes_specify" type="varchar(255)"/>
-            <column name="fbc_done" type="varchar(16)"/>
-            <column name="imaging_results_available" type="varchar(16)"/>
-            <column name="pregnancy_other_pathologies" type="varchar(255)"/>
-        </addColumn>
+        <validCheckSum>9:5ebf3190c993d91c1e88c93ba9fe0930</validCheckSum>
+        <validCheckSum>9:6a68455a2c7f71d76609a01bf5a61983</validCheckSum>
+        <comment>No-op: province/spec fields included in split core/management tables (20260904)</comment>
+        <sql>SELECT 1</sql>
     </changeSet>
 
     <changeSet id="transferapp-20260828-neonatal-hie-columns" author="MoH Team">
-        <preConditions onFail="MARK_RAN">
-            <and>
-                <tableExists tableName="neonatal_transfers"/>
-                <not>
-                    <columnExists tableName="neonatal_transfers" columnName="hie_sent"/>
-                </not>
-            </and>
-        </preConditions>
-        <comment>Add HIE submission tracking columns to neonatal_transfers, matching transfers</comment>
-        <addColumn tableName="neonatal_transfers">
-            <column name="hie_sent" type="boolean" defaultValueBoolean="false">
-                <constraints nullable="false"/>
-            </column>
-            <column name="hie_sent_at" type="datetime"/>
-            <column name="hie_send_err" type="varchar(500)"/>
-            <column name="hie_transfer_id" type="varchar(64)"/>
-        </addColumn>
-        <createIndex tableName="neonatal_transfers" indexName="neonatal_transfers_hie_transfer_id_idx">
-            <column name="hie_transfer_id"/>
-        </createIndex>
+        <validCheckSum>9:e917751f3157923596acda101848b926</validCheckSum>
+        <validCheckSum>9:6a68455a2c7f71d76609a01bf5a61983</validCheckSum>
+        <comment>No-op: HIE columns included in split neonatal_transfers core table (20260904)</comment>
+        <sql>SELECT 1</sql>
     </changeSet>
 
     <changeSet id="transferapp-20260828-maternity-mgh-spec-fields" author="MoH Team">
@@ -1344,6 +1127,465 @@
         <createIndex tableName="transfers" indexName="transfers_reuse_rendezvous_date_idx">
             <column name="reuse_rendezvous_date"/>
         </createIndex>
+    </changeSet>
+
+
+    <!-- ========== Neonatal transfer split schema (category tables) ========== -->
+    <!--
+      Prior versions of transferapp-20260904-neonatal-drop-monolith unconditionally DROPped
+      neonatal tables (data loss). Keep that id as a no-op with validCheckSums so already-ran
+      DBs stay valid; migrate remaining monolith columns via transferapp-20260907-* below.
+    -->
+    <changeSet id="transferapp-20260904-neonatal-drop-monolith" author="MoH Team">
+        <validCheckSum>9:96e170d66cdea108af09196d010f5656</validCheckSum>
+        <validCheckSum>9:9d2ec297ff8f22fef873e474ca1f2394</validCheckSum>
+        <validCheckSum>9:023481abefbfdfbae9571d47db9d7036</validCheckSum>
+        <validCheckSum>9:6a68455a2c7f71d76609a01bf5a61983</validCheckSum>
+        <comment>No-op: destructive drop retired; monolith data is migrated then columns dropped (20260907)</comment>
+        <sql>SELECT 1</sql>
+    </changeSet>
+
+    <changeSet id="transferapp-20260904-neonatal-create-core" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="neonatal_transfers"/>
+            </not>
+        </preConditions>
+        <comment>Core neonatal referral: baby/referral header, facility, HIE, sign-off, audit</comment>
+        <createTable tableName="neonatal_transfers">
+            <column name="neonatal_transfer_id" type="int" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="uuid" type="char(38)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="patient_id" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="baby_name" type="varchar(255)"/>
+            <column name="sex" type="varchar(20)"/>
+            <column name="dob" type="date"/>
+            <column name="gestational_age_weeks" type="varchar(16)"/>
+            <column name="birth_weight_g" type="varchar(16)"/>
+            <column name="current_weight_g" type="varchar(16)"/>
+            <column name="current_age_days" type="varchar(16)"/>
+            <column name="mother_name" type="varchar(255)"/>
+            <column name="mother_age" type="varchar(16)"/>
+            <column name="mother_caregiver_phone" type="varchar(64)"/>
+            <column name="place_of_birth" type="varchar(255)"/>
+            <column name="reason_for_transfer" type="text"/>
+            <column name="mode_of_transport" type="varchar(32)"/>
+            <column name="transport_other" type="varchar(255)"/>
+            <column name="transfer_type" type="varchar(32)"/>
+            <column name="receiving_facility_code" type="varchar(64)"/>
+            <column name="receiving_service" type="varchar(255)"/>
+            <column name="calling_time" type="varchar(8)"/>
+            <column name="staff_contacted_name" type="varchar(255)"/>
+            <column name="staff_contacted_phone" type="varchar(64)"/>
+            <column name="decision_to_transfer_at" type="datetime"/>
+            <column name="sending_facility" type="varchar(255)"/>
+            <column name="province" type="varchar(120)"/>
+            <column name="district" type="varchar(120)"/>
+            <column name="hospital_name" type="varchar(255)"/>
+            <column name="referring_facility_name" type="varchar(255)"/>
+            <column name="referring_unit" type="varchar(255)"/>
+            <column name="hie_sent" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hie_sent_at" type="datetime"/>
+            <column name="hie_send_err" type="varchar(500)"/>
+            <column name="hie_transfer_id" type="varchar(64)"/>
+            <column name="referring_provider_name" type="varchar(255)"/>
+            <column name="referring_provider_qualification" type="varchar(255)"/>
+            <column name="referring_signed_date" type="date"/>
+            <column name="referring_signed_time" type="varchar(8)"/>
+            <column name="referring_provider_phone" type="varchar(64)"/>
+            <column name="creator" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="date_created" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+            <column name="changed_by" type="int"/>
+            <column name="date_changed" type="datetime"/>
+            <column name="voided" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="voided_by" type="int"/>
+            <column name="date_voided" type="datetime"/>
+            <column name="void_reason" type="varchar(255)"/>
+        </createTable>
+        <addForeignKeyConstraint constraintName="neonatal_transfers_patient_fk"
+                                 baseTableName="neonatal_transfers" baseColumnNames="patient_id"
+                                 referencedTableName="patient" referencedColumnNames="patient_id"/>
+        <addForeignKeyConstraint constraintName="neonatal_transfers_creator_fk"
+                                 baseTableName="neonatal_transfers" baseColumnNames="creator"
+                                 referencedTableName="users" referencedColumnNames="user_id"/>
+        <addForeignKeyConstraint constraintName="neonatal_transfers_changed_by_fk"
+                                 baseTableName="neonatal_transfers" baseColumnNames="changed_by"
+                                 referencedTableName="users" referencedColumnNames="user_id"/>
+        <addForeignKeyConstraint constraintName="neonatal_transfers_voided_by_fk"
+                                 baseTableName="neonatal_transfers" baseColumnNames="voided_by"
+                                 referencedTableName="users" referencedColumnNames="user_id"/>
+        <createIndex tableName="neonatal_transfers" indexName="neonatal_transfers_patient_idx">
+            <column name="patient_id"/>
+        </createIndex>
+        <createIndex tableName="neonatal_transfers" indexName="neonatal_transfers_hie_transfer_id_idx">
+            <column name="hie_transfer_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="transferapp-20260904-neonatal-create-maternal" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="neonatal_transfer_maternal"/>
+            </not>
+        </preConditions>
+        <comment>Maternal history and labor details linked 1:1 to neonatal_transfers</comment>
+        <createTable tableName="neonatal_transfer_maternal">
+            <column name="neonatal_transfer_id" type="int">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="mother_alive" type="varchar(16)"/>
+            <column name="obstetric_gravida" type="varchar(16)"/>
+            <column name="obstetric_parity" type="varchar(16)"/>
+            <column name="pregnancy_type" type="varchar(32)"/>
+            <column name="anc_screening" type="text"/>
+            <column name="pathologies_during_pregnancy" type="text"/>
+            <column name="pregnancy_other_pathologies" type="text"/>
+            <column name="pregnancy_treatment" type="text"/>
+            <column name="blood_group" type="varchar(16)"/>
+            <column name="rh_factor" type="varchar(16)"/>
+            <column name="hiv_status" type="varchar(32)"/>
+            <column name="hiv_regimen" type="varchar(255)"/>
+            <column name="hiv_recent_vl" type="varchar(64)"/>
+            <column name="hiv_cd4_count" type="varchar(64)"/>
+            <column name="hiv_opportunistic_infections" type="text"/>
+            <column name="tetanus_vaccine_doses" type="varchar(16)"/>
+            <column name="maternal_illicit_drug_history" type="text"/>
+            <column name="rom_at" type="datetime"/>
+            <column name="af_quality" type="varchar(64)"/>
+            <column name="af_quantity" type="varchar(64)"/>
+            <column name="fever_timing" type="varchar(64)"/>
+            <column name="steroid_doses" type="varchar(16)"/>
+            <column name="last_steroid_dose_at" type="datetime"/>
+            <column name="mgso4_at" type="datetime"/>
+            <column name="mode_of_delivery" type="varchar(64)"/>
+            <column name="labor_complications" type="varchar(255)"/>
+            <column name="labor_complications_other" type="varchar(255)"/>
+            <column name="maternal_anesthesia" type="varchar(64)"/>
+            <column name="maternal_anesthesia_other" type="varchar(255)"/>
+            <column name="maternal_antibiotics" type="text"/>
+            <column name="other_drugs" type="text"/>
+            <column name="sepsis_risk_factors" type="text"/>
+        </createTable>
+        <addForeignKeyConstraint constraintName="neonatal_transfer_maternal_fk"
+                                 baseTableName="neonatal_transfer_maternal"
+                                 baseColumnNames="neonatal_transfer_id"
+                                 referencedTableName="neonatal_transfers"
+                                 referencedColumnNames="neonatal_transfer_id"
+                                 onDelete="CASCADE"/>
+    </changeSet>
+
+    <changeSet id="transferapp-20260904-neonatal-create-clinical" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="neonatal_transfer_clinical"/>
+            </not>
+        </preConditions>
+        <comment>Neonate clinical status: birth history, complaint, vitals, diagnoses</comment>
+        <createTable tableName="neonatal_transfer_clinical">
+            <column name="neonatal_transfer_id" type="int">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="resuscitation_at_birth" type="varchar(16)"/>
+            <column name="resuscitation_methods" type="text"/>
+            <column name="apgar_1min" type="varchar(8)"/>
+            <column name="apgar_5min" type="varchar(8)"/>
+            <column name="apgar_10min" type="varchar(8)"/>
+            <column name="hie" type="varchar(16)"/>
+            <column name="hie_grade" type="varchar(16)"/>
+            <column name="allergies" type="varchar(255)"/>
+            <column name="immunization" type="varchar(16)"/>
+            <column name="immunization_details" type="text"/>
+            <column name="vitamin_k" type="varchar(16)"/>
+            <column name="tetracycline_eye_ointment" type="varchar(16)"/>
+            <column name="surfactant" type="varchar(16)"/>
+            <column name="chief_complaint_details" type="text"/>
+            <column name="spo2_preductal" type="varchar(16)"/>
+            <column name="spo2_postductal" type="varchar(16)"/>
+            <column name="condition_temp" type="varchar(16)"/>
+            <column name="condition_hr" type="varchar(16)"/>
+            <column name="condition_rr" type="varchar(16)"/>
+            <column name="condition_bp" type="varchar(32)"/>
+            <column name="neurological_status" type="varchar(64)"/>
+            <column name="seizures" type="boolean" defaultValueBoolean="false"/>
+            <column name="adverse_events_24h" type="text"/>
+            <column name="diagnosis_1" type="varchar(255)"/>
+            <column name="diagnosis_2" type="varchar(255)"/>
+            <column name="diagnosis_3" type="varchar(255)"/>
+            <column name="diagnosis_4" type="varchar(255)"/>
+        </createTable>
+        <addForeignKeyConstraint constraintName="neonatal_transfer_clinical_fk"
+                                 baseTableName="neonatal_transfer_clinical"
+                                 baseColumnNames="neonatal_transfer_id"
+                                 referencedTableName="neonatal_transfers"
+                                 referencedColumnNames="neonatal_transfer_id"
+                                 onDelete="CASCADE"/>
+    </changeSet>
+
+    <changeSet id="transferapp-20260904-neonatal-create-management" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="neonatal_transfer_management"/>
+            </not>
+        </preConditions>
+        <comment>Management at referring facility: support, meds, feeds, labs, imaging, summary</comment>
+        <createTable tableName="neonatal_transfer_management">
+            <column name="neonatal_transfer_id" type="int">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="respiratory_support" type="varchar(64)"/>
+            <column name="ventilation_settings" type="text"/>
+            <column name="blood_gas_analysis" type="varchar(16)"/>
+            <column name="iv_fluid_vol" type="varchar(32)"/>
+            <column name="passed_urine" type="varchar(16)"/>
+            <column name="inotropes" type="varchar(255)"/>
+            <column name="inotropes_specify" type="varchar(255)"/>
+            <column name="peripheral_iv" type="varchar(16)"/>
+            <column name="central_iv" type="varchar(16)"/>
+            <column name="intraosseous_line" type="varchar(16)"/>
+            <column name="antibiotic1_name" type="varchar(255)"/>
+            <column name="antibiotic1_doses" type="varchar(120)"/>
+            <column name="antibiotic1_durations" type="varchar(120)"/>
+            <column name="antibiotic2_name" type="varchar(255)"/>
+            <column name="antibiotic2_doses" type="varchar(120)"/>
+            <column name="antibiotic2_durations" type="varchar(120)"/>
+            <column name="arvs" type="varchar(255)"/>
+            <column name="npo" type="varchar(16)"/>
+            <column name="last_feed_time" type="varchar(8)"/>
+            <column name="last_feed_amount" type="varchar(32)"/>
+            <column name="feed_vol" type="varchar(32)"/>
+            <column name="feed_type" type="varchar(64)"/>
+            <column name="passed_stool" type="varchar(16)"/>
+            <column name="nasogastric_tube" type="varchar(16)"/>
+            <column name="lab_glucose" type="varchar(32)"/>
+            <column name="lab_fbc" type="varchar(64)"/>
+            <column name="lab_hb" type="varchar(32)"/>
+            <column name="lab_wbc" type="varchar(32)"/>
+            <column name="lab_platelets" type="varchar(32)"/>
+            <column name="lab_crp" type="varchar(32)"/>
+            <column name="lab_bili_total" type="varchar(32)"/>
+            <column name="lab_bili_direct" type="varchar(32)"/>
+            <column name="lab_ue" type="varchar(64)"/>
+            <column name="lab_cultures" type="varchar(255)"/>
+            <column name="fbc_done" type="varchar(16)"/>
+            <column name="imaging_results_available" type="varchar(16)"/>
+            <column name="imaging_results" type="text"/>
+            <column name="pain_sedation_drugs" type="text"/>
+            <column name="imaging_report_attached" type="boolean" defaultValueBoolean="false"/>
+            <column name="lab_reports_attached" type="boolean" defaultValueBoolean="false"/>
+            <column name="clinical_management_summary" type="text"/>
+        </createTable>
+        <addForeignKeyConstraint constraintName="neonatal_transfer_management_fk"
+                                 baseTableName="neonatal_transfer_management"
+                                 baseColumnNames="neonatal_transfer_id"
+                                 referencedTableName="neonatal_transfers"
+                                 referencedColumnNames="neonatal_transfer_id"
+                                 onDelete="CASCADE"/>
+    </changeSet>
+
+    <!-- Copy monolith neonatal_transfers category columns into split child tables, then drop them. -->
+    <changeSet id="transferapp-20260907-neonatal-migrate-monolith-to-split" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="neonatal_transfers"/>
+                <tableExists tableName="neonatal_transfer_maternal"/>
+                <tableExists tableName="neonatal_transfer_clinical"/>
+                <tableExists tableName="neonatal_transfer_management"/>
+                <columnExists tableName="neonatal_transfers" columnName="mother_alive"/>
+            </and>
+        </preConditions>
+        <comment>Preserve existing neonatal transfer data when upgrading from the monolith schema</comment>
+        <sql>
+            INSERT INTO neonatal_transfer_maternal (
+                neonatal_transfer_id, mother_alive, obstetric_gravida, obstetric_parity, pregnancy_type,
+                anc_screening, pathologies_during_pregnancy, pregnancy_other_pathologies, pregnancy_treatment,
+                blood_group, rh_factor, hiv_status, hiv_regimen, hiv_recent_vl, hiv_cd4_count,
+                hiv_opportunistic_infections, tetanus_vaccine_doses, maternal_illicit_drug_history,
+                rom_at, af_quality, af_quantity, fever_timing, steroid_doses, last_steroid_dose_at, mgso4_at,
+                mode_of_delivery, labor_complications, labor_complications_other, maternal_anesthesia,
+                maternal_anesthesia_other, maternal_antibiotics, other_drugs, sepsis_risk_factors
+            )
+            SELECT
+                neonatal_transfer_id, mother_alive, obstetric_gravida, obstetric_parity, pregnancy_type,
+                anc_screening, pathologies_during_pregnancy, pregnancy_other_pathologies, pregnancy_treatment,
+                blood_group, rh_factor, hiv_status, hiv_regimen, hiv_recent_vl, hiv_cd4_count,
+                hiv_opportunistic_infections, tetanus_vaccine_doses, maternal_illicit_drug_history,
+                rom_at, af_quality, af_quantity, fever_timing, steroid_doses, last_steroid_dose_at, mgso4_at,
+                mode_of_delivery, labor_complications, labor_complications_other, maternal_anesthesia,
+                maternal_anesthesia_other, maternal_antibiotics, other_drugs, sepsis_risk_factors
+            FROM neonatal_transfers nt
+            WHERE NOT EXISTS (
+                SELECT 1 FROM neonatal_transfer_maternal m WHERE m.neonatal_transfer_id = nt.neonatal_transfer_id
+            );
+
+            INSERT INTO neonatal_transfer_clinical (
+                neonatal_transfer_id, resuscitation_at_birth, resuscitation_methods, apgar_1min, apgar_5min,
+                apgar_10min, hie, hie_grade, allergies, immunization, immunization_details, vitamin_k,
+                tetracycline_eye_ointment, surfactant, chief_complaint_details, spo2_preductal, spo2_postductal,
+                condition_temp, condition_hr, condition_rr, condition_bp, neurological_status, seizures,
+                adverse_events_24h, diagnosis_1, diagnosis_2, diagnosis_3, diagnosis_4
+            )
+            SELECT
+                neonatal_transfer_id, resuscitation_at_birth, resuscitation_methods, apgar_1min, apgar_5min,
+                apgar_10min, hie, hie_grade, allergies, immunization, immunization_details, vitamin_k,
+                tetracycline_eye_ointment, surfactant, chief_complaint_details, spo2_preductal, spo2_postductal,
+                condition_temp, condition_hr, condition_rr, condition_bp, neurological_status,
+                COALESCE(seizures, 0), adverse_events_24h, diagnosis_1, diagnosis_2, diagnosis_3, diagnosis_4
+            FROM neonatal_transfers nt
+            WHERE NOT EXISTS (
+                SELECT 1 FROM neonatal_transfer_clinical c WHERE c.neonatal_transfer_id = nt.neonatal_transfer_id
+            );
+
+            INSERT INTO neonatal_transfer_management (
+                neonatal_transfer_id, respiratory_support, ventilation_settings, blood_gas_analysis, iv_fluid_vol,
+                passed_urine, inotropes, inotropes_specify, peripheral_iv, central_iv, intraosseous_line,
+                antibiotic1_name, antibiotic1_doses, antibiotic1_durations, antibiotic2_name, antibiotic2_doses,
+                antibiotic2_durations, arvs, npo, last_feed_time, last_feed_amount, feed_vol, feed_type,
+                passed_stool, nasogastric_tube, lab_glucose, lab_fbc, lab_hb, lab_wbc, lab_platelets, lab_crp,
+                lab_bili_total, lab_bili_direct, lab_ue, lab_cultures, fbc_done, imaging_results_available,
+                imaging_results, pain_sedation_drugs, imaging_report_attached, lab_reports_attached,
+                clinical_management_summary
+            )
+            SELECT
+                neonatal_transfer_id, respiratory_support, ventilation_settings, blood_gas_analysis, iv_fluid_vol,
+                passed_urine, inotropes, inotropes_specify, peripheral_iv, central_iv, intraosseous_line,
+                antibiotic1_name, antibiotic1_doses, antibiotic1_durations, antibiotic2_name, antibiotic2_doses,
+                antibiotic2_durations, arvs, npo, last_feed_time, last_feed_amount, feed_vol, feed_type,
+                passed_stool, nasogastric_tube, lab_glucose, lab_fbc, lab_hb, lab_wbc, lab_platelets, lab_crp,
+                lab_bili_total, lab_bili_direct, lab_ue, lab_cultures, fbc_done, imaging_results_available,
+                imaging_results, pain_sedation_drugs,
+                COALESCE(imaging_report_attached, 0), COALESCE(lab_reports_attached, 0),
+                clinical_management_summary
+            FROM neonatal_transfers nt
+            WHERE NOT EXISTS (
+                SELECT 1 FROM neonatal_transfer_management m WHERE m.neonatal_transfer_id = nt.neonatal_transfer_id
+            );
+        </sql>
+    </changeSet>
+
+    <changeSet id="transferapp-20260907-neonatal-drop-monolith-columns" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="neonatal_transfers"/>
+                <columnExists tableName="neonatal_transfers" columnName="mother_alive"/>
+            </and>
+        </preConditions>
+        <comment>Remove migrated category columns from neonatal_transfers core table</comment>
+        <sql>
+            ALTER TABLE neonatal_transfers
+                DROP COLUMN mother_alive,
+                DROP COLUMN obstetric_gravida,
+                DROP COLUMN obstetric_parity,
+                DROP COLUMN pregnancy_type,
+                DROP COLUMN anc_screening,
+                DROP COLUMN pathologies_during_pregnancy,
+                DROP COLUMN pregnancy_other_pathologies,
+                DROP COLUMN pregnancy_treatment,
+                DROP COLUMN blood_group,
+                DROP COLUMN rh_factor,
+                DROP COLUMN hiv_status,
+                DROP COLUMN hiv_regimen,
+                DROP COLUMN hiv_recent_vl,
+                DROP COLUMN hiv_cd4_count,
+                DROP COLUMN hiv_opportunistic_infections,
+                DROP COLUMN tetanus_vaccine_doses,
+                DROP COLUMN maternal_illicit_drug_history,
+                DROP COLUMN rom_at,
+                DROP COLUMN af_quality,
+                DROP COLUMN af_quantity,
+                DROP COLUMN fever_timing,
+                DROP COLUMN steroid_doses,
+                DROP COLUMN last_steroid_dose_at,
+                DROP COLUMN mgso4_at,
+                DROP COLUMN mode_of_delivery,
+                DROP COLUMN labor_complications,
+                DROP COLUMN labor_complications_other,
+                DROP COLUMN maternal_anesthesia,
+                DROP COLUMN maternal_anesthesia_other,
+                DROP COLUMN maternal_antibiotics,
+                DROP COLUMN other_drugs,
+                DROP COLUMN sepsis_risk_factors,
+                DROP COLUMN resuscitation_at_birth,
+                DROP COLUMN resuscitation_methods,
+                DROP COLUMN apgar_1min,
+                DROP COLUMN apgar_5min,
+                DROP COLUMN apgar_10min,
+                DROP COLUMN hie,
+                DROP COLUMN hie_grade,
+                DROP COLUMN allergies,
+                DROP COLUMN immunization,
+                DROP COLUMN immunization_details,
+                DROP COLUMN vitamin_k,
+                DROP COLUMN tetracycline_eye_ointment,
+                DROP COLUMN surfactant,
+                DROP COLUMN chief_complaint_details,
+                DROP COLUMN spo2_preductal,
+                DROP COLUMN spo2_postductal,
+                DROP COLUMN condition_temp,
+                DROP COLUMN condition_hr,
+                DROP COLUMN condition_rr,
+                DROP COLUMN condition_bp,
+                DROP COLUMN neurological_status,
+                DROP COLUMN seizures,
+                DROP COLUMN adverse_events_24h,
+                DROP COLUMN diagnosis_1,
+                DROP COLUMN diagnosis_2,
+                DROP COLUMN diagnosis_3,
+                DROP COLUMN diagnosis_4,
+                DROP COLUMN respiratory_support,
+                DROP COLUMN ventilation_settings,
+                DROP COLUMN blood_gas_analysis,
+                DROP COLUMN iv_fluid_vol,
+                DROP COLUMN passed_urine,
+                DROP COLUMN inotropes,
+                DROP COLUMN inotropes_specify,
+                DROP COLUMN peripheral_iv,
+                DROP COLUMN central_iv,
+                DROP COLUMN intraosseous_line,
+                DROP COLUMN antibiotic1_name,
+                DROP COLUMN antibiotic1_doses,
+                DROP COLUMN antibiotic1_durations,
+                DROP COLUMN antibiotic2_name,
+                DROP COLUMN antibiotic2_doses,
+                DROP COLUMN antibiotic2_durations,
+                DROP COLUMN arvs,
+                DROP COLUMN npo,
+                DROP COLUMN last_feed_time,
+                DROP COLUMN last_feed_amount,
+                DROP COLUMN feed_vol,
+                DROP COLUMN feed_type,
+                DROP COLUMN passed_stool,
+                DROP COLUMN nasogastric_tube,
+                DROP COLUMN lab_glucose,
+                DROP COLUMN lab_fbc,
+                DROP COLUMN lab_hb,
+                DROP COLUMN lab_wbc,
+                DROP COLUMN lab_platelets,
+                DROP COLUMN lab_crp,
+                DROP COLUMN lab_bili_total,
+                DROP COLUMN lab_bili_direct,
+                DROP COLUMN lab_ue,
+                DROP COLUMN lab_cultures,
+                DROP COLUMN fbc_done,
+                DROP COLUMN imaging_results_available,
+                DROP COLUMN imaging_results,
+                DROP COLUMN pain_sedation_drugs,
+                DROP COLUMN imaging_report_attached,
+                DROP COLUMN lab_reports_attached,
+                DROP COLUMN clinical_management_summary;
+        </sql>
     </changeSet>
 
 </databaseChangeLog>

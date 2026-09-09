@@ -31,6 +31,7 @@ import org.openmrs.module.transferapp.api.TransferPatientSnapshotResolver;
 import org.openmrs.module.transferapp.api.TransferVerificationUrlService;
 import org.openmrs.module.transferapp.api.dao.TransferDao;
 import org.openmrs.module.transferapp.model.Transfer;
+import org.openmrs.module.transferapp.model.TransferFormKind;
 import org.openmrs.module.transferapp.model.TransferHistoryItem;
 
 import java.text.ParseException;
@@ -74,7 +75,7 @@ public class TransferHistoryServiceImpl implements TransferHistoryService {
 	}
 
 	@Override
-	public List<TransferHistoryItem> findHistory(String upid, String yearMonth) {
+	public List<TransferHistoryItem> findHistory(String upid, String yearMonth, String formType) {
 		Concept transferIdConcept = resolveTransferIdConcept();
 		if (transferIdConcept == null) {
 			return Collections.emptyList();
@@ -93,6 +94,7 @@ public class TransferHistoryServiceImpl implements TransferHistoryService {
 			}
 		}
 
+		TransferFormKind formKindFilter = normalizeFormTypeFilter(formType);
 		Date[] range = resolveDateRange(normalizedUpid != null, StringUtils.trimToNull(yearMonth));
 		List<Person> persons = null;
 		if (patient != null) {
@@ -165,7 +167,10 @@ public class TransferHistoryServiceImpl implements TransferHistoryService {
 			if (encounter.getLocation() != null) {
 				item.setLocationName(encounter.getLocation().getName());
 			}
-			item.setReuseRendezvousDate(resolveReuseRendezvousDate(rowPatient.getPatientId(), transferId));
+			enrichLocalTransferMetadata(item, rowPatient.getPatientId(), transferId);
+			if (!matchesFormTypeFilter(item, formKindFilter)) {
+				continue;
+			}
 			items.add(item);
 		}
 
@@ -187,6 +192,60 @@ public class TransferHistoryServiceImpl implements TransferHistoryService {
 			}
 		});
 		return items;
+	}
+
+	/**
+	 * Joins local {@code transfers} by HIE id when present; otherwise defaults to External.
+	 */
+	private void enrichLocalTransferMetadata(TransferHistoryItem item, Integer patientId, String hieTransferId) {
+		TransferFormKind kind = TransferFormKind.GENERAL;
+		if (transferDao != null && patientId != null && StringUtils.isNotBlank(hieTransferId)) {
+			Transfer local = transferDao.getTransferByHieTransferId(patientId, hieTransferId.trim());
+			if (local != null) {
+				item.setLocalTransferUuid(local.getUuid());
+				kind = local.getFormKind() != null ? local.getFormKind() : TransferFormKind.GENERAL;
+				if (local.getReuseRendezvousDate() != null) {
+					item.setReuseRendezvousDate(new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
+							.format(local.getReuseRendezvousDate()));
+				}
+			}
+		}
+		item.setFormKind(kind.name());
+		item.setFormKindCode(kind.getCode());
+		item.setFormKindLabel(formKindLabel(kind));
+	}
+
+	private static String formKindLabel(TransferFormKind kind) {
+		if (kind == null || kind.isExternalTransferForm()) {
+			return "External";
+		}
+		if (kind.isMaternityTransferForm()) {
+			return "Maternity";
+		}
+		if (kind.isNeonatalTransferForm()) {
+			return "Neonatal";
+		}
+		return "External";
+	}
+
+	/**
+	 * {@code null} means no form-type filter (All). Blank/unknown codes also mean All.
+	 */
+	private static TransferFormKind normalizeFormTypeFilter(String formType) {
+		String raw = StringUtils.trimToNull(formType);
+		if (raw == null || "all".equalsIgnoreCase(raw)) {
+			return null;
+		}
+		return TransferFormKind.fromCodeOrLabel(raw);
+	}
+
+	private static boolean matchesFormTypeFilter(TransferHistoryItem item, TransferFormKind filter) {
+		if (filter == null) {
+			return true;
+		}
+		TransferFormKind itemKind = TransferFormKind.fromCodeOrLabel(
+				item != null ? item.getFormKindCode() : null);
+		return filter == itemKind;
 	}
 
 	@Override
@@ -230,17 +289,6 @@ public class TransferHistoryServiceImpl implements TransferHistoryService {
 		transfer.setChangedBy(Context.getAuthenticatedUser());
 		transfer.setDateChanged(new Date());
 		return transferDao.saveTransfer(transfer);
-	}
-
-	private String resolveReuseRendezvousDate(Integer patientId, String hieTransferId) {
-		if (transferDao == null || patientId == null || StringUtils.isBlank(hieTransferId)) {
-			return null;
-		}
-		Transfer local = transferDao.getTransferByHieTransferId(patientId, hieTransferId.trim());
-		if (local == null || local.getReuseRendezvousDate() == null) {
-			return null;
-		}
-		return new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(local.getReuseRendezvousDate());
 	}
 
 	private static Date parseReuseDate(String value) {

@@ -32,9 +32,11 @@ public interface TransferHistoryService {
 	 * With UPID: that patient's registration encounters that have a Transfer Id.
 	 * With month ({@code yyyy-MM}): restrict to that calendar month.
 	 * With UPID + month: that patient's registration encounters in the selected month.
+	 * With formType ({@code external|maternity|neonatal}): restrict by local
+	 * {@code transfers.form_kind} (rows with no local copy count as external).
 	 */
 	@Authorized(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
-	List<TransferHistoryItem> findHistory(String upid, String yearMonth);
+	List<TransferHistoryItem> findHistory(String upid, String yearMonth, String formType);
 
 	/**
 	 * Schedules (or clears) a reuse rendez-vous date for a previously recorded HIE transfer.

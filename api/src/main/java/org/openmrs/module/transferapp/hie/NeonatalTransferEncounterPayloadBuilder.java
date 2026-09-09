@@ -459,7 +459,8 @@ public class NeonatalTransferEncounterPayloadBuilder {
 	private String requireUpi(NeonatalTransfer transfer) {
 		String upi = patientSnapshotResolver.resolveUpid(transfer != null ? transfer.getPatient() : null);
 		if (StringUtils.isBlank(upi)) {
-			throw new HieApiException("Cannot submit neonatal transfer: patient UPID is missing.");
+			throw new HieApiException(
+					"Cannot submit neonatal transfer: patient UPID is missing. Register a UPID on the patient chart, then edit and resubmit the transfer.");
 		}
 		return upi.trim();
 	}

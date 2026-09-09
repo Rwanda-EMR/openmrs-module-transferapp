@@ -247,21 +247,35 @@
 		});
 	}
 
-	function updateReceivingServiceOptions(serviceNames) {
+	function updateReceivingServiceOptions(serviceNames, preferredService) {
 		var $select = jq('#maternityReceivingService');
 		if (!$select.length) {
 			return;
 		}
+		var preferred = preferredService;
+		if (preferred == null || preferred === undefined) {
+			preferred = jq.trim($select.closest('form').attr('data-preferred-receiving-service') || $select.val() || '');
+		}
 		destroyReceivingServiceSelect2();
 		$select.empty();
 		$select.append(jq('<option value="">'));
+		var hasPreferred = false;
 		jq.each(serviceNames || [], function (_, serviceName) {
 			if (!serviceName) {
 				return;
 			}
-			$select.append(jq('<option>').attr('value', serviceName).text(serviceName));
+			var $option = jq('<option>').attr('value', serviceName).text(serviceName);
+			if (preferred && preferred === serviceName) {
+				$option.attr('selected', 'selected');
+				hasPreferred = true;
+			}
+			$select.append($option);
 		});
-		$select.val(null);
+		if (preferred && !hasPreferred) {
+			$select.append(jq('<option>').attr('value', preferred).text(preferred).attr('selected', 'selected'));
+			hasPreferred = true;
+		}
+		$select.val(hasPreferred ? preferred : null);
 		initReceivingServiceSelect2();
 	}
 
@@ -272,22 +286,23 @@
 
 	function loadReceivingServicesForSelectedFacility() {
 		var facilityId = getSelectedReceivingFacilityId();
+		var preferredService = jq.trim(jq('#moh-maternity-transfer-wizard-form').attr('data-preferred-receiving-service') || '');
 		syncReceivingFacilityIdField();
 		if (!facilityId) {
-			updateReceivingServiceOptions([]);
+			updateReceivingServiceOptions([], preferredService);
 			return;
 		}
 
 		jq.getJSON(getReceivingServicesUrl(), { receivingFacilityId: facilityId })
 			.done(function (response) {
 				if (response && response.status === 'success') {
-					updateReceivingServiceOptions(response.services);
+					updateReceivingServiceOptions(response.services, preferredService);
 				} else {
-					updateReceivingServiceOptions([]);
+					updateReceivingServiceOptions([], preferredService);
 				}
 			})
 			.fail(function () {
-				updateReceivingServiceOptions([]);
+				updateReceivingServiceOptions([], preferredService);
 			});
 	}
 

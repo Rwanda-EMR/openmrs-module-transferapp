@@ -103,6 +103,7 @@ public class NeonatalTransferHieSubmissionServiceImpl implements NeonatalTransfe
 		}
 
 		try {
+			ensurePatientHasUpid(transfer);
 			ensurePayloadBuilderConfigured();
 			HieBasicConnection connection = hieConnectionResolver.resolveConnection();
 			String receivingFacilityLabel = resolveReceivingFacilityLabel(transfer);
@@ -188,6 +189,13 @@ public class NeonatalTransferHieSubmissionServiceImpl implements NeonatalTransfe
 			}
 		}
 		return facilityCode;
+	}
+
+	private void ensurePatientHasUpid(NeonatalTransfer transfer) {
+		if (transfer == null || !patientSnapshotResolver.patientHasUpid(transfer.getPatient())) {
+			throw new HieApiException(
+					"Cannot submit neonatal transfer: patient UPID is missing. Register a UPID on the patient chart, then edit and resubmit the transfer.");
+		}
 	}
 
 	private void ensurePayloadBuilderConfigured() {

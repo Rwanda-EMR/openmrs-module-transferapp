@@ -21,6 +21,7 @@ import org.openmrs.api.PatientService;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.transferapp.api.NeonatalTransferService;
 import org.openmrs.module.transferapp.api.TransferAdminService;
+import org.openmrs.module.transferapp.api.TransferPatientSnapshotResolver;
 import org.openmrs.module.transferapp.api.dao.NeonatalTransferDao;
 import org.openmrs.module.transferapp.model.NeonatalTransfer;
 import org.openmrs.module.transferapp.model.NeonatalTransferFormData;
@@ -46,6 +47,8 @@ public class NeonatalTransferServiceImpl implements NeonatalTransferService {
 	private PatientService patientService;
 
 	private TransferAdminService transferAdminService;
+
+	private final TransferPatientSnapshotResolver patientSnapshotResolver = new TransferPatientSnapshotResolver();
 
 	public void setNeonatalTransferDao(NeonatalTransferDao neonatalTransferDao) {
 		this.neonatalTransferDao = neonatalTransferDao;
@@ -98,6 +101,11 @@ public class NeonatalTransferServiceImpl implements NeonatalTransferService {
 			transfer = new NeonatalTransfer();
 			transfer.setUuid(UUID.randomUUID().toString());
 			transfer.setPatient(patient);
+		}
+
+		if (!patientSnapshotResolver.patientHasUpid(patient)) {
+			throw new APIException(
+					"Patient UPID is required to save a neonatal transfer. Register a UPID on the patient chart first.");
 		}
 
 		// Step 1 — baby & referral info

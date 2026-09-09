@@ -14,12 +14,17 @@
 package org.openmrs.module.transferapp.fragment.controller.patient;
 
 import org.openmrs.Patient;
+import org.openmrs.User;
 import org.openmrs.api.PatientService;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.transferapp.TransferAppActivator;
 import org.openmrs.module.transferapp.TransferPrivilegeHelper;
 import org.openmrs.module.transferapp.api.NewNeonatalTransferOutService;
+import org.openmrs.module.transferapp.api.TransferAdminService;
+import org.openmrs.module.transferapp.api.TransferPatientSnapshotResolver;
+import org.openmrs.module.transferapp.api.TransferProfileService;
 import org.openmrs.module.transferapp.model.NeonatalTransferFormData;
+import org.openmrs.module.transferapp.model.TransferProfile;
 import org.openmrs.ui.framework.UiUtils;
 import org.openmrs.ui.framework.annotation.SpringBean;
 import org.openmrs.ui.framework.fragment.FragmentModel;
@@ -34,7 +39,9 @@ public class NewNeonatalTransferOutFormFragmentController {
 			UiUtils ui,
 			@RequestParam(value = "patientId", required = false) Integer patientId,
 			@RequestParam(value = "transferUuid", required = false) String transferUuid,
-			@SpringBean("newNeonatalTransferOutService") NewNeonatalTransferOutService newNeonatalTransferOutService) {
+			@SpringBean("newNeonatalTransferOutService") NewNeonatalTransferOutService newNeonatalTransferOutService,
+			@SpringBean("transferProfileService") TransferProfileService transferProfileService,
+			@SpringBean("transferAdminService") TransferAdminService transferAdminService) {
 
 		model.addAttribute("error", "");
 		model.addAttribute("formData", null);
@@ -42,6 +49,18 @@ public class NewNeonatalTransferOutFormFragmentController {
 		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)) {
 			model.addAttribute("error",
 					TransferPrivilegeHelper.requiredPrivilegeMessage(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER));
+			return;
+		}
+
+		if (!transferAdminService.isOutboundFacilityNameConfigured()) {
+			model.addAttribute("error", ui.message("transferapp.patient.transfers.outboundFacilityRequired"));
+			return;
+		}
+
+		User user = Context.getAuthenticatedUser();
+		TransferProfile profile = user != null ? transferProfileService.getProfileForUser(user) : null;
+		if (profile == null || !profile.isCompleteForTransfer()) {
+			model.addAttribute("error", ui.message("transferapp.patient.transfers.profileIncomplete"));
 			return;
 		}
 
@@ -54,6 +73,12 @@ public class NewNeonatalTransferOutFormFragmentController {
 		Patient patient = patientService.getPatient(patientId);
 		if (patient == null) {
 			model.addAttribute("error", ui.message("transferapp.patient.transfers.wizard.patientNotFound"));
+			return;
+		}
+
+		boolean editing = transferUuid != null && transferUuid.trim().length() > 0;
+		if (!editing && !new TransferPatientSnapshotResolver().patientHasUpid(patient)) {
+			model.addAttribute("error", ui.message("transferapp.patient.transfers.upidRequired"));
 			return;
 		}
 

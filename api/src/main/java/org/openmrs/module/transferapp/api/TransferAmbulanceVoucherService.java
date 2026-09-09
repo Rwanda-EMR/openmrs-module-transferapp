@@ -43,11 +43,11 @@ public interface TransferAmbulanceVoucherService {
 	/**
 	 * Receives an HIE transfer for a local patient (if not already stored) and creates the
 	 * ambulance consommation using the insurance card/policy number from the latest registration.
-	 * Distance and covered district are supplied by the user; bill description is
-	 * "{My Location} via {From} to {To}".
+	 * Distance and covered district are supplied by the user; province is taken from the transfer
+	 * (HIE) when available. Bill description is "{My Location} via {From} to {To}".
 	 */
 	Transfer createAmbulanceVoucherFromHie(Integer patientId, String hieTransferId, int kilometers,
-			String coveredDistrict);
+			String coveredDistrict, String province);
 
 	/**
 	 * Local link state for an HIE transfer id (uuid / whether a voucher already exists).

@@ -22,7 +22,9 @@
     window.transferHistoryConfig = {
         restUrl: openmrsContextPath + "/ws/rest/v1/transferapp/transfer",
         reuseUrl: openmrsContextPath + "/ws/rest/v1/transferapp/transfer/reuseRendezvous",
+        previewUrl: openmrsContextPath + "/module/transferapp/transfer/preview.form",
         canCreateTransfer: ${ canCreateTransfer ? 'true' : 'false' },
+        hasHistory: ${ hasHistory ? 'true' : 'false' },
         messages: {
             loading: "${ ui.encodeJavaScript(ui.message('transferapp.history.preview.loading')) }",
             missingIds: "${ ui.encodeJavaScript(ui.message('transferapp.history.preview.missingIds')) }",
@@ -38,7 +40,13 @@
             reuseError: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.error')) }",
             reusePastDate: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.pastDate')) }",
             reuseAction: "${ ui.encodeJavaScript(ui.message('transferapp.history.action.reuse')) }",
-            reuseNone: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.none')) }"
+            reuseNone: "${ ui.encodeJavaScript(ui.message('transferapp.history.reuse.none')) }",
+            exportPdf: "${ ui.encodeJavaScript(ui.message('transferapp.history.exportPdf')) }",
+            exportPdfProgress: "${ ui.encodeJavaScript(ui.message('transferapp.history.exportPdf.progress')) }",
+            exportPdfEmpty: "${ ui.encodeJavaScript(ui.message('transferapp.history.exportPdf.empty')) }",
+            exportPdfError: "${ ui.encodeJavaScript(ui.message('transferapp.history.exportPdf.error')) }",
+            exportPdfPartial: "${ ui.encodeJavaScript(ui.message('transferapp.history.exportPdf.partial')) }",
+            exportPdfTitle: "${ ui.encodeJavaScript(ui.message('transferapp.history.exportPdf.title')) }"
         }
     };
 </script>
@@ -69,7 +77,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "histo
         <div class="transfer-records-filter-field">
             <label for="history-filter-month">${ ui.message("transferapp.history.filter.month") }</label>
             <select id="history-filter-month" name="month">
-                <option value="">${ ui.message("transferapp.history.filter.month.all") }</option>
+                <option value="" <% if (filterMonth == null || filterMonth.length() == 0) { %>selected="selected"<% } %>>${ ui.message("transferapp.history.filter.month.all") }</option>
                 <% if (monthOptions != null) { monthOptions.each { option -> %>
                 <option value="${ ui.encodeHtmlAttribute(option.value) }"
                     <% if (filterMonth != null && filterMonth == option.value) { %>selected="selected"<% } %>>
@@ -78,12 +86,34 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "histo
                 <% } } %>
             </select>
         </div>
+        <div class="transfer-records-filter-field">
+            <label for="history-filter-form-type">${ ui.message("transferapp.history.filter.formType") }</label>
+            <select id="history-filter-form-type" name="formType">
+                <option value="" <% if (filterFormType == null || filterFormType.length() == 0) { %>selected="selected"<% } %>>
+                    ${ ui.message("transferapp.history.filter.formType.all") }
+                </option>
+                <option value="external" <% if (filterFormType == "external") { %>selected="selected"<% } %>>
+                    ${ ui.message("transferapp.history.filter.formType.external") }
+                </option>
+                <option value="maternity" <% if (filterFormType == "maternity") { %>selected="selected"<% } %>>
+                    ${ ui.message("transferapp.history.filter.formType.maternity") }
+                </option>
+                <option value="neonatal" <% if (filterFormType == "neonatal") { %>selected="selected"<% } %>>
+                    ${ ui.message("transferapp.history.filter.formType.neonatal") }
+                </option>
+            </select>
+        </div>
         <div class="transfer-records-filter-actions">
             <button type="submit" class="confirm">${ ui.message("transferapp.history.filter.apply") }</button>
             <a class="button"
                href="${ ui.pageLink('transferapp', 'history') }?app=${ ui.encodeHtmlAttribute(appId) }">
                 ${ ui.message("transferapp.history.filter.clear") }
             </a>
+            <% if (hasHistory) { %>
+            <button type="button" id="transfer-history-export-pdf" class="button">
+                <i class="icon-download-alt"></i> ${ ui.message("transferapp.history.exportPdf") }
+            </button>
+            <% } %>
         </div>
     </div>
 </form>
@@ -139,6 +169,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "histo
                 <th>${ ui.message("transferapp.history.column.date") }</th>
                 <th>${ ui.message("transferapp.history.column.patient") }</th>
                 <th>${ ui.message("transferapp.history.column.upid") }</th>
+                <th>${ ui.message("transferapp.history.column.formType") }</th>
                 <th>${ ui.message("transferapp.history.column.location") }</th>
                 <th>${ ui.message("transferapp.history.column.phone") }</th>
                 <th>${ ui.message("transferapp.history.column.reuseDate") }</th>
@@ -151,6 +182,9 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "histo
                 data-transfer-id="${ ui.encodeHtmlAttribute(item.transferId ?: '') }"
                 data-upid="${ ui.encodeHtmlAttribute(item.upid ?: '') }"
                 data-patient-id="${ item.patientId != null ? item.patientId : '' }"
+                data-local-uuid="${ ui.encodeHtmlAttribute(item.localTransferUuid ?: '') }"
+                data-form-kind="${ ui.encodeHtmlAttribute(item.formKind ?: 'GENERAL') }"
+                data-form-kind-code="${ ui.encodeHtmlAttribute(item.formKindCode ?: 'external') }"
                 data-reuse-date="${ ui.encodeHtmlAttribute(item.reuseRendezvousDate ?: '') }"
                 data-patient-name="${ ui.encodeHtmlAttribute(item.patientName ?: '') }">
                 <td>${ ui.format(item.encounterDatetime) }</td>
@@ -164,6 +198,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "histo
                     <% } %>
                 </td>
                 <td>${ ui.encodeHtmlContent(item.upid ?: '') }</td>
+                <td>${ ui.encodeHtmlContent(item.formKindLabel ?: 'External') }</td>
                 <td>${ ui.encodeHtmlContent(item.locationName ?: '') }</td>
                 <td>${ ui.encodeHtmlContent(item.phoneNumber ?: '') }</td>
                 <td class="transfer-history-reuse-date-cell">

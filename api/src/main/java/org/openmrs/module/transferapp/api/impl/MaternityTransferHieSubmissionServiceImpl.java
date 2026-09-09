@@ -103,6 +103,7 @@ public class MaternityTransferHieSubmissionServiceImpl implements MaternityTrans
 		}
 
 		try {
+			ensurePatientUpidPersisted(transfer);
 			ensurePayloadBuilderConfigured();
 			HieBasicConnection connection = hieConnectionResolver.resolveConnection();
 			String receivingFacilityLabel = resolveReceivingFacilityLabel(transfer);
@@ -188,6 +189,29 @@ public class MaternityTransferHieSubmissionServiceImpl implements MaternityTrans
 			}
 		}
 		return facilityCode;
+	}
+
+	/**
+	 * Copies the patient's UPID onto {@code serialNumberEmr} when available and persists it
+	 * so subsequent HIE payload builds include the identifier.
+	 */
+	private void ensurePatientUpidPersisted(MaternityTransfer transfer) {
+		if (transfer == null) {
+			return;
+		}
+		String fromPatient = StringUtils.trimToNull(patientSnapshotResolver.resolveUpid(transfer.getPatient()));
+		if (StringUtils.isBlank(fromPatient)) {
+			if (StringUtils.isBlank(transfer.getSerialNumberEmr())) {
+				throw new HieApiException(
+						"Cannot submit maternity transfer: patient UPID is missing. Register a UPID on the patient chart, then edit and resubmit the transfer.");
+			}
+			return;
+		}
+		String before = StringUtils.trimToNull(transfer.getSerialNumberEmr());
+		if (!fromPatient.equals(before)) {
+			transfer.setSerialNumberEmr(fromPatient);
+			maternityTransferDao.saveMaternityTransfer(transfer);
+		}
 	}
 
 	private void ensurePayloadBuilderConfigured() {

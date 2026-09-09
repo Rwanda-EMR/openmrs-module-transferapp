@@ -13,11 +13,11 @@ def ambulanceProviderFacilitiesUrl = "/" + ambulanceFacilitiesCtxPath + "/module
     <p style="color: red;">${ ui.format(error) }</p>
 </g:if>
 
-<g:if test="${formData}">
+<g:if test="${formData != null}">
 <div class="transfer-wizard-shell">
     <header class="transfer-wizard-page-header">
         <h1 class="transfer-wizard-page-title">
-            <% if (formData.editing) { %>
+            <% if (formData.transferUuid) { %>
                 ${ ui.message("transferapp.patient.transfers.editTransferOut") }
             <% } else { %>
                 External Transfer Form
@@ -27,7 +27,7 @@ def ambulanceProviderFacilitiesUrl = "/" + ambulanceFacilitiesCtxPath + "/module
 
     <div class="transfer-wizard-panel" style="padding: 0 5px;">
         <form id="moh-transfer-wizard-form" class="transfer-out-form" novalidate="novalidate"
-              data-editing="${ formData.editing ? 'true' : 'false' }"
+              data-editing="${ formData.transferUuid ? 'true' : 'false' }"
               data-preferred-receiving-service="${ ui.encodeHtmlAttribute(formData.receivingService ?: '') }">
             <input type="hidden" name="patientId" value="${ formData.patientId }" />
             <% if (formData.transferUuid) { %>

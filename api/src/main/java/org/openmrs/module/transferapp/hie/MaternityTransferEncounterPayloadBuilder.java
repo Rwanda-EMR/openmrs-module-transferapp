@@ -545,9 +545,16 @@ public class MaternityTransferEncounterPayloadBuilder {
 	}
 
 	private String requireUpi(MaternityTransfer transfer) {
-		String upi = patientSnapshotResolver.resolveUpid(transfer != null ? transfer.getPatient() : null);
+		String upi = StringUtils.trimToNull(transfer != null ? transfer.getSerialNumberEmr() : null);
+		if (StringUtils.isBlank(upi) && transfer != null && patientSnapshotResolver != null) {
+			upi = StringUtils.trimToNull(patientSnapshotResolver.resolveUpid(transfer.getPatient()));
+			if (StringUtils.isNotBlank(upi)) {
+				transfer.setSerialNumberEmr(upi);
+			}
+		}
 		if (StringUtils.isBlank(upi)) {
-			throw new HieApiException("Cannot submit maternity transfer: patient UPID is missing.");
+			throw new HieApiException(
+					"Cannot submit maternity transfer: patient UPID is missing. Register a UPID on the patient chart, then edit and resubmit the transfer.");
 		}
 		return upi.trim();
 	}

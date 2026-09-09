@@ -24,18 +24,28 @@ import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
+import javax.persistence.SecondaryTables;
+import javax.persistence.SecondaryTable;
+import javax.persistence.PrimaryKeyJoinColumn;
 import java.util.Date;
 
 /**
  * Persisted outbound Neonatal transfer referral record.
  *
- * <p>Unlike {@link MaternityTransfer}, this form has no unbounded repeating structure
- * (its only repeating sections — 2 antibiotic blocks, 4 diagnosis slots — are fixed-size
- * per the paper form), so it is modeled as flat numbered columns with no child table,
- * matching how {@link Transfer} itself stores fixed fields flatly.</p>
+ * <p>Columns are split across category tables (maternal / clinical / management) and
+ * mapped with {@link SecondaryTable} so callers keep a single entity API while MySQL
+ * stays under the InnoDB row-size limit.</p>
  */
 @Entity(name = "TransferappNeonatalTransfer")
 @Table(name = "neonatal_transfers")
+@SecondaryTables({
+	@SecondaryTable(name = "neonatal_transfer_maternal",
+			pkJoinColumns = @PrimaryKeyJoinColumn(name = "neonatal_transfer_id")),
+	@SecondaryTable(name = "neonatal_transfer_clinical",
+			pkJoinColumns = @PrimaryKeyJoinColumn(name = "neonatal_transfer_id")),
+	@SecondaryTable(name = "neonatal_transfer_management",
+			pkJoinColumns = @PrimaryKeyJoinColumn(name = "neonatal_transfer_id"))
+})
 public class NeonatalTransfer extends BaseOpenmrsData {
 
 	private static final long serialVersionUID = 1L;
@@ -149,314 +159,314 @@ public class NeonatalTransfer extends BaseOpenmrsData {
 
 	// Step 2 — maternal history
 
-	@Column(name = "mother_alive", length = 16)
+	@Column(table = "neonatal_transfer_maternal", name = "mother_alive", length = 16)
 	private String motherAlive;
 
-	@Column(name = "obstetric_gravida", length = 16)
+	@Column(table = "neonatal_transfer_maternal", name = "obstetric_gravida", length = 16)
 	private String obstetricGravida;
 
-	@Column(name = "obstetric_parity", length = 16)
+	@Column(table = "neonatal_transfer_maternal", name = "obstetric_parity", length = 16)
 	private String obstetricParity;
 
-	@Column(name = "pregnancy_type", length = 32)
+	@Column(table = "neonatal_transfer_maternal", name = "pregnancy_type", length = 32)
 	private String pregnancyType;
 
-	@Column(name = "anc_screening")
+	@Column(table = "neonatal_transfer_maternal", name = "anc_screening")
 	private String ancScreening;
 
-	@Column(name = "pathologies_during_pregnancy")
+	@Column(table = "neonatal_transfer_maternal", name = "pathologies_during_pregnancy")
 	private String pathologiesDuringPregnancy;
 
-	@Column(name = "pregnancy_other_pathologies")
+	@Column(table = "neonatal_transfer_maternal", name = "pregnancy_other_pathologies")
 	private String pregnancyOtherPathologies;
 
-	@Column(name = "pregnancy_treatment")
+	@Column(table = "neonatal_transfer_maternal", name = "pregnancy_treatment")
 	private String pregnancyTreatment;
 
-	@Column(name = "blood_group", length = 16)
+	@Column(table = "neonatal_transfer_maternal", name = "blood_group", length = 16)
 	private String bloodGroup;
 
-	@Column(name = "rh_factor", length = 16)
+	@Column(table = "neonatal_transfer_maternal", name = "rh_factor", length = 16)
 	private String rhFactor;
 
-	@Column(name = "hiv_status", length = 32)
+	@Column(table = "neonatal_transfer_maternal", name = "hiv_status", length = 32)
 	private String hivStatus;
 
-	@Column(name = "hiv_regimen", length = 255)
+	@Column(table = "neonatal_transfer_maternal", name = "hiv_regimen", length = 255)
 	private String hivRegimen;
 
-	@Column(name = "hiv_recent_vl", length = 64)
+	@Column(table = "neonatal_transfer_maternal", name = "hiv_recent_vl", length = 64)
 	private String hivRecentVl;
 
-	@Column(name = "hiv_cd4_count", length = 64)
+	@Column(table = "neonatal_transfer_maternal", name = "hiv_cd4_count", length = 64)
 	private String hivCd4Count;
 
-	@Column(name = "hiv_opportunistic_infections")
+	@Column(table = "neonatal_transfer_maternal", name = "hiv_opportunistic_infections")
 	private String hivOpportunisticInfections;
 
-	@Column(name = "tetanus_vaccine_doses", length = 16)
+	@Column(table = "neonatal_transfer_maternal", name = "tetanus_vaccine_doses", length = 16)
 	private String tetanusVaccineDoses;
 
-	@Column(name = "maternal_illicit_drug_history")
+	@Column(table = "neonatal_transfer_maternal", name = "maternal_illicit_drug_history")
 	private String maternalIllicitDrugHistory;
 
 	// Step 3 — labor details
 
-	@Column(name = "rom_at")
+	@Column(table = "neonatal_transfer_maternal", name = "rom_at")
 	private Date romAt;
 
-	@Column(name = "af_quality", length = 64)
+	@Column(table = "neonatal_transfer_maternal", name = "af_quality", length = 64)
 	private String afQuality;
 
-	@Column(name = "af_quantity", length = 64)
+	@Column(table = "neonatal_transfer_maternal", name = "af_quantity", length = 64)
 	private String afQuantity;
 
-	@Column(name = "fever_timing", length = 64)
+	@Column(table = "neonatal_transfer_maternal", name = "fever_timing", length = 64)
 	private String feverTiming;
 
-	@Column(name = "steroid_doses", length = 16)
+	@Column(table = "neonatal_transfer_maternal", name = "steroid_doses", length = 16)
 	private String steroidDoses;
 
-	@Column(name = "last_steroid_dose_at")
+	@Column(table = "neonatal_transfer_maternal", name = "last_steroid_dose_at")
 	private Date lastSteroidDoseAt;
 
-	@Column(name = "mgso4_at")
+	@Column(table = "neonatal_transfer_maternal", name = "mgso4_at")
 	private Date mgso4At;
 
-	@Column(name = "mode_of_delivery", length = 64)
+	@Column(table = "neonatal_transfer_maternal", name = "mode_of_delivery", length = 64)
 	private String modeOfDelivery;
 
-	@Column(name = "labor_complications", length = 255)
+	@Column(table = "neonatal_transfer_maternal", name = "labor_complications", length = 255)
 	private String laborComplications;
 
-	@Column(name = "labor_complications_other", length = 255)
+	@Column(table = "neonatal_transfer_maternal", name = "labor_complications_other", length = 255)
 	private String laborComplicationsOther;
 
-	@Column(name = "maternal_anesthesia", length = 64)
+	@Column(table = "neonatal_transfer_maternal", name = "maternal_anesthesia", length = 64)
 	private String maternalAnesthesia;
 
-	@Column(name = "maternal_anesthesia_other", length = 255)
+	@Column(table = "neonatal_transfer_maternal", name = "maternal_anesthesia_other", length = 255)
 	private String maternalAnesthesiaOther;
 
-	@Column(name = "maternal_antibiotics")
+	@Column(table = "neonatal_transfer_maternal", name = "maternal_antibiotics")
 	private String maternalAntibiotics;
 
-	@Column(name = "other_drugs")
+	@Column(table = "neonatal_transfer_maternal", name = "other_drugs")
 	private String otherDrugs;
 
-	@Column(name = "sepsis_risk_factors")
+	@Column(table = "neonatal_transfer_maternal", name = "sepsis_risk_factors")
 	private String sepsisRiskFactors;
 
 	// Step 4 — neonatal history & drugs
 
-	@Column(name = "resuscitation_at_birth", length = 16)
+	@Column(table = "neonatal_transfer_clinical", name = "resuscitation_at_birth", length = 16)
 	private String resuscitationAtBirth;
 
-	@Column(name = "resuscitation_methods")
+	@Column(table = "neonatal_transfer_clinical", name = "resuscitation_methods")
 	private String resuscitationMethods;
 
-	@Column(name = "apgar_1min", length = 8)
+	@Column(table = "neonatal_transfer_clinical", name = "apgar_1min", length = 8)
 	private String apgar1min;
 
-	@Column(name = "apgar_5min", length = 8)
+	@Column(table = "neonatal_transfer_clinical", name = "apgar_5min", length = 8)
 	private String apgar5min;
 
-	@Column(name = "apgar_10min", length = 8)
+	@Column(table = "neonatal_transfer_clinical", name = "apgar_10min", length = 8)
 	private String apgar10min;
 
-	@Column(name = "hie", length = 16)
+	@Column(table = "neonatal_transfer_clinical", name = "hie", length = 16)
 	private String hie;
 
-	@Column(name = "hie_grade", length = 16)
+	@Column(table = "neonatal_transfer_clinical", name = "hie_grade", length = 16)
 	private String hieGrade;
 
-	@Column(name = "allergies", length = 255)
+	@Column(table = "neonatal_transfer_clinical", name = "allergies", length = 255)
 	private String allergies;
 
-	@Column(name = "immunization", length = 16)
+	@Column(table = "neonatal_transfer_clinical", name = "immunization", length = 16)
 	private String immunization;
 
-	@Column(name = "immunization_details")
+	@Column(table = "neonatal_transfer_clinical", name = "immunization_details")
 	private String immunizationDetails;
 
-	@Column(name = "vitamin_k", length = 16)
+	@Column(table = "neonatal_transfer_clinical", name = "vitamin_k", length = 16)
 	private String vitaminK;
 
-	@Column(name = "tetracycline_eye_ointment", length = 16)
+	@Column(table = "neonatal_transfer_clinical", name = "tetracycline_eye_ointment", length = 16)
 	private String tetracyclineEyeOintment;
 
-	@Column(name = "surfactant", length = 16)
+	@Column(table = "neonatal_transfer_clinical", name = "surfactant", length = 16)
 	private String surfactant;
 
 	// Step 5 — chief complaint & diagnoses
 
-	@Column(name = "chief_complaint_details")
+	@Column(table = "neonatal_transfer_clinical", name = "chief_complaint_details")
 	private String chiefComplaintDetails;
 
-	@Column(name = "spo2_preductal", length = 16)
+	@Column(table = "neonatal_transfer_clinical", name = "spo2_preductal", length = 16)
 	private String spo2Preductal;
 
-	@Column(name = "spo2_postductal", length = 16)
+	@Column(table = "neonatal_transfer_clinical", name = "spo2_postductal", length = 16)
 	private String spo2Postductal;
 
-	@Column(name = "condition_temp", length = 16)
+	@Column(table = "neonatal_transfer_clinical", name = "condition_temp", length = 16)
 	private String conditionTemp;
 
-	@Column(name = "condition_hr", length = 16)
+	@Column(table = "neonatal_transfer_clinical", name = "condition_hr", length = 16)
 	private String conditionHr;
 
-	@Column(name = "condition_rr", length = 16)
+	@Column(table = "neonatal_transfer_clinical", name = "condition_rr", length = 16)
 	private String conditionRr;
 
-	@Column(name = "condition_bp", length = 32)
+	@Column(table = "neonatal_transfer_clinical", name = "condition_bp", length = 32)
 	private String conditionBp;
 
-	@Column(name = "neurological_status", length = 64)
+	@Column(table = "neonatal_transfer_clinical", name = "neurological_status", length = 64)
 	private String neurologicalStatus;
 
-	@Column(name = "seizures")
+	@Column(table = "neonatal_transfer_clinical", name = "seizures")
 	private Boolean seizures;
 
-	@Column(name = "adverse_events_24h")
+	@Column(table = "neonatal_transfer_clinical", name = "adverse_events_24h")
 	private String adverseEvents24h;
 
-	@Column(name = "diagnosis_1", length = 255)
+	@Column(table = "neonatal_transfer_clinical", name = "diagnosis_1", length = 255)
 	private String diagnosis1;
 
-	@Column(name = "diagnosis_2", length = 255)
+	@Column(table = "neonatal_transfer_clinical", name = "diagnosis_2", length = 255)
 	private String diagnosis2;
 
-	@Column(name = "diagnosis_3", length = 255)
+	@Column(table = "neonatal_transfer_clinical", name = "diagnosis_3", length = 255)
 	private String diagnosis3;
 
-	@Column(name = "diagnosis_4", length = 255)
+	@Column(table = "neonatal_transfer_clinical", name = "diagnosis_4", length = 255)
 	private String diagnosis4;
 
 	// Step 6 — management at referring facility
 
-	@Column(name = "respiratory_support", length = 64)
+	@Column(table = "neonatal_transfer_management", name = "respiratory_support", length = 64)
 	private String respiratorySupport;
 
-	@Column(name = "ventilation_settings")
+	@Column(table = "neonatal_transfer_management", name = "ventilation_settings")
 	private String ventilationSettings;
 
-	@Column(name = "blood_gas_analysis", length = 16)
+	@Column(table = "neonatal_transfer_management", name = "blood_gas_analysis", length = 16)
 	private String bloodGasAnalysis;
 
-	@Column(name = "iv_fluid_vol", length = 32)
+	@Column(table = "neonatal_transfer_management", name = "iv_fluid_vol", length = 32)
 	private String ivFluidVol;
 
-	@Column(name = "passed_urine", length = 16)
+	@Column(table = "neonatal_transfer_management", name = "passed_urine", length = 16)
 	private String passedUrine;
 
-	@Column(name = "inotropes", length = 255)
+	@Column(table = "neonatal_transfer_management", name = "inotropes", length = 255)
 	private String inotropes;
 
-	@Column(name = "inotropes_specify", length = 255)
+	@Column(table = "neonatal_transfer_management", name = "inotropes_specify", length = 255)
 	private String inotropesSpecify;
 
-	@Column(name = "peripheral_iv", length = 16)
+	@Column(table = "neonatal_transfer_management", name = "peripheral_iv", length = 16)
 	private String peripheralIv;
 
-	@Column(name = "central_iv", length = 16)
+	@Column(table = "neonatal_transfer_management", name = "central_iv", length = 16)
 	private String centralIv;
 
-	@Column(name = "intraosseous_line", length = 16)
+	@Column(table = "neonatal_transfer_management", name = "intraosseous_line", length = 16)
 	private String intraosseousLine;
 
-	@Column(name = "antibiotic1_name", length = 255)
+	@Column(table = "neonatal_transfer_management", name = "antibiotic1_name", length = 255)
 	private String antibiotic1Name;
 
-	@Column(name = "antibiotic1_doses", length = 120)
+	@Column(table = "neonatal_transfer_management", name = "antibiotic1_doses", length = 120)
 	private String antibiotic1Doses;
 
-	@Column(name = "antibiotic1_durations", length = 120)
+	@Column(table = "neonatal_transfer_management", name = "antibiotic1_durations", length = 120)
 	private String antibiotic1Durations;
 
-	@Column(name = "antibiotic2_name", length = 255)
+	@Column(table = "neonatal_transfer_management", name = "antibiotic2_name", length = 255)
 	private String antibiotic2Name;
 
-	@Column(name = "antibiotic2_doses", length = 120)
+	@Column(table = "neonatal_transfer_management", name = "antibiotic2_doses", length = 120)
 	private String antibiotic2Doses;
 
-	@Column(name = "antibiotic2_durations", length = 120)
+	@Column(table = "neonatal_transfer_management", name = "antibiotic2_durations", length = 120)
 	private String antibiotic2Durations;
 
-	@Column(name = "arvs", length = 255)
+	@Column(table = "neonatal_transfer_management", name = "arvs", length = 255)
 	private String arvs;
 
-	@Column(name = "npo", length = 16)
+	@Column(table = "neonatal_transfer_management", name = "npo", length = 16)
 	private String npo;
 
-	@Column(name = "last_feed_time", length = 8)
+	@Column(table = "neonatal_transfer_management", name = "last_feed_time", length = 8)
 	private String lastFeedTime;
 
-	@Column(name = "last_feed_amount", length = 32)
+	@Column(table = "neonatal_transfer_management", name = "last_feed_amount", length = 32)
 	private String lastFeedAmount;
 
-	@Column(name = "feed_vol", length = 32)
+	@Column(table = "neonatal_transfer_management", name = "feed_vol", length = 32)
 	private String feedVol;
 
-	@Column(name = "feed_type", length = 64)
+	@Column(table = "neonatal_transfer_management", name = "feed_type", length = 64)
 	private String feedType;
 
-	@Column(name = "passed_stool", length = 16)
+	@Column(table = "neonatal_transfer_management", name = "passed_stool", length = 16)
 	private String passedStool;
 
-	@Column(name = "nasogastric_tube", length = 16)
+	@Column(table = "neonatal_transfer_management", name = "nasogastric_tube", length = 16)
 	private String nasogastricTube;
 
-	@Column(name = "lab_glucose", length = 32)
+	@Column(table = "neonatal_transfer_management", name = "lab_glucose", length = 32)
 	private String labGlucose;
 
-	@Column(name = "lab_fbc", length = 64)
+	@Column(table = "neonatal_transfer_management", name = "lab_fbc", length = 64)
 	private String labFbc;
 
-	@Column(name = "lab_hb", length = 32)
+	@Column(table = "neonatal_transfer_management", name = "lab_hb", length = 32)
 	private String labHb;
 
-	@Column(name = "lab_wbc", length = 32)
+	@Column(table = "neonatal_transfer_management", name = "lab_wbc", length = 32)
 	private String labWbc;
 
-	@Column(name = "lab_platelets", length = 32)
+	@Column(table = "neonatal_transfer_management", name = "lab_platelets", length = 32)
 	private String labPlatelets;
 
-	@Column(name = "lab_crp", length = 32)
+	@Column(table = "neonatal_transfer_management", name = "lab_crp", length = 32)
 	private String labCrp;
 
-	@Column(name = "lab_bili_total", length = 32)
+	@Column(table = "neonatal_transfer_management", name = "lab_bili_total", length = 32)
 	private String labBiliTotal;
 
-	@Column(name = "lab_bili_direct", length = 32)
+	@Column(table = "neonatal_transfer_management", name = "lab_bili_direct", length = 32)
 	private String labBiliDirect;
 
-	@Column(name = "lab_ue", length = 64)
+	@Column(table = "neonatal_transfer_management", name = "lab_ue", length = 64)
 	private String labUe;
 
-	@Column(name = "lab_cultures", length = 255)
+	@Column(table = "neonatal_transfer_management", name = "lab_cultures", length = 255)
 	private String labCultures;
 
-	@Column(name = "fbc_done", length = 16)
+	@Column(table = "neonatal_transfer_management", name = "fbc_done", length = 16)
 	private String fbcDone;
 
-	@Column(name = "imaging_results_available", length = 16)
+	@Column(table = "neonatal_transfer_management", name = "imaging_results_available", length = 16)
 	private String imagingResultsAvailable;
 
-	@Column(name = "imaging_results")
+	@Column(table = "neonatal_transfer_management", name = "imaging_results")
 	private String imagingResults;
 
-	@Column(name = "pain_sedation_drugs")
+	@Column(table = "neonatal_transfer_management", name = "pain_sedation_drugs")
 	private String painSedationDrugs;
 
-	@Column(name = "imaging_report_attached")
+	@Column(table = "neonatal_transfer_management", name = "imaging_report_attached")
 	private Boolean imagingReportAttached;
 
-	@Column(name = "lab_reports_attached")
+	@Column(table = "neonatal_transfer_management", name = "lab_reports_attached")
 	private Boolean labReportsAttached;
 
 	// Step 7 — summary & sign-off
 
-	@Column(name = "clinical_management_summary")
+	@Column(table = "neonatal_transfer_management", name = "clinical_management_summary")
 	private String clinicalManagementSummary;
 
 	@Column(name = "referring_provider_name", length = 255)

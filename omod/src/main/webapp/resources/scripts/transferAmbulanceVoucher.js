@@ -567,6 +567,7 @@
             jq("#ambulance-voucher-create-error").hide().text("");
             jq("#ambulance-voucher-create-district").val("");
             jq("#ambulance-voucher-create-kilometers").val("");
+            jq("#ambulance-voucher-create-province").text("");
             jq("#ambulance-voucher-create-confirm").prop("disabled", false);
             if (!anyAmbulanceModalOpen()) {
                 jq("body").removeClass("ambulance-voucher-preview-open");
@@ -616,10 +617,12 @@
             var fromFacility = String(transferRow.fromFacility || "").trim();
             var toFacility = String(transferRow.toFacility || "").trim();
             var districtDefault = String(transferRow.district || "").trim();
+            var provinceFromTransfer = String(transferRow.province || "").trim();
 
             pendingCreateVoucher = {
                 patientId: patientId,
                 hieTransferId: hieTransferId,
+                province: provinceFromTransfer,
                 $button: $button,
                 originalHtml: $button ? $button.html() : ""
             };
@@ -633,6 +636,10 @@
                         || "No insurance number found on registration."
                 );
             }
+            jq("#ambulance-voucher-create-province").text(
+                provinceFromTransfer
+                    || (filterMessages.createVoucherProvinceMissing || "Not provided on transfer")
+            );
             jq("#ambulance-voucher-create-district").val(districtDefault);
             jq("#ambulance-voucher-create-kilometers").val("");
             jq("#ambulance-voucher-create-route").text(
@@ -953,6 +960,7 @@
 
             var patientId = pendingCreateVoucher.patientId;
             var hieTransferId = pendingCreateVoucher.hieTransferId;
+            var province = String(pendingCreateVoucher.province || "").trim();
             var $button = pendingCreateVoucher.$button;
             var originalHtml = pendingCreateVoucher.originalHtml;
             var $confirm = jq("#ambulance-voucher-create-confirm");
@@ -975,7 +983,8 @@
                     patientId: patientId,
                     hieTransferId: hieTransferId,
                     kilometers: kilometers,
-                    district: district
+                    district: district,
+                    province: province
                 },
                 timeout: 90000
             }).done(function(response) {
