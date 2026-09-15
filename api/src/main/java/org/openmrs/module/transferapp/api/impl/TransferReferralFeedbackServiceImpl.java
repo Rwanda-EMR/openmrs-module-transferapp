@@ -14,6 +14,8 @@
 package org.openmrs.module.transferapp.api.impl;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.openmrs.Patient;
 import org.openmrs.Obs;
 import org.openmrs.User;
@@ -26,6 +28,11 @@ import org.openmrs.module.transferapp.api.TransferReferralFeedbackService;
 import org.openmrs.module.transferapp.api.TransferRegistrationObsService;
 import org.openmrs.module.transferapp.api.dao.TransferDao;
 import org.openmrs.module.transferapp.api.dao.TransferReferralFeedbackDao;
+import org.openmrs.module.transferapp.hie.HieApiException;
+import org.openmrs.module.transferapp.hie.HieBasicConnection;
+import org.openmrs.module.transferapp.hie.HieConnectionResolver;
+import org.openmrs.module.transferapp.hie.HieShrClient;
+import org.openmrs.module.transferapp.hie.ReferralFeedbackEncounterPatcher;
 import org.openmrs.module.transferapp.model.ReferralFeedbackOutcome;
 import org.openmrs.module.transferapp.model.Transfer;
 import org.openmrs.module.transferapp.model.TransferProfile;
@@ -42,6 +49,8 @@ import java.util.UUID;
 
 public class TransferReferralFeedbackServiceImpl implements TransferReferralFeedbackService {
 
+	private static final Log log = LogFactory.getLog(TransferReferralFeedbackServiceImpl.class);
+
 	private static final String DATE_PATTERN = "yyyy-MM-dd";
 	private static final String TIME_PATTERN = "HH:mm";
 
@@ -54,6 +63,12 @@ public class TransferReferralFeedbackServiceImpl implements TransferReferralFeed
 	private TransferProfileService transferProfileService;
 
 	private TransferRegistrationObsService registrationObsService;
+
+	private HieConnectionResolver hieConnectionResolver = new HieConnectionResolver();
+
+	private HieShrClient hieShrClient = new HieShrClient();
+
+	private ReferralFeedbackEncounterPatcher encounterPatcher = new ReferralFeedbackEncounterPatcher();
 
 	public void setTransferReferralFeedbackDao(TransferReferralFeedbackDao transferReferralFeedbackDao) {
 		this.transferReferralFeedbackDao = transferReferralFeedbackDao;
@@ -73,6 +88,18 @@ public class TransferReferralFeedbackServiceImpl implements TransferReferralFeed
 
 	public void setRegistrationObsService(TransferRegistrationObsService registrationObsService) {
 		this.registrationObsService = registrationObsService;
+	}
+
+	public void setHieConnectionResolver(HieConnectionResolver hieConnectionResolver) {
+		this.hieConnectionResolver = hieConnectionResolver != null ? hieConnectionResolver : new HieConnectionResolver();
+	}
+
+	public void setHieShrClient(HieShrClient hieShrClient) {
+		this.hieShrClient = hieShrClient != null ? hieShrClient : new HieShrClient();
+	}
+
+	public void setEncounterPatcher(ReferralFeedbackEncounterPatcher encounterPatcher) {
+		this.encounterPatcher = encounterPatcher != null ? encounterPatcher : new ReferralFeedbackEncounterPatcher();
 	}
 
 	@Override
@@ -98,8 +125,9 @@ public class TransferReferralFeedbackServiceImpl implements TransferReferralFeed
 	@Override
 	public Map<String, Object> saveFeedback(Integer patientId, String hieTransferId,
 			String dateOfDischarge, String finalDiagnosis, String treatmentGiven, String outcome,
-			String recommendations, String referBackToFacility, String contactPerson,
-			String providerName, String qualification, String signedDate, String signedTime, String phone) {
+			String recommendations, String referBackToFacility, String referBackToFacilityFosaId,
+			String contactPerson, String providerName, String qualification, String signedDate,
+			String signedTime, String phone) {
 
 		Patient patient = requirePatient(patientId);
 		String transferId = requireHieTransferId(hieTransferId);
@@ -171,6 +199,7 @@ public class TransferReferralFeedbackServiceImpl implements TransferReferralFeed
 		feedback.setOutcome(parsedOutcome.name());
 		feedback.setRecommendations(requireText(recommendations, "Recommendations (follow up care)"));
 		feedback.setReferBackToFacility(requireText(referBackToFacility, "Refer back to facility"));
+		feedback.setReferBackToFacilityFosaId(StringUtils.trimToNull(referBackToFacilityFosaId));
 		feedback.setContactPerson(requireText(contactPerson, "Contact person"));
 		Map<String, String> profileDefaults = resolveProfileDefaultsForCurrentUser();
 		feedback.setProviderName(requireText(
@@ -185,16 +214,169 @@ public class TransferReferralFeedbackServiceImpl implements TransferReferralFeed
 		feedback.setCompleted(Boolean.TRUE);
 		feedback.setCompletedAt(now);
 		feedback.setCompletedBy(user.getUserId());
+		feedback.setHieSendErr(null);
 
 		transferReferralFeedbackDao.save(feedback);
 
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		result.put("status", "success");
-		result.put("message", "Referral feedback and counter-referral saved.");
+		result.put("message", "Referral feedback and counter-referral saved. Review the HIE payload, then send.");
 		result.put("completed", Boolean.TRUE);
 		result.put("hieSent", Boolean.FALSE);
 		result.put("feedback", toMap(feedback));
+		result.putAll(buildPreviewResult(feedback, false));
 		return result;
+	}
+
+	@Override
+	public Map<String, Object> previewFeedbackHiePayload(Integer patientId, String hieTransferId) {
+		TransferReferralFeedback feedback = requireSavedFeedback(patientId, hieTransferId);
+		return buildPreviewResult(feedback, true);
+	}
+
+	@Override
+	public Map<String, Object> submitFeedbackToHie(Integer patientId, String hieTransferId) {
+		TransferReferralFeedback feedback = requireSavedFeedback(patientId, hieTransferId);
+		if (feedback.isHieSent()) {
+			Map<String, Object> already = new LinkedHashMap<String, Object>();
+			already.put("status", "success");
+			already.put("message", "Referral feedback was already sent to HIE.");
+			already.put("hieSent", Boolean.TRUE);
+			already.put("feedback", toMap(feedback));
+			return already;
+		}
+
+		HieBasicConnection connection;
+		try {
+			connection = hieConnectionResolver.resolveConnection();
+		}
+		catch (RuntimeException ex) {
+			throw new APIException("HIE is not configured: " + ex.getMessage(), ex);
+		}
+
+		String existingJson;
+		try {
+			existingJson = hieShrClient.fetchEncounterById(connection, feedback.getHieTransferId());
+		}
+		catch (HieApiException ex) {
+			feedback.setHieSendErr(truncate(ex.getMessage(), 500));
+			transferReferralFeedbackDao.save(feedback);
+			throw new APIException("Unable to load the existing transfer from HIE: " + ex.getMessage(), ex);
+		}
+		if (StringUtils.isBlank(existingJson)) {
+			feedback.setHieSendErr("Existing transfer Encounter was not found in HIE.");
+			transferReferralFeedbackDao.save(feedback);
+			throw new APIException("Existing transfer Encounter was not found in HIE for id "
+					+ feedback.getHieTransferId());
+		}
+
+		String mergedJson;
+		try {
+			mergedJson = encounterPatcher.mergeFeedbackIntoEncounter(existingJson, feedback);
+			hieShrClient.updateTransferEncounter(connection, mergedJson);
+		}
+		catch (HieApiException ex) {
+			feedback.setHieSendErr(truncate(ex.getMessage(), 500));
+			transferReferralFeedbackDao.save(feedback);
+			throw new APIException("Unable to send referral feedback to HIE: " + ex.getMessage(), ex);
+		}
+		catch (RuntimeException ex) {
+			feedback.setHieSendErr(truncate(ex.getMessage(), 500));
+			transferReferralFeedbackDao.save(feedback);
+			throw new APIException("Unable to send referral feedback to HIE: " + ex.getMessage(), ex);
+		}
+
+		Date now = new Date();
+		feedback.setHieSent(Boolean.TRUE);
+		feedback.setHieSentAt(now);
+		feedback.setHieSendErr(null);
+		User user = Context.getAuthenticatedUser();
+		if (user != null) {
+			feedback.setChangedBy(user);
+			feedback.setDateChanged(now);
+		}
+		transferReferralFeedbackDao.save(feedback);
+
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		result.put("status", "success");
+		result.put("message", "Referral feedback and counter-referral sent to HIE.");
+		result.put("hieSent", Boolean.TRUE);
+		result.put("hieSentAt", formatDate(now));
+		result.put("feedback", toMap(feedback));
+		result.put("summary", encounterPatcher.buildPreviewSummary(feedback));
+		try {
+			result.put("encounterPayload", encounterPatcher.prettyPrintJson(mergedJson));
+		}
+		catch (RuntimeException ignored) {
+			result.put("encounterPayload", mergedJson);
+		}
+		return result;
+	}
+
+	private Map<String, Object> buildPreviewResult(TransferReferralFeedback feedback, boolean wrapStatus) {
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		if (wrapStatus) {
+			result.put("status", "success");
+		}
+		result.put("summary", encounterPatcher.buildPreviewSummary(feedback));
+		try {
+			result.put("referralFeedbackExtension",
+					encounterPatcher.prettyPrint(encounterPatcher.buildReferralFeedbackExtension(feedback)));
+			result.put("counterReferralExtension",
+					encounterPatcher.prettyPrint(encounterPatcher.buildCounterReferralExtension(feedback)));
+		}
+		catch (RuntimeException ex) {
+			log.warn("Unable to pretty-print feedback extensions", ex);
+		}
+
+		String encounterPayload = null;
+		String warning = null;
+		try {
+			HieBasicConnection connection = hieConnectionResolver.resolveConnection();
+			String existingJson = hieShrClient.fetchEncounterById(connection, feedback.getHieTransferId());
+			if (StringUtils.isBlank(existingJson)) {
+				warning = "Existing transfer was not found in HIE yet; extensions below show what will be merged when it is available.";
+			}
+			else {
+				encounterPayload = encounterPatcher.prettyPrintJson(
+						encounterPatcher.mergeFeedbackIntoEncounter(existingJson, feedback));
+			}
+		}
+		catch (RuntimeException ex) {
+			warning = "Unable to load existing HIE Encounter for full preview: " + ex.getMessage();
+			log.warn(warning, ex);
+		}
+		if (encounterPayload != null) {
+			result.put("encounterPayload", encounterPayload);
+		}
+		if (warning != null) {
+			result.put("previewWarning", warning);
+		}
+		result.put("canSend", !feedback.isHieSent());
+		result.put("hieSent", feedback.isHieSent());
+		return result;
+	}
+
+	private TransferReferralFeedback requireSavedFeedback(Integer patientId, String hieTransferId) {
+		Patient patient = requirePatient(patientId);
+		String transferId = requireHieTransferId(hieTransferId);
+		TransferReferralFeedback feedback = transferReferralFeedbackDao.getByPatientAndHieTransferId(
+				patient, transferId);
+		if (feedback == null || !feedback.isCompleted()) {
+			throw new APIException("Save referral feedback before previewing or sending to HIE.");
+		}
+		return feedback;
+	}
+
+	private static String truncate(String value, int max) {
+		if (value == null) {
+			return null;
+		}
+		String trimmed = value.trim();
+		if (trimmed.length() <= max) {
+			return trimmed;
+		}
+		return trimmed.substring(0, max);
 	}
 
 	private Map<String, Object> buildDefaults(Patient patient, String hieTransferId,
@@ -210,6 +392,7 @@ public class TransferReferralFeedbackServiceImpl implements TransferReferralFeed
 			defaults.put("outcome", StringUtils.trimToEmpty(existing.getOutcome()));
 			defaults.put("recommendations", StringUtils.trimToEmpty(existing.getRecommendations()));
 			defaults.put("referBackToFacility", StringUtils.trimToEmpty(existing.getReferBackToFacility()));
+			defaults.put("referBackToFacilityFosaId", StringUtils.trimToEmpty(existing.getReferBackToFacilityFosaId()));
 			defaults.put("contactPerson", StringUtils.trimToEmpty(existing.getContactPerson()));
 			defaults.put("providerName", StringUtils.trimToEmpty(existing.getProviderName()));
 			defaults.put("qualification", StringUtils.trimToEmpty(existing.getQualification()));
@@ -224,6 +407,7 @@ public class TransferReferralFeedbackServiceImpl implements TransferReferralFeed
 			defaults.put("outcome", "");
 			defaults.put("recommendations", "");
 			defaults.put("referBackToFacility", "");
+			defaults.put("referBackToFacilityFosaId", "");
 			defaults.put("contactPerson", "");
 			defaults.put("providerName", profileDefaults.get("providerName"));
 			defaults.put("qualification", profileDefaults.get("qualification"));
@@ -268,6 +452,7 @@ public class TransferReferralFeedbackServiceImpl implements TransferReferralFeed
 		map.put("outcomeLabel", parsed != null ? parsed.getLabel() : feedback.getOutcome());
 		map.put("recommendations", feedback.getRecommendations());
 		map.put("referBackToFacility", feedback.getReferBackToFacility());
+		map.put("referBackToFacilityFosaId", feedback.getReferBackToFacilityFosaId());
 		map.put("contactPerson", feedback.getContactPerson());
 		map.put("providerName", feedback.getProviderName());
 		map.put("qualification", feedback.getQualification());

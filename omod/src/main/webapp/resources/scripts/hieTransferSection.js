@@ -70,6 +70,9 @@
             validateUrl: normalizeRootUrl(transferOpenmrsPath + "/ws/rest/v1/transferapp/transfer/validate"),
             feedbackUrl: normalizeRootUrl(transferOpenmrsPath + "/ws/rest/v1/transferapp/transfer/feedback"),
             facilitiesUrl: normalizeRootUrl(transferOpenmrsPath + "/ws/rest/v1/transferapp/transfer/feedback/facilities"),
+            feedbackPreviewUrl: normalizeRootUrl(transferOpenmrsPath + "/ws/rest/v1/transferapp/transfer/feedback/preview"),
+            feedbackSubmitUrl: normalizeRootUrl(transferOpenmrsPath + "/ws/rest/v1/transferapp/transfer/feedback/submit"),
+            pdfUrl: normalizeRootUrl(transferOpenmrsPath + "/module/transferapp/transfer/exportHiePdf.form"),
             upid: "",
             patientId: "",
             hasTransferId: false,
@@ -77,7 +80,9 @@
             canCreateTransfer: false,
             canValidate: false,
             canProvideFeedback: false,
-            feedbackLoaded: false
+            feedbackLoaded: false,
+            feedbackCompleted: false,
+            feedbackHieSent: false
         };
         var previewDialog = null;
         var previewScriptsLoading = null;
@@ -94,15 +99,15 @@
                 runtime.validateUrl = normalizeRootUrl(section.attr("data-validate-url") || runtime.validateUrl);
                 runtime.feedbackUrl = normalizeRootUrl(section.attr("data-feedback-url") || runtime.feedbackUrl);
                 runtime.facilitiesUrl = normalizeRootUrl(section.attr("data-facilities-url") || runtime.facilitiesUrl);
+                runtime.feedbackPreviewUrl = normalizeRootUrl(section.attr("data-feedback-preview-url") || runtime.feedbackPreviewUrl);
+                runtime.feedbackSubmitUrl = normalizeRootUrl(section.attr("data-feedback-submit-url") || runtime.feedbackSubmitUrl);
+                runtime.pdfUrl = normalizeRootUrl(section.attr("data-pdf-url") || runtime.pdfUrl);
                 runtime.upid = section.attr("data-upid") || runtime.upid;
                 runtime.patientId = section.attr("data-patient-id") || runtime.patientId;
                 runtime.hasTransferId = section.attr("data-has-transfer-id") === "true";
                 runtime.listFromHie = section.attr("data-list-from-hie") === "true";
                 runtime.canCreateTransfer = section.attr("data-can-validate") === "true";
                 runtime.canProvideFeedback = section.attr("data-can-provide-feedback") === "true";
-                if (runtime.canProvideFeedback) {
-                    runtime.canCreateTransfer = true;
-                }
             }
             if (cfg.length) {
                 runtime.restUrl = normalizeRootUrl(cfg.attr("data-rest-url") || runtime.restUrl);
@@ -112,9 +117,6 @@
                 runtime.patientId = cfg.attr("data-patient-id") || runtime.patientId;
                 runtime.hasTransferId = cfg.attr("data-has-transfer-id") === "true" || runtime.hasTransferId;
                 runtime.canProvideFeedback = cfg.attr("data-can-provide-feedback") === "true" || runtime.canProvideFeedback;
-                if (runtime.canProvideFeedback) {
-                    runtime.canCreateTransfer = true;
-                }
             }
             if (source.length) {
                 runtime.restUrl = normalizeRootUrl(source.attr("data-rest-url") || runtime.restUrl);
@@ -124,7 +126,6 @@
                 runtime.patientId = source.attr("data-patient-id") || runtime.patientId;
                 if (source.attr("data-can-provide-feedback") === "true") {
                     runtime.canProvideFeedback = true;
-                    runtime.canCreateTransfer = true;
                 } else if (source.attr("data-can-provide-feedback") === "false") {
                     runtime.canProvideFeedback = false;
                 }
@@ -247,38 +248,77 @@
             if (!hasTransferId || !currentPreviewTransfer) {
                 return;
             }
+            patientId = runtime.patientId || patientId;
+            upid = runtime.upid || upid;
             var transferUuid = currentPreviewTransfer.uuid
                 || currentPreviewTransfer.id
                 || currentPreviewTransfer.hieTransferId
-                || "transfer";
-            var ok = typeof exportTransferFormPreviewPdf === "function"
-                && exportTransferFormPreviewPdf("#hie-transfer-preview-body", {
-                    fileName: "External-Transfer-Form-" + transferUuid
-                });
-            if (!ok) {
+                || "";
+            if (!patientId || !transferUuid) {
                 jq("#hie-transfer-validate-status").show().css("color", "#a94442")
-                    .text("Unable to open PDF export. Allow pop-ups and try again.");
+                    .text("Unable to export PDF: missing patient or transfer id.");
+                return;
             }
+            var pdfUrl = runtime.pdfUrl
+                || normalizeRootUrl(transferOpenmrsPath + "/module/transferapp/transfer/exportHiePdf.form");
+            var query = "patientId=" + encodeURIComponent(patientId)
+                + "&hieTransferId=" + encodeURIComponent(transferUuid);
+            if (upid) {
+                query += "&upid=" + encodeURIComponent(upid);
+            }
+            window.location.href = pdfUrl + (pdfUrl.indexOf("?") >= 0 ? "&" : "?") + query;
         }
 
         function renderPreview(transfer) {
+            function afterBasePreview() {
+                updateValidateButton(transfer);
+                runtime.feedbackLoaded = false;
+                jq("#hie-transfer-preview-dialog").removeClass("has-feedback");
+                jq("#hie-transfer-feedback-wrap").hide();
+                jq("#hie-fb-status").hide().text("");
+                jq("#hie-fb-preview-hint").hide();
+                if (currentPreviewTransfer) {
+                    delete currentPreviewTransfer.referralFeedback;
+                }
+                runtime.feedbackCompleted = false;
+                runtime.feedbackHieSent = false;
+                updateProvideFeedbackButton(transfer);
+                loadSavedFeedbackIntoPreview(transfer);
+            }
+
             if (typeof renderTransferPreviewInto === "function") {
-                renderTransferPreviewInto("#hie-transfer-preview-body", transfer, function() {
-                    updateValidateButton(transfer);
-                    runtime.feedbackLoaded = false;
-                    hideReferralFeedback();
-                    updateProvideFeedbackButton(transfer);
-                });
+                renderTransferPreviewInto("#hie-transfer-preview-body", transfer, afterBasePreview);
                 return;
             }
             var previewHtml = typeof buildTransferFormPreviewHtml === "function"
                 ? buildTransferFormPreviewHtml(transfer)
                 : "<p style='color:red;'>Preview renderer not loaded.</p>";
             jq("#hie-transfer-preview-body").html(previewHtml);
-            updateValidateButton(transfer);
-            runtime.feedbackLoaded = false;
-            hideReferralFeedback();
-            updateProvideFeedbackButton(transfer);
+            afterBasePreview();
+        }
+
+        function feedbackButtonLabels() {
+            var btn = jq("#hie-transfer-provide-feedback-btn");
+            return {
+                provide: btn.attr("data-label-provide") || "Provide feedback",
+                send: btn.attr("data-label-send") || "Send Feedback",
+                sending: btn.attr("data-label-sending") || "Sending feedback..."
+            };
+        }
+
+        function setFeedbackActionMode(mode) {
+            var btn = jq("#hie-transfer-provide-feedback-btn");
+            if (!btn.length) {
+                return;
+            }
+            var labels = feedbackButtonLabels();
+            var nextMode = mode === "send" ? "send" : "provide";
+            btn.attr("data-mode", nextMode);
+            if (nextMode === "send") {
+                btn.addClass("hie-fb-mode-send").text(labels.send);
+            } else {
+                btn.removeClass("hie-fb-mode-send").text(labels.provide);
+            }
         }
 
         function updateProvideFeedbackButton(transfer) {
@@ -291,6 +331,20 @@
                     transfer.uuid || transfer.id || transfer.hieTransferId || "")) {
                 return;
             }
+            // Already sent to HIE — no action button.
+            if (runtime.feedbackHieSent) {
+                return;
+            }
+            if (runtime.feedbackCompleted) {
+                setFeedbackActionMode("send");
+                provideBtn.show();
+                return;
+            }
+            // While entering feedback, keep the action button hidden.
+            if (jq("#hie-transfer-feedback-wrap").is(":visible")) {
+                return;
+            }
+            setFeedbackActionMode("provide");
             provideBtn.show();
         }
 
@@ -298,7 +352,6 @@
             if (!canProvideFeedback || !currentPreviewTransfer) {
                 return;
             }
-            jq("#hie-transfer-provide-feedback-btn").hide();
             loadReferralFeedback(currentPreviewTransfer, true);
         }
 
@@ -306,7 +359,125 @@
             jq("#hie-transfer-preview-dialog").removeClass("has-feedback");
             jq("#hie-transfer-feedback-wrap").hide();
             jq("#hie-fb-status").hide().text("");
+            jq("#hie-fb-preview-hint").hide();
             jq("#hie-transfer-provide-feedback-btn").hide();
+        }
+
+        function selectedReferBackFacility() {
+            var $select = jq("#hie-fb-refer-back");
+            var $opt = $select.find("option:selected");
+            var name = jq.trim(($opt.attr("data-name") || $opt.val() || ""));
+            var code = jq.trim(($opt.attr("data-code") || ""));
+            return { name: name, fosaId: code };
+        }
+
+        function feedbackSummaryFromResponse(response) {
+            var summary = (response && response.summary) || {};
+            var feedback = (response && response.feedback) || {};
+            var defaults = (response && response.defaults) || {};
+            return {
+                finalDiagnosis: summary.finalDiagnosis || feedback.finalDiagnosis || defaults.finalDiagnosis || "",
+                treatmentGiven: summary.treatmentGiven || feedback.treatmentGiven || defaults.treatmentGiven || "",
+                outcome: summary.outcome || feedback.outcome || defaults.outcome || "",
+                outcomeLabel: summary.outcomeLabel || feedback.outcomeLabel || "",
+                recommendations: summary.recommendations || feedback.recommendations || defaults.recommendations || "",
+                referBackToFacility: summary.referBackToFacility || feedback.referBackToFacility
+                    || defaults.referBackToFacility || "",
+                referBackToFacilityFosaId: summary.referBackToFacilityFosaId
+                    || feedback.referBackToFacilityFosaId || defaults.referBackToFacilityFosaId || "",
+                dateOfAdmissionOrSeen: summary.dateOfAdmissionOrSeen
+                    || feedback.dateOfAdmissionOrSeen || defaults.dateOfAdmissionOrSeen || "",
+                dateOfDischarge: summary.dateOfDischarge || feedback.dateOfDischarge
+                    || defaults.dateOfDischarge || "",
+                contactPerson: summary.contactPerson || feedback.contactPerson || defaults.contactPerson || "",
+                providerName: summary.providerName || feedback.providerName || defaults.providerName || "",
+                qualification: summary.qualification || feedback.qualification || defaults.qualification || "",
+                signedDate: summary.signedDate || feedback.signedDate || defaults.signedDate || "",
+                signedTime: summary.signedTime || feedback.signedTime || defaults.signedTime || "",
+                phone: summary.phone || feedback.phone || defaults.phone || "",
+                clientName: summary.clientName || "",
+                sex: summary.sex || "",
+                ageOrDob: summary.ageOrDob || ""
+            };
+        }
+
+        function hasCompletedFeedbackData(response) {
+            if (!response) {
+                return false;
+            }
+            if (response.completed === true || response.completed === "true") {
+                return true;
+            }
+            var summary = feedbackSummaryFromResponse(response);
+            return !!(summary.finalDiagnosis || summary.treatmentGiven || summary.outcome
+                || summary.recommendations || summary.dateOfDischarge);
+        }
+
+        function refreshTransferPreviewWithFeedback(response) {
+            if (!canProvideFeedback || !currentPreviewTransfer) {
+                return;
+            }
+            if (!hasCompletedFeedbackData(response)) {
+                return;
+            }
+            var summary = feedbackSummaryFromResponse(response);
+            currentPreviewTransfer.referralFeedback = summary;
+            var previewHtml = typeof buildTransferFormPreviewHtml === "function"
+                ? buildTransferFormPreviewHtml(currentPreviewTransfer)
+                : "";
+            if (previewHtml) {
+                jq("#hie-transfer-preview-body").html(previewHtml);
+            }
+            var hieSent = response && (response.hieSent === true || response.hieSent === "true");
+            runtime.feedbackCompleted = true;
+            runtime.feedbackHieSent = hieSent;
+            runtime.feedbackLoaded = true;
+            if (hieSent) {
+                jq("#hie-fb-preview-hint").hide();
+                jq("#hie-transfer-feedback-wrap").hide();
+                jq("#hie-transfer-preview-dialog").removeClass("has-feedback");
+            } else if (jq("#hie-transfer-feedback-wrap").is(":visible")) {
+                jq("#hie-fb-preview-hint").show();
+            }
+            updateProvideFeedbackButton(currentPreviewTransfer);
+        }
+
+        /**
+         * When preview opens for a recorded inbound transfer, fetch saved feedback (if any)
+         * and append REFERRAL FEEDBACK / COUNTER-REFERRAL onto the paper form.
+         */
+        function loadSavedFeedbackIntoPreview(transfer) {
+            if (!canProvideFeedback || !patientId || !transfer) {
+                return;
+            }
+            var transferUuid = transfer.uuid || transfer.id || transfer.hieTransferId || "";
+            if (!isRecordedTransferPreview(transferUuid)) {
+                return;
+            }
+            feedbackUrl = runtime.feedbackUrl || feedbackUrl;
+            jq.ajax({
+                url: feedbackUrl,
+                type: "GET",
+                data: {
+                    patientId: patientId,
+                    hieTransferId: transferUuid
+                },
+                dataType: "json",
+                headers: { "Accept": "application/json" }
+            }).done(function(response) {
+                if (!response || response.status === "error") {
+                    return;
+                }
+                // Ignore stale responses if the user opened another transfer.
+                var currentId = currentPreviewTransfer
+                    ? (currentPreviewTransfer.uuid || currentPreviewTransfer.id
+                        || currentPreviewTransfer.hieTransferId || "")
+                    : "";
+                if (currentId && currentId !== transferUuid) {
+                    return;
+                }
+                refreshTransferPreviewWithFeedback(response);
+            });
         }
 
         function originFacilityName(transfer) {
@@ -611,9 +782,20 @@
                     (response.defaults && response.defaults.referBackToFacility) || originFacilityName(transfer),
                     canSubmit
                 );
-                if (response.completed && !canSubmit) {
-                    jq("#hie-fb-status").show().css("color", "#0f766e")
-                        .text("Feedback already saved for this transfer.");
+                if (response.completed) {
+                    refreshTransferPreviewWithFeedback({
+                        feedback: response.feedback || response.defaults,
+                        hieSent: response.hieSent
+                    });
+                    if (!canSubmit) {
+                        jq("#hie-fb-status").show().css("color", "#0f766e")
+                            .text("Feedback already saved for this transfer.");
+                    }
+                } else {
+                    runtime.feedbackCompleted = false;
+                    runtime.feedbackHieSent = false;
+                    jq("#hie-fb-preview-hint").hide();
+                    updateProvideFeedbackButton(transfer);
                 }
             }).fail(function() {
                 jq("#hie-fb-status").show().css("color", "#a94442").text("Unable to load referral feedback.");
@@ -628,11 +810,10 @@
             if (e) {
                 e.preventDefault();
             }
-            canCreateTransfer = runtime.canCreateTransfer || canProvideFeedback;
             canProvideFeedback = runtime.canProvideFeedback || canProvideFeedback;
             patientId = runtime.patientId || patientId;
             feedbackUrl = runtime.feedbackUrl || feedbackUrl;
-            if ((!canCreateTransfer && !canProvideFeedback) || !currentPreviewTransfer || !patientId) {
+            if (!canProvideFeedback || !currentPreviewTransfer || !patientId) {
                 jq("#hie-fb-status").show().css("color", "#a94442")
                     .text("You do not have permission to save referral feedback.");
                 return;
@@ -645,9 +826,14 @@
                 return;
             }
             var saveBtn = jq("#hie-fb-save");
+            var actionBtn = jq("#hie-transfer-provide-feedback-btn");
             var statusEl = jq("#hie-fb-status");
+            var validateStatus = jq("#hie-transfer-validate-status");
+            var referBack = selectedReferBackFacility();
             saveBtn.prop("disabled", true).text("Saving feedback...");
+            actionBtn.prop("disabled", true);
             statusEl.hide().text("");
+            validateStatus.hide().text("");
 
             jq.ajax({
                 url: feedbackUrl,
@@ -661,7 +847,8 @@
                     treatmentGiven: jq("#hie-fb-treatment").val(),
                     outcome: selectedOutcome(),
                     recommendations: jq("#hie-fb-recommendations").val(),
-                    referBackToFacility: jq("#hie-fb-refer-back").val(),
+                    referBackToFacility: referBack.name,
+                    referBackToFacilityFosaId: referBack.fosaId,
                     contactPerson: jq("#hie-fb-contact").val(),
                     providerName: jq("#hie-fb-provider").val(),
                     qualification: jq("#hie-fb-qualification").val(),
@@ -673,22 +860,117 @@
                 headers: { "Accept": "application/json" }
             }).done(function(response) {
                 if (response && response.status === "success") {
-                    statusEl.show().css("color", "#0f766e")
-                        .text(response.message || "Referral feedback and counter-referral saved.");
+                    var savedMsg = response.message
+                        || "Referral feedback saved. Review the form above, then click Send Feedback.";
                     saveBtn.prop("disabled", false).text("Save feedback");
+                    actionBtn.prop("disabled", false);
+                    jq("#hie-transfer-feedback-wrap").hide();
+                    jq("#hie-transfer-preview-dialog").removeClass("has-feedback");
+                    jq("#hie-fb-preview-hint").hide();
+                    jq("#hie-transfer-validate-status").show().css("color", "#0f766e").text(savedMsg);
+                    refreshTransferPreviewWithFeedback(response);
                     return;
                 }
                 saveBtn.prop("disabled", false).text("Save feedback");
+                actionBtn.prop("disabled", false);
                 statusEl.show().css("color", "#a94442")
                     .text((response && response.message) || "Unable to save referral feedback.");
             }).fail(function(xhr) {
                 saveBtn.prop("disabled", false).text("Save feedback");
+                actionBtn.prop("disabled", false);
                 var message = "Unable to save referral feedback.";
                 if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
                     message = xhr.responseJSON.message;
                 }
                 statusEl.show().css("color", "#a94442").text(message);
             });
+        }
+
+        function submitReferralFeedbackToHie() {
+            canProvideFeedback = runtime.canProvideFeedback || canProvideFeedback;
+            patientId = runtime.patientId || patientId;
+            var submitUrl = runtime.feedbackSubmitUrl || (feedbackUrl + "/submit");
+            if (!canProvideFeedback || !currentPreviewTransfer || !patientId) {
+                jq("#hie-transfer-validate-status").show().css("color", "#a94442")
+                    .text("You do not have permission to send referral feedback.");
+                return;
+            }
+            var transferUuid = currentPreviewTransfer.uuid
+                || currentPreviewTransfer.id
+                || currentPreviewTransfer.hieTransferId
+                || "";
+            if (!transferUuid) {
+                return;
+            }
+            if (!runtime.feedbackCompleted || runtime.feedbackHieSent) {
+                return;
+            }
+            var actionBtn = jq("#hie-transfer-provide-feedback-btn");
+            var saveBtn = jq("#hie-fb-save");
+            var statusEl = jq("#hie-fb-status");
+            var validateStatus = jq("#hie-transfer-validate-status");
+            var labels = feedbackButtonLabels();
+            actionBtn.prop("disabled", true).text(labels.sending);
+            saveBtn.prop("disabled", true);
+            statusEl.hide().text("");
+            validateStatus.hide().text("");
+
+            jq.ajax({
+                url: submitUrl,
+                type: "POST",
+                data: {
+                    patientId: patientId,
+                    hieTransferId: transferUuid
+                },
+                dataType: "json",
+                headers: { "Accept": "application/json" }
+            }).done(function(response) {
+                if (response && response.status === "success") {
+                    var okMessage = response.message || "Referral feedback sent to HIE.";
+                    statusEl.hide().text("");
+                    validateStatus.hide().text("");
+                    if (typeof emr !== "undefined" && typeof emr.successMessage === "function") {
+                        emr.successMessage(okMessage);
+                    } else if (typeof toastr !== "undefined" && typeof toastr.success === "function") {
+                        toastr.success(okMessage);
+                    } else {
+                        validateStatus.show().css("color", "#0f766e").text(okMessage);
+                    }
+                    setFeedbackFormEnabled(false);
+                    refreshTransferPreviewWithFeedback(jq.extend({}, response, { hieSent: true }));
+                    actionBtn.prop("disabled", false);
+                    saveBtn.prop("disabled", true).text("Save feedback");
+                    return;
+                }
+                actionBtn.prop("disabled", false);
+                setFeedbackActionMode("send");
+                saveBtn.prop("disabled", false);
+                var err = (response && response.message) || "Unable to send referral feedback to HIE.";
+                statusEl.show().css("color", "#a94442").text(err);
+                validateStatus.show().css("color", "#a94442").text(err);
+            }).fail(function(xhr) {
+                actionBtn.prop("disabled", false);
+                setFeedbackActionMode("send");
+                saveBtn.prop("disabled", false);
+                var message = "Unable to send referral feedback to HIE.";
+                if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                }
+                statusEl.show().css("color", "#a94442").text(message);
+                validateStatus.show().css("color", "#a94442").text(message);
+            });
+        }
+
+        function onFeedbackActionClick(e) {
+            if (e) {
+                e.preventDefault();
+            }
+            var mode = jq("#hie-transfer-provide-feedback-btn").attr("data-mode") || "provide";
+            if (mode === "send") {
+                submitReferralFeedbackToHie();
+                return;
+            }
+            showReferralFeedbackForm();
         }
 
         function loadTransferPreview(transferId, patientUpid, link) {
@@ -698,7 +980,7 @@
             hasTransferId = runtime.hasTransferId;
             canValidate = runtime.canValidate;
             canProvideFeedback = runtime.canProvideFeedback;
-            canCreateTransfer = runtime.canCreateTransfer || canProvideFeedback;
+            canCreateTransfer = runtime.canCreateTransfer;
             restUrl = runtime.restUrl;
             validateUrl = runtime.validateUrl;
             feedbackUrl = runtime.feedbackUrl;
@@ -958,10 +1240,7 @@
         jq(document).on("submit.hieTransferFeedback", "#hie-transfer-feedback-form", saveReferralFeedback);
 
         jq(document).off("click.hieTransferProvideFeedback", "#hie-transfer-provide-feedback-btn");
-        jq(document).on("click.hieTransferProvideFeedback", "#hie-transfer-provide-feedback-btn", function(e) {
-            e.preventDefault();
-            showReferralFeedbackForm();
-        });
+        jq(document).on("click.hieTransferProvideFeedback", "#hie-transfer-provide-feedback-btn", onFeedbackActionClick);
 
         if (section.length && section.attr("data-can-list") === "true"
                 && showSection && listFromHie && !hasTransferId) {

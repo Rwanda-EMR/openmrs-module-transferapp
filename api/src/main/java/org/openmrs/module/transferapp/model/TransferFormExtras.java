@@ -40,6 +40,22 @@ public class TransferFormExtras {
 
 	private String caregiverTelephone;
 
+	private String vitalTemp;
+
+	private String vitalSpo2;
+
+	private String vitalRr;
+
+	private String vitalPulse;
+
+	private String vitalBp;
+
+	private String vitalWeight;
+
+	private String vitalHeight;
+
+	private String vitalMuac;
+
 	public String getClinicalPresentation() {
 		return clinicalPresentation;
 	}
@@ -126,6 +142,70 @@ public class TransferFormExtras {
 
 	public void setCaregiverTelephone(String caregiverTelephone) {
 		this.caregiverTelephone = caregiverTelephone;
+	}
+
+	public String getVitalTemp() {
+		return vitalTemp;
+	}
+
+	public void setVitalTemp(String vitalTemp) {
+		this.vitalTemp = vitalTemp;
+	}
+
+	public String getVitalSpo2() {
+		return vitalSpo2;
+	}
+
+	public void setVitalSpo2(String vitalSpo2) {
+		this.vitalSpo2 = vitalSpo2;
+	}
+
+	public String getVitalRr() {
+		return vitalRr;
+	}
+
+	public void setVitalRr(String vitalRr) {
+		this.vitalRr = vitalRr;
+	}
+
+	public String getVitalPulse() {
+		return vitalPulse;
+	}
+
+	public void setVitalPulse(String vitalPulse) {
+		this.vitalPulse = vitalPulse;
+	}
+
+	public String getVitalBp() {
+		return vitalBp;
+	}
+
+	public void setVitalBp(String vitalBp) {
+		this.vitalBp = vitalBp;
+	}
+
+	public String getVitalWeight() {
+		return vitalWeight;
+	}
+
+	public void setVitalWeight(String vitalWeight) {
+		this.vitalWeight = vitalWeight;
+	}
+
+	public String getVitalHeight() {
+		return vitalHeight;
+	}
+
+	public void setVitalHeight(String vitalHeight) {
+		this.vitalHeight = vitalHeight;
+	}
+
+	public String getVitalMuac() {
+		return vitalMuac;
+	}
+
+	public void setVitalMuac(String vitalMuac) {
+		this.vitalMuac = vitalMuac;
 	}
 
 }

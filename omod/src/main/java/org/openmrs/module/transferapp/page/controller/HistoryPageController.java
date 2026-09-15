@@ -24,13 +24,10 @@ import org.openmrs.ui.framework.page.PageModel;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class HistoryPageController {
 
@@ -83,7 +80,6 @@ public class HistoryPageController {
 		model.addAttribute("filterUpid", filterUpid != null ? filterUpid : "");
 		model.addAttribute("filterMonth", filterMonth != null ? filterMonth : "");
 		model.addAttribute("filterFormType", filterFormType != null ? filterFormType : "");
-		model.addAttribute("monthOptions", buildMonthOptions());
 		model.addAttribute("appId", StringUtils.isNotBlank(app) ? app.trim() : "transferapp.dashboard");
 		model.addAttribute("defaultModeToday", filterUpid == null && filterMonth == null);
 	}
@@ -114,21 +110,5 @@ public class HistoryPageController {
 
 	private String currentYearMonth() {
 		return new SimpleDateFormat("yyyy-MM", Locale.ENGLISH).format(Calendar.getInstance().getTime());
-	}
-
-	private List<Map<String, String>> buildMonthOptions() {
-		List<Map<String, String>> options = new ArrayList<Map<String, String>>();
-		Calendar calendar = Calendar.getInstance();
-		calendar.set(Calendar.DAY_OF_MONTH, 1);
-		SimpleDateFormat valueFormat = new SimpleDateFormat("yyyy-MM", Locale.ENGLISH);
-		SimpleDateFormat labelFormat = new SimpleDateFormat("MMMM yyyy", Locale.ENGLISH);
-		for (int i = 0; i < 24; i++) {
-			Map<String, String> option = new LinkedHashMap<String, String>();
-			option.put("value", valueFormat.format(calendar.getTime()));
-			option.put("label", labelFormat.format(calendar.getTime()));
-			options.add(option);
-			calendar.add(Calendar.MONTH, -1);
-		}
-		return options;
 	}
 }

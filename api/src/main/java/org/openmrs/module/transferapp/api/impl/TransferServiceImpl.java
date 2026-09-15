@@ -40,8 +40,6 @@ import org.openmrs.module.transferapp.model.TransferFormKind;
 import org.openmrs.module.transferapp.model.TransferProfile;
 import org.openmrs.module.rwandaemr.queue.QueueService;
 import org.openmrs.module.rwandaemr.queue.model.QueueEntry;
-import org.springframework.transaction.support.TransactionSynchronizationAdapter;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -297,7 +295,10 @@ public class TransferServiceImpl implements TransferService {
 		}
 
 		applyFormExtras(transfer, formExtras, isUpdate);
+		// Form vitals always win over active-visit snapshot when the form posts vital fields.
+		applyVitalSignsFromForm(transfer, formExtras, formExtras != null);
 		validateRequiredClinicalFields(transfer);
+		validateRequiredVitalFields(transfer);
 		ensureSendingFacilityMatchesOutbound(transfer);
 
 		Date now = new Date();
@@ -315,52 +316,15 @@ public class TransferServiceImpl implements TransferService {
 		if (!isUpdate) {
 			markActiveQueueEntryTransferred(patient, savedTransfer, now);
 		}
-		// Ambulance billing must not run inside this transaction: mohbilling can mark the
-		// shared TX rollback-only, and TransferAmbulanceBillingServiceImpl currently
-		// swallows those errors → UnexpectedRollbackException on commit.
-		scheduleAmbulanceBillSyncAfterCommit(savedTransfer, previousReceivingFacilityCode, previousTransportType);
+		// Run ambulance billing in the same active transaction so create/update/delete
+		// share the transfer save. Failures must propagate with mohbilling's message
+		// (do not swallow — that marks the TX rollback-only and surfaces only
+		// UnexpectedRollbackException to the UI).
+		if (transferAmbulanceBillingService != null) {
+			savedTransfer = transferAmbulanceBillingService.syncAmbulanceBill(
+					savedTransfer, previousReceivingFacilityCode, previousTransportType);
+		}
 		return savedTransfer;
-	}
-
-	/**
-	 * Runs ambulance bill create/update/delete only after the transfer save has committed,
-	 * in a separate service transaction.
-	 */
-	private void scheduleAmbulanceBillSyncAfterCommit(final Transfer savedTransfer,
-			final String previousReceivingFacilityCode, final String previousTransportType) {
-		if (transferAmbulanceBillingService == null || savedTransfer == null
-				|| StringUtils.isBlank(savedTransfer.getUuid())) {
-			return;
-		}
-		final String transferUuid = savedTransfer.getUuid();
-		Runnable sync = new Runnable() {
-			@Override
-			public void run() {
-				try {
-					Transfer latest = transferDao.getTransferByUuid(transferUuid);
-					if (latest == null || latest.isVoided()) {
-						return;
-					}
-					transferAmbulanceBillingService.syncAmbulanceBill(
-							latest, previousReceivingFacilityCode, previousTransportType);
-				}
-				catch (Exception ex) {
-					log.warn("Ambulance bill sync failed after saving transfer " + transferUuid + ": "
-							+ StringUtils.defaultString(ex.getMessage()), ex);
-				}
-			}
-		};
-		if (TransactionSynchronizationManager.isSynchronizationActive()) {
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
-				@Override
-				public void afterCommit() {
-					sync.run();
-				}
-			});
-		}
-		else {
-			sync.run();
-		}
 	}
 
 	protected void markActiveQueueEntryTransferred(Patient patient, Transfer transfer, Date transferDate) {
@@ -375,18 +339,32 @@ public class TransferServiceImpl implements TransferService {
 			if (replaceClinicalFields || StringUtils.isNotBlank(formExtras.getClinicalPresentation())) {
 				transfer.setClinicalPresentation(StringUtils.trimToNull(formExtras.getClinicalPresentation()));
 			}
-			transfer.setDisabilityType(StringUtils.trimToNull(formExtras.getDisabilityType()));
-			transfer.setLaboratory(StringUtils.trimToNull(formExtras.getLaboratory()));
-			transfer.setProceduresTreatments(StringUtils.trimToNull(formExtras.getProceduresTreatments()));
-			transfer.setOtherNotes(StringUtils.trimToNull(formExtras.getOtherNotes()));
+			// Disability is not on the simplified external form — only overwrite when supplied.
+			if (StringUtils.isNotBlank(formExtras.getDisabilityType())) {
+				transfer.setDisabilityType(StringUtils.trimToNull(formExtras.getDisabilityType()));
+			}
+			if (replaceClinicalFields || StringUtils.isNotBlank(formExtras.getLaboratory())) {
+				transfer.setLaboratory(StringUtils.trimToNull(formExtras.getLaboratory()));
+			}
+			if (replaceClinicalFields || StringUtils.isNotBlank(formExtras.getProceduresTreatments())) {
+				transfer.setProceduresTreatments(StringUtils.trimToNull(formExtras.getProceduresTreatments()));
+			}
+			if (replaceClinicalFields || StringUtils.isNotBlank(formExtras.getOtherNotes())) {
+				transfer.setOtherNotes(StringUtils.trimToNull(formExtras.getOtherNotes()));
+			}
 			if (replaceClinicalFields || StringUtils.isNotBlank(formExtras.getDiagnosis())) {
 				transfer.setDiagnosis(StringUtils.trimToNull(formExtras.getDiagnosis()));
 			}
 			if (StringUtils.isNotBlank(formExtras.getProviderQualification())) {
 				transfer.setProviderQualification(StringUtils.trimToNull(formExtras.getProviderQualification()));
 			}
-			transfer.setSignedDate(parseDateValue(formExtras.getSignedDate()));
-			transfer.setSignedTime(StringUtils.trimToNull(formExtras.getSignedTime()));
+			// Preserve existing sign-off unless the form explicitly sends new values.
+			if (StringUtils.isNotBlank(formExtras.getSignedDate())) {
+				transfer.setSignedDate(parseDateValue(formExtras.getSignedDate()));
+			}
+			if (StringUtils.isNotBlank(formExtras.getSignedTime())) {
+				transfer.setSignedTime(StringUtils.trimToNull(formExtras.getSignedTime()));
+			}
 		}
 
 		applyProviderProfileDetails(transfer);
@@ -406,6 +384,61 @@ public class TransferServiceImpl implements TransferService {
 		}
 		if (StringUtils.isBlank(transfer.getDiagnosis())) {
 			throw new APIException("Diagnosis is required");
+		}
+	}
+
+	private void applyVitalSignsFromForm(Transfer transfer, TransferFormExtras formExtras, boolean replaceFromForm) {
+		if (transfer == null || formExtras == null) {
+			return;
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalTemp())) {
+			transfer.setVitalTemp(StringUtils.trimToNull(formExtras.getVitalTemp()));
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalSpo2())) {
+			transfer.setVitalSpo2(StringUtils.trimToNull(formExtras.getVitalSpo2()));
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalRr())) {
+			transfer.setVitalRr(StringUtils.trimToNull(formExtras.getVitalRr()));
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalPulse())) {
+			transfer.setVitalPulse(StringUtils.trimToNull(formExtras.getVitalPulse()));
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalBp())) {
+			transfer.setVitalBp(StringUtils.trimToNull(formExtras.getVitalBp()));
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalWeight())) {
+			transfer.setVitalWt(StringUtils.trimToNull(formExtras.getVitalWeight()));
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalHeight())) {
+			transfer.setVitalHt(StringUtils.trimToNull(formExtras.getVitalHeight()));
+		}
+		// MUAC is optional; still accept an explicit blank on edit/replace.
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalMuac())) {
+			transfer.setVitalMuac(StringUtils.trimToNull(formExtras.getVitalMuac()));
+		}
+	}
+
+	private void validateRequiredVitalFields(Transfer transfer) {
+		if (StringUtils.isBlank(transfer.getVitalBp())) {
+			throw new APIException("Blood pressure (BP) is required");
+		}
+		if (StringUtils.isBlank(transfer.getVitalTemp())) {
+			throw new APIException("Temperature is required");
+		}
+		if (StringUtils.isBlank(transfer.getVitalSpo2())) {
+			throw new APIException("SpO2 is required");
+		}
+		if (StringUtils.isBlank(transfer.getVitalRr())) {
+			throw new APIException("Respiratory rate (RR) is required");
+		}
+		if (StringUtils.isBlank(transfer.getVitalPulse())) {
+			throw new APIException("Pulse is required");
+		}
+		if (StringUtils.isBlank(transfer.getVitalWt())) {
+			throw new APIException("Weight is required");
+		}
+		if (StringUtils.isBlank(transfer.getVitalHt())) {
+			throw new APIException("Height is required");
 		}
 	}
 

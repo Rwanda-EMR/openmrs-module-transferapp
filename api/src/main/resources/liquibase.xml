@@ -944,6 +944,23 @@
         </createIndex>
     </changeSet>
 
+    <changeSet id="transferapp-20260915-feedback-refer-back-fosa-id" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="transfer_referral_feedback"/>
+                <not>
+                    <columnExists tableName="transfer_referral_feedback" columnName="refer_back_to_facility_fosa_id"/>
+                </not>
+            </and>
+        </preConditions>
+        <comment>Store counter-referral destination fosa-id for HIE referred-back-to encoding</comment>
+        <addColumn tableName="transfer_referral_feedback">
+            <column name="refer_back_to_facility_fosa_id" type="varchar(64)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
     <changeSet id="transferapp-20250813-receiving-facility-external" author="MoH Team">
         <preConditions onFail="MARK_RAN">
             <and>

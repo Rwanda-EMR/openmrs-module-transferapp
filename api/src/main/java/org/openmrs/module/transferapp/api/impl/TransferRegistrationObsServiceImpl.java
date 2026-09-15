@@ -85,6 +85,16 @@ public class TransferRegistrationObsServiceImpl implements TransferRegistrationO
 		return destinationMatchesAnyFacility(destination, sendingLocationResolver.resolveCurrentSendingFacilityNames());
 	}
 
+	@Override
+	public boolean destinationMatchesSendingFacilityName(String destination) {
+		List<String> aliases = TransferSendingLocationResolver.parseFacilityNames(
+				Context.getAdministrationService().getGlobalProperty(TransferAppConstants.GP_SENDING_FACILITY_NAME));
+		if (!aliases.isEmpty()) {
+			return destinationMatchesAnyFacility(destination, aliases);
+		}
+		return destinationMatchesCurrentFacility(destination);
+	}
+
 	/**
 	 * True when {@code destination} equals / contains / is contained by any configured facility alias.
 	 */
@@ -236,6 +246,12 @@ public class TransferRegistrationObsServiceImpl implements TransferRegistrationO
 	@Override
 	@SuppressWarnings("unchecked")
 	public Map<String, Object> validateAndSaveTransferId(Integer patientId, String hieTransferId) {
+		return validateAndSaveTransferId(patientId, hieTransferId, null);
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public Map<String, Object> validateAndSaveTransferId(Integer patientId, String hieTransferId, Integer visitId) {
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		result.put("status", "error");
 
@@ -254,9 +270,13 @@ public class TransferRegistrationObsServiceImpl implements TransferRegistrationO
 			return result;
 		}
 
-		Encounter registrationEncounter = findRegistrationEncounterMissingTransferId(patient);
+		Encounter registrationEncounter = visitId != null
+				? findRegistrationEncounterMissingTransferIdOnVisit(patient, visitId)
+				: findRegistrationEncounterMissingTransferId(patient);
 		if (registrationEncounter == null) {
-			result.put("message", "No active registration encounter missing Transfer Id was found");
+			result.put("message", visitId != null
+					? "No registration encounter missing Transfer Id was found on this visit"
+					: "No active registration encounter missing Transfer Id was found");
 			return result;
 		}
 
@@ -283,7 +303,7 @@ public class TransferRegistrationObsServiceImpl implements TransferRegistrationO
 
 		Map<String, Object> hieTransfer = items.get(0);
 		String destination = resolveDestination(hieTransfer);
-		if (!destinationMatchesCurrentFacility(destination)) {
+		if (!destinationMatchesSendingFacilityName(destination)) {
 			result.put("message", "This transfer is not addressed to the current facility");
 			return result;
 		}
@@ -309,7 +329,8 @@ public class TransferRegistrationObsServiceImpl implements TransferRegistrationO
 		obsService.saveObs(obs, null);
 
 		log.info("Saved Transfer Id obs on registration encounter "
-				+ registrationEncounter.getEncounterId() + " for patient " + patientId);
+				+ registrationEncounter.getEncounterId() + " for patient " + patientId
+				+ (visitId != null ? (" visit " + visitId) : ""));
 
 		Transfer localTransfer = null;
 		if (transferHieReceiveService != null) {
@@ -323,12 +344,51 @@ public class TransferRegistrationObsServiceImpl implements TransferRegistrationO
 		result.put("encounterId", registrationEncounter.getEncounterId());
 		result.put("transferId", hieTransferId.trim());
 		result.put("destination", destination);
+		if (visitId != null) {
+			result.put("visitId", visitId);
+		}
 		if (localTransfer != null) {
 			result.put("localTransferUuid", localTransfer.getUuid());
+			result.put("uuid", localTransfer.getUuid());
 			result.put("localTransferId", localTransfer.getTransferId());
 			result.put("receivedFromHie", Boolean.TRUE);
 		}
 		return result;
+	}
+
+	Encounter findRegistrationEncounterMissingTransferIdOnVisit(Patient patient, Integer visitId) {
+		if (patient == null || visitId == null) {
+			return null;
+		}
+		Visit visit = Context.getVisitService().getVisit(visitId);
+		if (visit == null || Boolean.TRUE.equals(visit.getVoided())) {
+			return null;
+		}
+		if (visit.getPatient() == null || visit.getPatient().getPatientId() == null
+				|| !visit.getPatient().getPatientId().equals(patient.getPatientId())) {
+			return null;
+		}
+		Integer registrationTypeId = resolveRegistrationEncounterTypeId();
+		if (registrationTypeId == null) {
+			return null;
+		}
+		Concept transferIdConcept = resolveTransferIdConcept();
+		if (transferIdConcept == null) {
+			return null;
+		}
+		List<Encounter> registrationEncounters = findRegistrationEncountersOnVisit(
+				Context.getEncounterService().getEncountersByVisit(visit, false),
+				registrationTypeId,
+				visit);
+		if (registrationEncounters.isEmpty()) {
+			return null;
+		}
+		for (Encounter encounter : registrationEncounters) {
+			if (findTransferIdValueText(encounter, transferIdConcept) == null) {
+				return encounter;
+			}
+		}
+		return null;
 	}
 
 	static String resolveDestination(Map<String, Object> transfer) {

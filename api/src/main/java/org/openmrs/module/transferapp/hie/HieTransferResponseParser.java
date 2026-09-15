@@ -329,33 +329,37 @@ public class HieTransferResponseParser {
         }
 
         transfer.put("clientName", firstNonBlank(
-                extractNestedExtensionValue(resource, EXT_PATIENT_DEMOGRAPHICS, "name"),
+                extractNestedPreferTopThenDetails(resource, EXT_PATIENT_DEMOGRAPHICS, "name"),
                 asString(transfer.get("clientName"))));
         transfer.put("serialNumberOrEmrId", firstNonBlank(
-                extractNestedExtensionValue(resource, EXT_PATIENT_DEMOGRAPHICS, "serial-number"),
+                extractNestedPreferTopThenDetails(resource, EXT_PATIENT_DEMOGRAPHICS, "serial-number"),
                 asString(transfer.get("serialNumberOrEmrId"))));
-        String patientDob = extractNestedExtensionValue(resource, EXT_PATIENT_DEMOGRAPHICS, "dob");
-        String patientAge = extractNestedExtensionValue(resource, EXT_PATIENT_DEMOGRAPHICS, "age");
+        String patientDob = extractNestedPreferTopThenDetails(resource, EXT_PATIENT_DEMOGRAPHICS, "dob");
+        String patientAge = extractNestedPreferTopThenDetails(resource, EXT_PATIENT_DEMOGRAPHICS, "age");
         transfer.put("ageDob", formatAgeOrDob(patientAge, patientDob));
-        transfer.put("sex", extractNestedExtensionValue(resource, EXT_PATIENT_DEMOGRAPHICS, "gender"));
+        transfer.put("sex", extractNestedPreferTopThenDetails(resource, EXT_PATIENT_DEMOGRAPHICS, "gender"));
         String patientPhone = firstNonBlank(
                 extractExtensionLeafValue(resource, EXT_PATIENT_PHONE),
-                extractNestedExtensionValue(resource, EXT_PATIENT_DEMOGRAPHICS, "phone"));
+                extractNestedPreferTopThenDetails(resource, EXT_PATIENT_DEMOGRAPHICS, "phone"));
         transfer.put("clientTelephone", patientPhone);
 
-        transfer.put("caregiverName", extractNestedExtensionValue(resource, EXT_CAREGIVER_INFO, "name"));
-        String caregiverPhone = extractNestedExtensionValue(resource, EXT_CAREGIVER_INFO, "phone");
+        transfer.put("caregiverName", extractNestedPreferTopThenDetails(resource, EXT_CAREGIVER_INFO, "name"));
+        String caregiverPhone = extractNestedPreferTopThenDetails(resource, EXT_CAREGIVER_INFO, "phone");
         transfer.put("caregiverTelephone", caregiverPhone);
         transfer.put("telephone", firstNonBlank(patientPhone, caregiverPhone));
         transfer.put("patientPhone", patientPhone);
 
-        transfer.put("province", stripCodePrefix(extractExtensionValue(resource, EXT_RECEIVING_PROVINCE)));
-        transfer.put("district", stripCodePrefix(extractExtensionValue(resource, EXT_RECEIVING_DISTRICT)));
+        transfer.put("province", stripCodePrefix(extractLeafPreferTopThenDetails(resource, EXT_RECEIVING_PROVINCE)));
+        transfer.put("district", stripCodePrefix(extractLeafPreferTopThenDetails(resource, EXT_RECEIVING_DISTRICT)));
 
-        transfer.put("patientDistrict", stripCodePrefix(extractNestedExtensionValue(resource, EXT_PATIENT_ADDRESS, "district")));
-        transfer.put("patientSector", stripCodePrefix(extractNestedExtensionValue(resource, EXT_PATIENT_ADDRESS, "sector")));
-        transfer.put("patientCell", stripCodePrefix(extractNestedExtensionValue(resource, EXT_PATIENT_ADDRESS, "cell")));
-        transfer.put("patientVillage", stripCodePrefix(extractNestedExtensionValue(resource, EXT_PATIENT_ADDRESS, "village")));
+        transfer.put("patientDistrict", stripCodePrefix(
+                extractNestedPreferTopThenDetails(resource, EXT_PATIENT_ADDRESS, "district")));
+        transfer.put("patientSector", stripCodePrefix(
+                extractNestedPreferTopThenDetails(resource, EXT_PATIENT_ADDRESS, "sector")));
+        transfer.put("patientCell", stripCodePrefix(
+                extractNestedPreferTopThenDetails(resource, EXT_PATIENT_ADDRESS, "cell")));
+        transfer.put("patientVillage", stripCodePrefix(
+                extractNestedPreferTopThenDetails(resource, EXT_PATIENT_ADDRESS, "village")));
 
         JsonNode period = resource.get("period");
         String periodStart = "";
@@ -482,14 +486,15 @@ public class HieTransferResponseParser {
             }
         }
 
+        String clinicalPresentationLeaf = extractLeafPreferTopThenDetails(resource, EXT_CLINICAL_PRESENTATION);
         transfer.put("reasonForTransfer", firstNonBlank(
-                extractNestedExtensionValue(resource, EXT_CLINICAL_PRESENTATION, "immediate-condition"),
+                extractNestedPreferTopThenDetails(resource, EXT_CLINICAL_PRESENTATION, "immediate-condition"),
                 extractNestedExtensionValue(resource, EXT_TRANSFER_FLAGS, "consultation-motif"),
-                extractExtensionValue(resource, EXT_CLINICAL_PRESENTATION),
+                clinicalPresentationLeaf,
                 reasonCodeText));
         transfer.put("clinicalPresentation", firstNonBlank(
-                extractNestedExtensionValue(resource, EXT_CLINICAL_PRESENTATION, "presentation"),
-                extractExtensionValue(resource, EXT_CLINICAL_PRESENTATION),
+                extractNestedPreferTopThenDetails(resource, EXT_CLINICAL_PRESENTATION, "presentation"),
+                clinicalPresentationLeaf,
                 diagnosisDisplay));
         transfer.put("diagnosis", diagnosisDisplay);
 
@@ -509,24 +514,24 @@ public class HieTransferResponseParser {
         }
         transfer.put("referringProviderName", TransferProfile.formatCareProviderName(
                 firstNonBlank(
-                        extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "name"),
+                        extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "name"),
                         referringProviderName),
                 firstNonBlank(
                         extractNestedExtensionValue(resource, EXT_DOCTOR_DETAILS, "license-number"),
-                        extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "license-number"),
+                        extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "license-number"),
                         referringProviderLicense)));
         transfer.put("referringProviderQualification", firstNonBlank(
                 extractNestedCodingDisplay(resource, EXT_DOCTOR_DETAILS, "qualification"),
-                extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "qualification")));
+                extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "qualification")));
         transfer.put("providerPhone", firstNonBlank(
                 extractNestedExtensionValue(resource, EXT_DOCTOR_DETAILS, "phone-number"),
-                extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "phone")));
+                extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "phone")));
         transfer.put("providerSpecialty", extractNestedCodingDisplay(resource, EXT_DOCTOR_DETAILS, "specialty"));
         transfer.put("formDate", firstNonBlank(
-                extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "signed-date"),
+                extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "signed-date"),
                 toDateOnly(periodStart)));
         transfer.put("formTime", firstNonBlank(
-                extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "signed-time"),
+                extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "signed-time"),
                 toTimeOnly(periodStart)));
 
         applyTransportFields(resource, transfer);
@@ -564,14 +569,14 @@ public class HieTransferResponseParser {
             transfer.put("healthInsuranceType", "NONE");
         }
 
-        transfer.put("laboratory", extractExtensionValue(resource, EXT_LAB_RESULTS));
+        transfer.put("laboratory", extractLeafPreferTopThenDetails(resource, EXT_LAB_RESULTS));
         transfer.put("others", firstNonBlank(
-                extractExtensionValue(resource, EXT_OTHERS),
-                extractExtensionValue(resource, EXT_ADDITIONAL_NOTES)));
+                extractLeafPreferTopThenDetails(resource, EXT_OTHERS),
+                extractLeafPreferTopThenDetails(resource, EXT_ADDITIONAL_NOTES)));
         transfer.put("proceduresAndTreatments", firstNonBlank(
-                extractExtensionValue(resource, EXT_PROCEDURES_AND_TREATMENTS),
+                extractLeafPreferTopThenDetails(resource, EXT_PROCEDURES_AND_TREATMENTS),
                 extractNestedExtensionValue(resource, EXT_TRANSFER_FLAGS, "prescriptions")));
-        String vitals = extractExtensionValue(resource, EXT_VITAL_SIGNS);
+        String vitals = extractLeafPreferTopThenDetails(resource, EXT_VITAL_SIGNS);
         parseVitalSignsIntoTransfer(vitals, transfer);
 
         String extWeight = extractNestedExtensionValue(resource, EXT_EXTENDED_VITALS, "weight");
@@ -590,12 +595,126 @@ public class HieTransferResponseParser {
         applyInsuranceAgentVerificationFlags(resource, transfer);
         applyEtransferFormFallback(transfer, extractEtransferFormNode(resource));
         applyPeriodDatetimeFallbacks(transfer, periodStart, periodEnd);
+        applyReferralFeedbackFromEncounter(resource, transfer);
         transfer.put("referringProviderName", TransferProfile.formatCareProviderName(
                 asString(transfer.get("referringProviderName")),
                 firstNonBlank(
                         extractNestedExtensionValue(resource, EXT_DOCTOR_DETAILS, "license-number"),
-                        extractNestedExtensionValue(resource, EXT_PRACTITIONER_INFO, "license-number"),
+                        extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "license-number"),
                         referringProviderLicense)));
+    }
+
+    /**
+     * Reads {@code referral-feedback} / {@code counter-referral} from under transfer-details
+     * (same shape {@link ReferralFeedbackEncounterPatcher} writes) or top-level if present.
+     * Populates {@code referralFeedback} for paper-form preview when HIE already has feedback.
+     */
+    private void applyReferralFeedbackFromEncounter(JsonNode resource, Map<String, Object> transfer) {
+        if (transfer.get("referralFeedback") instanceof Map) {
+            return;
+        }
+        JsonNode feedbackExt = findNestedExtensionNode(resource, EXT_TRANSFER_DETAILS, "referral-feedback");
+        if (feedbackExt == null) {
+            feedbackExt = findExtensionNode(resource, "referral-feedback");
+        }
+        JsonNode counterExt = findNestedExtensionNode(resource, EXT_TRANSFER_DETAILS, "counter-referral");
+        if (counterExt == null) {
+            counterExt = findExtensionNode(resource, "counter-referral");
+        }
+        if (feedbackExt == null && counterExt == null) {
+            return;
+        }
+
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        String finalDiagnosis = childLeaf(feedbackExt, "final-diagnosis-comment");
+        String treatmentGiven = firstNonBlank(
+                deepChildLeaf(feedbackExt, "treatment-given", "description"),
+                childLeaf(feedbackExt, "treatment-given"));
+        String outcomeRaw = firstNonBlank(
+                childCodingCode(feedbackExt, "outcome"),
+                childCodingDisplay(feedbackExt, "outcome"));
+        org.openmrs.module.transferapp.model.ReferralFeedbackOutcome outcome =
+                org.openmrs.module.transferapp.model.ReferralFeedbackOutcome.fromStoredValue(outcomeRaw);
+        String recommendations = firstNonBlank(
+                childLeaf(feedbackExt, "comments"),
+                childLeaf(counterExt, "recommendation"));
+        String referBackFacility = firstNonBlank(
+                deepChildLeaf(counterExt, "referred-back-to", "facility-name"),
+                childLeaf(counterExt, "referred-back-to"));
+        String referBackFosa = deepChildLeaf(counterExt, "referred-back-to", "fosa-id");
+
+        summary.put("finalDiagnosis", finalDiagnosis);
+        summary.put("treatmentGiven", treatmentGiven);
+        summary.put("outcome", outcome != null ? outcome.name() : outcomeRaw);
+        summary.put("outcomeLabel", outcome != null ? outcome.getLabel() : outcomeRaw);
+        summary.put("outcomeHieCode", outcome != null ? outcome.getHieCode() : outcomeRaw);
+        summary.put("recommendations", recommendations);
+        summary.put("referBackToFacility", referBackFacility);
+        summary.put("referBackToFacilityFosaId", referBackFosa);
+        summary.put("dateOfAdmissionOrSeen", childLeaf(feedbackExt, "date-of-admission"));
+        summary.put("dateOfDischarge", childLeaf(feedbackExt, "date-of-discharge"));
+        summary.put("followUpDate", firstNonBlank(
+                childLeaf(counterExt, "follow-up-date"),
+                childLeaf(feedbackExt, "signed-date"),
+                childLeaf(feedbackExt, "date-of-discharge")));
+        summary.put("contactPerson", firstNonBlank(
+                childLeaf(feedbackExt, "contact-person"),
+                childLeaf(counterExt, "contact-person")));
+        summary.put("providerName", firstNonBlank(
+                childLeaf(feedbackExt, "provider-name"),
+                childLeaf(counterExt, "provider-name")));
+        summary.put("qualification", firstNonBlank(
+                childLeaf(feedbackExt, "qualification"),
+                childLeaf(counterExt, "qualification")));
+        summary.put("signedDate", firstNonBlank(
+                childLeaf(feedbackExt, "signed-date"),
+                childLeaf(counterExt, "signed-date")));
+        summary.put("signedTime", firstNonBlank(
+                childLeaf(feedbackExt, "signed-time"),
+                childLeaf(counterExt, "signed-time")));
+        summary.put("phone", firstNonBlank(
+                childLeaf(feedbackExt, "phone"),
+                childLeaf(counterExt, "phone")));
+        summary.put("clientName", asString(transfer.get("clientName")));
+        summary.put("sex", asString(transfer.get("sex")));
+        summary.put("ageOrDob", asString(transfer.get("ageDob")));
+        summary.put("transferType", firstNonBlank(
+                extractNestedCodingCode(resource, EXT_TRANSFER_DETAILS, "transfer-type"),
+                "COUNTER_REFERRAL"));
+        summary.put("fromHie", Boolean.TRUE);
+
+        boolean hasContent = !isPlaceholderEmpty(finalDiagnosis)
+                || !isPlaceholderEmpty(treatmentGiven)
+                || !isPlaceholderEmpty(outcomeRaw)
+                || !isPlaceholderEmpty(recommendations)
+                || !isPlaceholderEmpty(referBackFacility)
+                || !isPlaceholderEmpty(asString(summary.get("dateOfDischarge")))
+                || !isPlaceholderEmpty(asString(summary.get("dateOfAdmissionOrSeen")));
+        if (hasContent) {
+            transfer.put("referralFeedback", summary);
+        }
+    }
+
+    private String childLeaf(JsonNode parentExt, String childUrl) {
+        return leafExtensionValue(findChildExtensionNode(parentExt, childUrl));
+    }
+
+    private String deepChildLeaf(JsonNode parentExt, String midUrl, String childUrl) {
+        JsonNode mid = findChildExtensionNode(parentExt, midUrl);
+        return leafExtensionValue(findChildExtensionNode(mid, childUrl));
+    }
+
+    private String childCodingCode(JsonNode parentExt, String childUrl) {
+        return codingCode(findChildExtensionNode(parentExt, childUrl));
+    }
+
+    private String childCodingDisplay(JsonNode parentExt, String childUrl) {
+        JsonNode child = findChildExtensionNode(parentExt, childUrl);
+        String display = codingDisplayFromExtension(child);
+        if (display != null && display.trim().length() > 0) {
+            return display;
+        }
+        return leafExtensionValue(child);
     }
 
     /**
@@ -840,11 +959,42 @@ public class HieTransferResponseParser {
             return "";
         }
         for (String value : values) {
-            if (value != null && value.trim().length() > 0) {
-                return value;
+            if (!isPlaceholderEmpty(value)) {
+                return value.trim();
             }
         }
         return "";
+    }
+
+    /**
+     * Empty optional fields in some HIE samples are encoded as a lone "," (or ".").
+     * Treat those as absent so they do not render on the transfer form.
+     */
+    private boolean isPlaceholderEmpty(String value) {
+        if (value == null) {
+            return true;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() || ",".equals(trimmed) || ".".equals(trimmed);
+    }
+
+    /**
+     * Prefer a top-level Encounter extension leaf; fall back to the same URL nested under
+     * {@code transfer-details} (outbound External Transfer / sample_transfer_gahini shape).
+     */
+    private String extractLeafPreferTopThenDetails(JsonNode resource, String extensionUrl) {
+        return firstNonBlank(
+                extractExtensionValue(resource, extensionUrl),
+                extractNestedExtensionValue(resource, EXT_TRANSFER_DETAILS, extensionUrl));
+    }
+
+    /**
+     * Prefer parent/child nesting at Encounter top level; fall back under {@code transfer-details}.
+     */
+    private String extractNestedPreferTopThenDetails(JsonNode resource, String parentUrl, String childUrl) {
+        return firstNonBlank(
+                extractNestedExtensionValue(resource, parentUrl, childUrl),
+                extractDeepNestedString(resource, EXT_TRANSFER_DETAILS, parentUrl, childUrl));
     }
 
     private JsonNode extractEtransferFormNode(JsonNode resource) {
@@ -1151,7 +1301,7 @@ public class HieTransferResponseParser {
                 extractNestedExtensionValue(resource,
                         TransferAppConstants.EXT_AMBULANCE_PROVIDER_FACILITY,
                         TransferAppConstants.EXT_AMBULANCE_PROVIDER_NAME)));
-        if (transportComments != null && transportComments.trim().length() > 0) {
+        if (!isPlaceholderEmpty(transportComments)) {
             transfer.put("transportComments", transportComments.trim());
             if (asString(transfer.get("others")).trim().isEmpty() && !ambulance) {
                 transfer.put("others", transportComments.trim());

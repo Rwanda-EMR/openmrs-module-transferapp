@@ -820,3 +820,115 @@ body.transfer-history-preview-open {
   display: table;
   clear: both;
 }
+
+.past-transfers-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 20000;
+}
+
+#past-transfers-preview-dialog.transfer-preview-dialog.dialog,
+#past-transfers-hie-dialog.dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20001;
+  background: white;
+  border: 1px solid #00473f;
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  max-width: 95%;
+  max-height: 92vh;
+  width: 1400px;
+  display: none;
+  flex-direction: column;
+  margin: 0;
+}
+
+#past-transfers-hie-dialog.dialog {
+  width: 960px;
+}
+
+#past-transfers-preview-dialog .dialog-header,
+#past-transfers-hie-dialog .dialog-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid #00473f;
+  background: #00473f;
+  border-radius: 4px 4px 0 0;
+  color: #fff;
+  flex: 0 0 auto;
+}
+
+#past-transfers-preview-dialog .dialog-header h3,
+#past-transfers-hie-dialog .dialog-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+}
+
+#past-transfers-preview-dialog .dialog-content,
+#past-transfers-hie-dialog .dialog-content {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#past-transfers-preview-dialog .transfer-preview-actions,
+#past-transfers-hie-dialog .transfer-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+body.past-transfers-modal-open {
+  overflow: hidden;
+}
+
+.past-transfers-status {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.past-transfers-hie-meta {
+  margin: 0 0 12px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.transfer-past-action .button {
+  min-width: 34px;
+  text-align: center;
+}
+
+.past-transfers-hie-table-wrap {
+  margin-top: 4px;
+}
+
+.past-transfers-hie-action {
+  color: #64748b;
+}
+
+.past-transfers-status-line {
+  margin: 0 0 10px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.past-transfers-load-more-wrap {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.past-transfers-load-more-wrap #past-transfers-load-more {
+  min-width: 160px;
+}
+

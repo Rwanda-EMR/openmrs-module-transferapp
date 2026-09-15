@@ -28,9 +28,21 @@ public interface TransferHieSearchService {
 
 	@Authorized(value = {
 			TransferAppActivator.PRIVILEGE_LIST_TRANSFERS,
-			TransferAppActivator.PRIVILEGE_LIST_PENDING }, requireAll = false)
+			TransferAppActivator.PRIVILEGE_LIST_PENDING,
+			TransferAppActivator.PRIVILEGE_PAST_TRANSFERS }, requireAll = false)
 	@Transactional(readOnly = true)
 	Map<String, Object> searchTransfers(String upid, String transferId, boolean activeOnly);
+
+	/**
+	 * Lists HIE transfers for a patient between inclusive ISO dates ({@code yyyy-MM-dd}).
+	 * When either bound is blank, behaves like an unfiltered patient transfer list.
+	 */
+	@Authorized(value = {
+			TransferAppActivator.PRIVILEGE_LIST_TRANSFERS,
+			TransferAppActivator.PRIVILEGE_LIST_PENDING,
+			TransferAppActivator.PRIVILEGE_PAST_TRANSFERS }, requireAll = false)
+	@Transactional(readOnly = true)
+	Map<String, Object> searchTransfers(String upid, String transferId, String fromDate, String endDate);
 
 	/**
 	 * Lists pending inbound transfers for the current facility from HIE.

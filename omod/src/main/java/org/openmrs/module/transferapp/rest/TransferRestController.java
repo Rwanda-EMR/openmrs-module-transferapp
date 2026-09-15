@@ -59,7 +59,9 @@ public class TransferRestController {
 					"UPID parameter is required. Usage: /rest/v1/transferapp/transfer?upid=<patient-upid>[&activeOnly=true]");
 		}
 
-		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
+		boolean canList = TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
+				|| TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_PAST_TRANSFERS);
+		if (!canList) {
 			SimpleObject denied = new SimpleObject();
 			denied.put("status", "error");
 			denied.put("message", TransferPrivilegeHelper.requiredPrivilegeMessage(
@@ -78,16 +80,37 @@ public class TransferRestController {
 			}
 		}
 
+		String fromDate = request.getParameter("fromDate");
+		String endDate = request.getParameter("endDate");
+		if (fromDate != null) {
+			fromDate = fromDate.trim();
+			if (fromDate.isEmpty()) {
+				fromDate = null;
+			}
+		}
+		if (endDate != null) {
+			endDate = endDate.trim();
+			if (endDate.isEmpty()) {
+				endDate = null;
+			}
+		}
+
 		String activeOnlyParam = request.getParameter("activeOnly");
 		boolean activeOnly = false;
 		if (activeOnlyParam != null && !activeOnlyParam.trim().isEmpty()) {
 			activeOnly = Boolean.parseBoolean(activeOnlyParam.trim());
 		}
 
-		log.info("Transfer REST API endpoint called for UPID: " + upid + ", activeOnly: " + activeOnly);
+		log.info("Transfer REST API endpoint called for UPID: " + upid + ", activeOnly: " + activeOnly
+				+ ", fromDate: " + fromDate + ", endDate: " + endDate);
 
 		try {
-			Map<String, Object> searchResult = getTransferHieSearchService().searchTransfers(upid, transferId, activeOnly);
+			Map<String, Object> searchResult;
+			if (fromDate != null && endDate != null) {
+				searchResult = getTransferHieSearchService().searchTransfers(upid, transferId, fromDate, endDate);
+			} else {
+				searchResult = getTransferHieSearchService().searchTransfers(upid, transferId, activeOnly);
+			}
 			return toSimpleObject(searchResult);
 		}
 		catch (Exception ex) {
@@ -158,7 +181,8 @@ public class TransferRestController {
 	@ResponseBody
 	public Object validateTransfer(HttpServletResponse response,
 			@RequestParam("patientId") Integer patientId,
-			@RequestParam("hieTransferId") String hieTransferId) throws ResponseException {
+			@RequestParam("hieTransferId") String hieTransferId,
+			@RequestParam(value = "visitId", required = false) Integer visitId) throws ResponseException {
 
 		if (patientId == null) {
 			throw new IllegalRequestException("patientId parameter is required");
@@ -179,7 +203,7 @@ public class TransferRestController {
 
 		try {
 			Map<String, Object> serviceResult = getTransferRegistrationObsService()
-					.validateAndSaveTransferId(patientId, hieTransferId.trim());
+					.validateAndSaveTransferId(patientId, hieTransferId.trim(), visitId);
 			return toSimpleObject(serviceResult);
 		}
 		catch (Exception ex) {
@@ -259,11 +283,11 @@ public class TransferRestController {
 	@ResponseBody
 	public Object listCounterReferralFacilities(HttpServletResponse response) throws ResponseException {
 		SimpleObject result = new SimpleObject();
-		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_FEEDBACK)) {
 			result.put("status", "error");
 			result.put("message", TransferPrivilegeHelper.requiredPrivilegeMessage(
-					TransferAppActivator.PRIVILEGE_LIST_TRANSFERS));
-			result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
+					TransferAppActivator.PRIVILEGE_FEEDBACK));
+			result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_FEEDBACK);
 			response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 			return result;
 		}
@@ -280,11 +304,11 @@ public class TransferRestController {
 			result.put("status", "error");
 			result.put("message", TransferPrivilegeHelper.resolveUserFacingMessage(
 					ex,
-					TransferAppActivator.PRIVILEGE_LIST_TRANSFERS,
+					TransferAppActivator.PRIVILEGE_FEEDBACK,
 					"Unable to load facilities from the registry"));
 			result.put("facilities", new ArrayList<SimpleObject>());
 			if (TransferPrivilegeHelper.isPrivilegeException(ex)) {
-				result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
+				result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_FEEDBACK);
 				response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 			}
 			return result;
@@ -298,11 +322,11 @@ public class TransferRestController {
 			@RequestParam("hieTransferId") String hieTransferId) throws ResponseException {
 
 		SimpleObject result = new SimpleObject();
-		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_FEEDBACK)) {
 			result.put("status", "error");
 			result.put("message", TransferPrivilegeHelper.requiredPrivilegeMessage(
-					TransferAppActivator.PRIVILEGE_LIST_TRANSFERS));
-			result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
+					TransferAppActivator.PRIVILEGE_FEEDBACK));
+			result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_FEEDBACK);
 			response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 			return result;
 		}
@@ -317,7 +341,7 @@ public class TransferRestController {
 					.getFeedbackForm(patientId, hieTransferId.trim());
 			boolean hieSent = Boolean.TRUE.equals(serviceResult.get("hieSent"));
 			serviceResult.put("canSubmit", TransferPrivilegeHelper.hasPrivilege(
-					TransferAppActivator.PRIVILEGE_CREATE_TRANSFER) && !hieSent);
+					TransferAppActivator.PRIVILEGE_FEEDBACK) && !hieSent);
 			return toSimpleObject(serviceResult);
 		}
 		catch (Exception ex) {
@@ -325,10 +349,10 @@ public class TransferRestController {
 			result.put("status", "error");
 			result.put("message", TransferPrivilegeHelper.resolveUserFacingMessage(
 					ex,
-					TransferAppActivator.PRIVILEGE_LIST_TRANSFERS,
+					TransferAppActivator.PRIVILEGE_FEEDBACK,
 					"Unable to load referral feedback"));
 			if (TransferPrivilegeHelper.isPrivilegeException(ex)) {
-				result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
+				result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_FEEDBACK);
 				response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 			}
 			return result;
@@ -346,6 +370,7 @@ public class TransferRestController {
 			@RequestParam("outcome") String outcome,
 			@RequestParam("recommendations") String recommendations,
 			@RequestParam("referBackToFacility") String referBackToFacility,
+			@RequestParam(value = "referBackToFacilityFosaId", required = false) String referBackToFacilityFosaId,
 			@RequestParam("contactPerson") String contactPerson,
 			@RequestParam("providerName") String providerName,
 			@RequestParam("qualification") String qualification,
@@ -354,29 +379,97 @@ public class TransferRestController {
 			@RequestParam("phone") String phone) throws ResponseException {
 
 		SimpleObject result = new SimpleObject();
-		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)) {
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_FEEDBACK)) {
 			result.put("status", "error");
 			result.put("message", TransferPrivilegeHelper.requiredPrivilegeMessage(
-					TransferAppActivator.PRIVILEGE_CREATE_TRANSFER));
-			result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+					TransferAppActivator.PRIVILEGE_FEEDBACK));
+			result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_FEEDBACK);
 			response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 			return result;
 		}
 		try {
 			return toSimpleObject(getTransferReferralFeedbackService().saveFeedback(
 					patientId, hieTransferId, dateOfDischarge, finalDiagnosis, treatmentGiven, outcome,
-					recommendations, referBackToFacility, contactPerson, providerName, qualification,
-					signedDate, signedTime, phone));
+					recommendations, referBackToFacility, referBackToFacilityFosaId, contactPerson,
+					providerName, qualification, signedDate, signedTime, phone));
 		}
 		catch (Exception ex) {
 			log.error("Unable to save referral feedback", ex);
 			result.put("status", "error");
 			result.put("message", TransferPrivilegeHelper.resolveUserFacingMessage(
 					ex,
-					TransferAppActivator.PRIVILEGE_CREATE_TRANSFER,
+					TransferAppActivator.PRIVILEGE_FEEDBACK,
 					"Unable to save referral feedback"));
 			if (TransferPrivilegeHelper.isPrivilegeException(ex)) {
-				result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+				result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_FEEDBACK);
+				response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+			}
+			return result;
+		}
+	}
+
+	@RequestMapping(value = "/rest/v1/transferapp/transfer/feedback/preview", method = RequestMethod.GET)
+	@ResponseBody
+	public Object previewReferralFeedback(HttpServletResponse response,
+			@RequestParam("patientId") Integer patientId,
+			@RequestParam("hieTransferId") String hieTransferId) throws ResponseException {
+
+		SimpleObject result = new SimpleObject();
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_FEEDBACK)) {
+			result.put("status", "error");
+			result.put("message", TransferPrivilegeHelper.requiredPrivilegeMessage(
+					TransferAppActivator.PRIVILEGE_FEEDBACK));
+			result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_FEEDBACK);
+			response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+			return result;
+		}
+		try {
+			return toSimpleObject(getTransferReferralFeedbackService()
+					.previewFeedbackHiePayload(patientId, hieTransferId));
+		}
+		catch (Exception ex) {
+			log.error("Unable to preview referral feedback payload", ex);
+			result.put("status", "error");
+			result.put("message", TransferPrivilegeHelper.resolveUserFacingMessage(
+					ex,
+					TransferAppActivator.PRIVILEGE_FEEDBACK,
+					"Unable to preview referral feedback payload"));
+			if (TransferPrivilegeHelper.isPrivilegeException(ex)) {
+				result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_FEEDBACK);
+				response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+			}
+			return result;
+		}
+	}
+
+	@RequestMapping(value = "/rest/v1/transferapp/transfer/feedback/submit", method = RequestMethod.POST)
+	@ResponseBody
+	public Object submitReferralFeedback(HttpServletResponse response,
+			@RequestParam("patientId") Integer patientId,
+			@RequestParam("hieTransferId") String hieTransferId) throws ResponseException {
+
+		SimpleObject result = new SimpleObject();
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_FEEDBACK)) {
+			result.put("status", "error");
+			result.put("message", TransferPrivilegeHelper.requiredPrivilegeMessage(
+					TransferAppActivator.PRIVILEGE_FEEDBACK));
+			result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_FEEDBACK);
+			response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+			return result;
+		}
+		try {
+			return toSimpleObject(getTransferReferralFeedbackService()
+					.submitFeedbackToHie(patientId, hieTransferId));
+		}
+		catch (Exception ex) {
+			log.error("Unable to submit referral feedback to HIE", ex);
+			result.put("status", "error");
+			result.put("message", TransferPrivilegeHelper.resolveUserFacingMessage(
+					ex,
+					TransferAppActivator.PRIVILEGE_FEEDBACK,
+					"Unable to send referral feedback to HIE"));
+			if (TransferPrivilegeHelper.isPrivilegeException(ex)) {
+				result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_FEEDBACK);
 				response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 			}
 			return result;
@@ -437,6 +530,12 @@ public class TransferRestController {
 				result.put(key, toSimpleObject((Map<String, Object>) value));
 			}
 			else if ("feedback".equals(key) && value instanceof Map) {
+				result.put(key, toSimpleObject((Map<String, Object>) value));
+			}
+			else if ("summary".equals(key) && value instanceof Map) {
+				result.put(key, toSimpleObject((Map<String, Object>) value));
+			}
+			else if ("profileDefaults".equals(key) && value instanceof Map) {
 				result.put(key, toSimpleObject((Map<String, Object>) value));
 			}
 			else if ("outcomes".equals(key) && value instanceof List) {

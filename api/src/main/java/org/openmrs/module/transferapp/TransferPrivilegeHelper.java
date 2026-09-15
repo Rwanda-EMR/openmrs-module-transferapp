@@ -73,14 +73,60 @@ public final class TransferPrivilegeHelper {
 			return "You do not have permission to access this feature.";
 		}
 
+		// Prefer nested business/API messages over Spring transaction-framework wording
+		// such as "Transaction silently rolled back because it has been marked as rollback-only".
+		String businessMessage = findPreferredBusinessMessage(throwable);
+		if (StringUtils.isNotBlank(businessMessage)) {
+			return businessMessage;
+		}
+
 		Throwable current = throwable;
 		while (current != null) {
-			if (StringUtils.isNotBlank(current.getMessage())) {
+			if (StringUtils.isNotBlank(current.getMessage())
+					&& !isTransactionFrameworkMessage(current.getMessage())) {
 				return current.getMessage().trim();
 			}
 			current = current.getCause();
 		}
 		return fallback != null ? fallback : "An unexpected error occurred";
+	}
+
+	/**
+	 * Walks the cause chain and returns the deepest meaningful API / billing message,
+	 * skipping Spring transaction rollback wrappers.
+	 */
+	private static String findPreferredBusinessMessage(Throwable throwable) {
+		String deepest = null;
+		Throwable current = throwable;
+		while (current != null) {
+			String message = current.getMessage();
+			if (StringUtils.isNotBlank(message) && !isTransactionFrameworkMessage(message)) {
+				String typeName = current.getClass().getName();
+				boolean apiLike = typeName.contains("APIException")
+						|| typeName.contains("HieApiException")
+						|| typeName.contains("HieConfigurationException")
+						|| typeName.contains("ValidationException");
+				if (apiLike || deepest == null) {
+					deepest = message.trim();
+				}
+			}
+			current = current.getCause();
+		}
+		return deepest;
+	}
+
+	private static boolean isTransactionFrameworkMessage(String message) {
+		if (StringUtils.isBlank(message)) {
+			return false;
+		}
+		String lower = message.toLowerCase();
+		return lower.contains("rollback-only")
+				|| lower.contains("transaction silently rolled back")
+				|| lower.contains("unexpectedrollback")
+				|| lower.contains("no transaction is in progress")
+				|| lower.contains("no hibernate session")
+				|| lower.contains("could not obtain transaction-synchronized session")
+				|| lower.contains("transaction was marked for rollback");
 	}
 
 	private static String extractRequiredPrivilege(Throwable throwable) {

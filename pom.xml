@@ -4,7 +4,7 @@
 
 	<groupId>org.openmrs.module</groupId>
 	<artifactId>transferapp</artifactId>
-	<version>1.3.4-SNAPSHOT</version>
+	<version>1.3.9-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>Transfer App Module</name>
 	<description>Transfer App for the Reference Application</description>
@@ -41,6 +41,7 @@
 		<addresshierarchyVersion>2.21.0</addresshierarchyVersion>
 		<initializerVersion>2.10.0</initializerVersion>
 		<mohbillingVersion>2.2.2-SNAPSHOT</mohbillingVersion>
+		<itextpdfVersion>5.5.13.3</itextpdfVersion>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 

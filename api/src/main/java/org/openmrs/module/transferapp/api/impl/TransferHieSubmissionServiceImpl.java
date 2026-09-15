@@ -140,13 +140,15 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 			User currentUser = Context.getAuthenticatedUser();
 
 			boolean externalReceivingFacility = payloadBuilder.isExternalReceivingFacility(transfer);
+			boolean isHieUpdate = StringUtils.isNotBlank(transfer.getHieTransferId());
 			String encounterId = resolveEncounterIdForSubmit(transfer);
 			String encounterJson = payloadBuilder.buildEncounterJson(
 					transfer, currentUser, receivingFacilityLabel, externalReceivingFacility, encounterId);
 
-			if (externalReceivingFacility) {
-				// Always try to pull existing HIE encounter for external destinations so any
-				// prior insurance-agent approval is preserved across clinician clinical updates.
+			// On resubmit (or any external destination), pull the existing HIE Encounter so
+			// HIE-owned attributes such as insurance approval status are kept while local
+			// clinical/UPID updates from the rebuilt payload are applied.
+			if (isHieUpdate || externalReceivingFacility) {
 				encounterJson = mergeWithExistingHieDecision(
 						connection, encounterJson, encounterId, externalReceivingFacility);
 			}
@@ -226,8 +228,9 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 	}
 
 	/**
-	 * Pulls the existing Encounter from HIE and re-attaches insurance-agent decision extensions
-	 * (and agent-redirected destination when decided) onto the newly built clinical payload.
+	 * Pulls the existing Encounter from HIE and re-attaches HIE-owned insurance/agent attributes
+	 * (approval status, comments, and agent-redirected destination when decided) onto the newly
+	 * built clinical payload. Local clinical fields and updated UPID remain from the rebuild.
 	 */
 	private String mergeWithExistingHieDecision(HieBasicConnection connection, String clinicalEncounterJson,
 			String encounterId, boolean keepRequiresVerification) {
@@ -236,6 +239,9 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 			// No prior HIE resource (404 or RHIE "Encounter … not found") — submit as a new transfer.
 			log.info("No existing HIE Encounter for id " + encounterId
 					+ "; submitting clinical payload as a new transfer.");
+			if (keepRequiresVerification) {
+				return agentDecisionPreserver.ensureRequiresVerification(clinicalEncounterJson);
+			}
 			return clinicalEncounterJson;
 		}
 		return agentDecisionPreserver.mergePreservingAgentDecision(

@@ -146,6 +146,7 @@ public class PatientTransferListServiceImpl implements PatientTransferListServic
 		item.setClientName(transfer.getClientName());
 		item.setEmrId(transfer.getEmrId());
 		item.setHieSent(transfer.isSentToHie());
+		item.setReceivedFromHie(transfer.isReceivedFromHie());
 		item.setFormType(FORM_TYPE_EXTERNAL);
 		return item;
 	}

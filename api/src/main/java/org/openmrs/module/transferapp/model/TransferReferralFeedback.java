@@ -81,6 +81,9 @@ public class TransferReferralFeedback extends BaseOpenmrsData {
 	@Column(name = "refer_back_to_facility", nullable = false, length = 255)
 	private String referBackToFacility;
 
+	@Column(name = "refer_back_to_facility_fosa_id", length = 64)
+	private String referBackToFacilityFosaId;
+
 	@Column(name = "contact_person", nullable = false, length = 255)
 	private String contactPerson;
 
@@ -230,6 +233,14 @@ public class TransferReferralFeedback extends BaseOpenmrsData {
 
 	public void setReferBackToFacility(String referBackToFacility) {
 		this.referBackToFacility = referBackToFacility;
+	}
+
+	public String getReferBackToFacilityFosaId() {
+		return referBackToFacilityFosaId;
+	}
+
+	public void setReferBackToFacilityFosaId(String referBackToFacilityFosaId) {
+		this.referBackToFacilityFosaId = referBackToFacilityFosaId;
 	}
 
 	public String getContactPerson() {

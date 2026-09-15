@@ -61,6 +61,36 @@
 		</property>
 	</bean>
 
+	<bean id="pastTransfersDao" class="org.openmrs.module.transferapp.api.dao.hibernate.HibernatePastTransfersDao">
+		<property name="sessionFactory" ref="dbSessionFactory" />
+	</bean>
+
+	<bean id="pastTransfersService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+		<property name="transactionManager">
+			<ref bean="transactionManager" />
+		</property>
+		<property name="target">
+			<bean class="org.openmrs.module.transferapp.api.impl.PastTransfersServiceImpl">
+				<property name="pastTransfersDao" ref="pastTransfersDao" />
+			</bean>
+		</property>
+		<property name="preInterceptors">
+			<ref bean="serviceInterceptors" />
+		</property>
+		<property name="transactionAttributeSource">
+			<ref bean="transactionAttributeSource" />
+		</property>
+	</bean>
+
+	<bean parent="serviceContext">
+		<property name="moduleService">
+			<list>
+				<value>org.openmrs.module.transferapp.api.PastTransfersService</value>
+				<ref bean="pastTransfersService" />
+			</list>
+		</property>
+	</bean>
+
 	<bean id="transferDao" class="org.openmrs.module.transferapp.api.dao.hibernate.HibernateTransferDao">
 		<property name="sessionFactory" ref="dbSessionFactory" />
 	</bean>

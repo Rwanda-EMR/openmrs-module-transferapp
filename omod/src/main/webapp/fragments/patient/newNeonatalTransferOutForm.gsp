@@ -4,11 +4,11 @@ ui.includeCss("transferapp", "styles/flatpickr.min.css")
 ui.includeCss("transferapp", "styles/select2.min.css")
 %>
 
-<g:if test="${error != null && error.trim().length() > 0}">
+<% if (error != null && error.toString().trim().length() > 0) { %>
     <p style="color: red;">${ ui.format(error) }</p>
-</g:if>
+<% } %>
 
-<g:if test="${formData != null}">
+<% if (formData != null) { %>
 <div class="transfer-wizard-shell">
     <header class="transfer-wizard-page-header">
         <h1 class="transfer-wizard-page-title" id="neonatal-wizard-page-title">Neonatal Transfer Form</h1>
@@ -974,4 +974,4 @@ ui.includeCss("transferapp", "styles/select2.min.css")
         </div>
     </div>
 </div>
-</g:if>
+<% } %>

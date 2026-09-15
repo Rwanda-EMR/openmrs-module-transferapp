@@ -64,7 +64,8 @@ public class ClientRegistryPatientPayloadBuilder {
 		return buildPatientJson(patient,
 				transfer != null ? transfer.getEmrId() : null,
 				transfer != null ? transfer.getClientTelephone() : null,
-				transfer != null ? transfer.getCaregiverTelephone() : null);
+				transfer != null ? transfer.getCaregiverTelephone() : null,
+				transfer);
 	}
 
 	/**
@@ -73,6 +74,11 @@ public class ClientRegistryPatientPayloadBuilder {
 	 * fallbacks are only used when the patient's own OpenMRS UPID / phone can't be resolved.
 	 */
 	public String buildPatientJson(Patient patient, String upiFallback, String phoneFallback1, String phoneFallback2) {
+		return buildPatientJson(patient, upiFallback, phoneFallback1, phoneFallback2, null);
+	}
+
+	private String buildPatientJson(Patient patient, String upiFallback, String phoneFallback1, String phoneFallback2,
+			Transfer transfer) {
 		if (patient == null) {
 			throw new HieApiException("Cannot build Client Registry patient: OpenMRS patient is required");
 		}
@@ -124,9 +130,10 @@ public class ClientRegistryPatientPayloadBuilder {
 				root.put("birthDate", birthDate);
 			}
 
-			PersonAddress address = patientSnapshotResolver.resolveActivePersonAddress(patient);
-			if (address != null) {
-				root.putArray("address").add(buildAddress(address));
+			PersonAddress personAddress = patientSnapshotResolver.resolveActivePersonAddress(patient);
+			ObjectNode addressNode = buildAddress(personAddress, transfer);
+			if (addressNode != null) {
+				root.putArray("address").add(addressNode);
 			}
 
 			ArrayNode contacts = null;
@@ -144,27 +151,80 @@ public class ClientRegistryPatientPayloadBuilder {
 	}
 
 	ObjectNode buildAddress(PersonAddress address) {
-		ObjectNode addressNode = objectMapper.createObjectNode();
-		String country = trim(address.getCountry());
-		String state = trim(address.getStateProvince());
-		String district = trim(address.getCountyDistrict());
-		String sector = trim(address.getCityVillage());
-		String cell = trim(address.getAddress3());
-		String village = trim(address.getAddress1());
+		return buildAddress(address, null);
+	}
 
+	/**
+	 * Builds the FHIR address object matching {@code client_registry_request_sample.json}.
+	 * Rwanda OpenMRS {@code person_address} mapping:
+	 * <ul>
+	 *   <li>country → Country</li>
+	 *   <li>state_province → Province</li>
+	 *   <li>county_district → District</li>
+	 *   <li>city_village → Sector</li>
+	 *   <li>address3 → Cell</li>
+	 *   <li>address1 → Village (Umudugudu)</li>
+	 * </ul>
+	 * Transfer domicile fields are used as fallbacks when person_address is incomplete.
+	 */
+	ObjectNode buildAddress(PersonAddress address, Transfer transfer) {
+		String country = firstNonBlank(addressValue(address, "country"), "Rwanda");
+		String province = addressValue(address, "province");
+		String district = firstNonBlank(addressValue(address, "district"),
+				transfer != null ? trim(transfer.getClientDistrict()) : null);
+		String sector = firstNonBlank(addressValue(address, "sector"),
+				transfer != null ? trim(transfer.getSector()) : null);
+		String cell = firstNonBlank(addressValue(address, "cell"),
+				transfer != null ? trim(transfer.getCell()) : null);
+		String village = firstNonBlank(addressValue(address, "village"),
+				transfer != null ? trim(transfer.getVillage()) : null);
+
+		if (StringUtils.isBlank(province) && StringUtils.isBlank(district) && StringUtils.isBlank(sector)
+				&& StringUtils.isBlank(cell) && StringUtils.isBlank(village)) {
+			// Only a default country is not enough to emit an address block.
+			return null;
+		}
+
+		ObjectNode addressNode = objectMapper.createObjectNode();
 		ArrayNode line = addressNode.putArray("line");
-		addLabeledLine(line, "Country", country);
-		addLabeledLine(line, "Province", state);
-		addLabeledLine(line, "District", district);
-		addLabeledLine(line, "Sector", sector);
-		addLabeledLine(line, "Cell", cell);
-		addLabeledLine(line, "Village", village);
+		// Match sample format exactly: lowercase labels, fixed hierarchy order.
+		addLabeledLine(line, "country", country);
+		addLabeledLine(line, "province", province);
+		addLabeledLine(line, "district", district);
+		addLabeledLine(line, "sector", sector);
+		addLabeledLine(line, "cell", cell);
+		addLabeledLine(line, "village", village);
 
 		putIfPresent(addressNode, "city", sector);
 		putIfPresent(addressNode, "district", district);
-		putIfPresent(addressNode, "state", state);
-		putIfPresent(addressNode, "country", firstNonBlank(country, "Rwanda"));
+		putIfPresent(addressNode, "state", province);
+		putIfPresent(addressNode, "country", country);
 		return addressNode;
+	}
+
+	private static String addressValue(PersonAddress address, String level) {
+		if (address == null || level == null) {
+			return null;
+		}
+		if ("country".equals(level)) {
+			return trim(address.getCountry());
+		}
+		if ("province".equals(level)) {
+			return trim(address.getStateProvince());
+		}
+		if ("district".equals(level)) {
+			return trim(address.getCountyDistrict());
+		}
+		if ("sector".equals(level)) {
+			return trim(address.getCityVillage());
+		}
+		if ("cell".equals(level)) {
+			return firstNonBlank(trim(address.getAddress3()), trim(address.getNeighborhoodCell()));
+		}
+		if ("village".equals(level)) {
+			return trim(address.getAddress1());
+		}
+		return null;
 	}
 
 	private void addOptionalExtensions(ObjectNode root, Patient patient) {

@@ -16,6 +16,7 @@ package org.openmrs.module.transferapp.api.impl;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.openmrs.api.APIException;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.mohbilling.model.Consommation;
 import org.openmrs.module.mohbilling.service.BillingService;
@@ -29,6 +30,8 @@ import org.openmrs.module.transferapp.model.Transfer;
 /**
  * Ambulance billing on local transfer save via mohbilling
  * {@code createAmbulanceBill} / {@code updateAmbulanceBill} / {@code deleteAmbulanceBill}.
+ * Errors propagate as {@link APIException} with descriptive messages so the shared transfer
+ * save transaction can roll back with a user-facing root cause (not UnexpectedRollbackException).
  */
 public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBillingService {
 
@@ -69,14 +72,21 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 		String currentCode = StringUtils.trimToNull(transfer.getReceivingFacilityCode());
 		boolean destinationChanged = !StringUtils.equals(previousCode, currentCode)
 				&& (previousCode != null || currentCode != null);
+		boolean wasAmbulance = TRANSPORT_TYPE_AMBULANCE.equals(StringUtils.trimToEmpty(previousTransportType));
 		boolean providedByCurrentFacility = isAmbulanceProvidedByCurrentFacility(transfer);
 
+		// Transport no longer ambulance, or provider is another facility → void existing bill.
 		if (!nowAmbulance || !providedByCurrentFacility) {
 			if (existingConsommationId != null) {
+				log.info("Deleting ambulance bill consommationId=" + existingConsommationId
+						+ " for transfer " + transfer.getUuid()
+						+ " (nowAmbulance=" + nowAmbulance
+						+ ", providedByCurrentFacility=" + providedByCurrentFacility
+						+ ", wasAmbulance=" + wasAmbulance + ")");
 				return deleteAmbulanceBillForTransfer(transfer, existingConsommationId);
 			}
 			if (nowAmbulance && !providedByCurrentFacility) {
-				log.info("Skipping ambulance bill for transfer " + transfer.getUuid()
+				log.info("Ambulance bill not created for transfer " + transfer.getUuid()
 						+ ": ambulance provider FOSA "
 						+ StringUtils.defaultString(transfer.getAmbulanceProviderFosaId())
 						+ " is not the current facility");
@@ -84,11 +94,13 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 			return transfer;
 		}
 
+		// Still ambulance + this facility is provider.
 		if (existingConsommationId != null) {
-			if (destinationChanged) {
-				return updateAmbulanceBillForTransfer(transfer, existingConsommationId);
-			}
-			return transfer;
+			// Always refresh km/description on edit so destination or admin distance changes apply.
+			log.info("Updating ambulance bill consommationId=" + existingConsommationId
+					+ " for transfer " + transfer.getUuid()
+					+ (destinationChanged ? " (destination changed)" : " (refresh)"));
+			return updateAmbulanceBillForTransfer(transfer, existingConsommationId);
 		}
 
 		return createAmbulanceBillForTransfer(transfer);
@@ -97,14 +109,14 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 	@Override
 	public Transfer createAmbulanceBillWithRoute(Transfer transfer, int kilometers, String description) {
 		if (transfer == null) {
-			throw new org.openmrs.api.APIException("Transfer is required");
+			throw new APIException("Transfer is required");
 		}
 		if (kilometers <= 0) {
-			throw new org.openmrs.api.APIException("Distance in kilometers must be greater than zero");
+			throw new APIException("Distance in kilometers must be greater than zero");
 		}
 		String billDescription = StringUtils.trimToNull(description);
 		if (billDescription == null) {
-			throw new org.openmrs.api.APIException("Ambulance bill description is required");
+			throw new APIException("Ambulance bill description is required");
 		}
 		if (transfer.getAmbulanceConsommationId() != null) {
 			return transfer;
@@ -113,7 +125,7 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 			transfer.setTransportType(TRANSPORT_TYPE_AMBULANCE);
 		}
 		if (!isAmbulanceProvidedByCurrentFacility(transfer)) {
-			throw new org.openmrs.api.APIException(
+			throw new APIException(
 					"Ambulance voucher can only be created when this facility is the ambulance provider"
 							+ " (or transferapp.production=false)");
 		}
@@ -122,20 +134,22 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 				? patientInsuranceService.resolveInsuranceCardNumber(transfer.getPatient())
 				: null;
 		if (StringUtils.isBlank(insuranceCardNumber)) {
-			throw new org.openmrs.api.APIException(
-					"Insurance card/policy number not found on the current registration encounter");
+			throw new APIException(
+					"Cannot create ambulance bill: insurance card/policy number not found on the current registration encounter. "
+							+ "Register or update the patient's insurance policy, then try again.");
 		}
 
 		BillingService billingService = resolveBillingService();
 		if (billingService == null) {
-			throw new org.openmrs.api.APIException("mohbilling BillingService is not available");
+			throw new APIException(
+					"Cannot create ambulance bill: mohbilling BillingService is not available on this server.");
 		}
 
 		try {
 			Consommation consommation = billingService.createAmbulanceBill(
 					insuranceCardNumber, kilometers, billDescription);
 			if (consommation == null || consommation.getConsommationId() == null) {
-				throw new org.openmrs.api.APIException("createAmbulanceBill returned no consommation");
+				throw new APIException("createAmbulanceBill returned no consommation");
 			}
 			transfer.setAmbulanceConsommationId(consommation.getConsommationId());
 			transfer = saveTransfer(transfer);
@@ -144,12 +158,12 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 					+ " description=" + billDescription);
 			return transfer;
 		}
-		catch (org.openmrs.api.APIException ex) {
+		catch (APIException ex) {
 			throw ex;
 		}
 		catch (Exception ex) {
-			throw new org.openmrs.api.APIException(
-					"Unable to create ambulance bill: " + StringUtils.defaultString(ex.getMessage()), ex);
+			throw new APIException(
+					"Unable to create ambulance bill: " + describeCause(ex), ex);
 		}
 	}
 
@@ -178,29 +192,16 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 
 	private Transfer createAmbulanceBillForTransfer(Transfer transfer) {
 		AmbulanceBillParams params = resolveBillParams(transfer, "create");
-		if (params == null) {
-			return transfer;
-		}
-		try {
-			return createAmbulanceBillWithRoute(transfer, params.kilometers, params.description);
-		}
-		catch (Exception ex) {
-			log.warn("Skipping ambulance bill create for transfer " + transfer.getUuid() + ": " + ex.getMessage(), ex);
-			return transfer;
-		}
+		return createAmbulanceBillWithRoute(transfer, params.kilometers, params.description);
 	}
 
 	private Transfer updateAmbulanceBillForTransfer(Transfer transfer, Integer consommationId) {
 		AmbulanceBillParams params = resolveBillParams(transfer, "update");
-		if (params == null) {
-			return transfer;
-		}
 
 		BillingService billingService = resolveBillingService();
 		if (billingService == null) {
-			log.warn("Skipping ambulance bill update for transfer " + transfer.getUuid()
-					+ ": mohbilling BillingService is not available");
-			return transfer;
+			throw new APIException(
+					"Cannot update ambulance bill: mohbilling BillingService is not available on this server.");
 		}
 
 		try {
@@ -209,9 +210,13 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 					+ " for transfer " + transfer.getUuid() + " distance=" + params.kilometers
 					+ " description=" + params.description);
 		}
+		catch (APIException ex) {
+			throw ex;
+		}
 		catch (Exception ex) {
-			log.warn("Skipping ambulance bill update for transfer " + transfer.getUuid()
-					+ " (consommationId=" + consommationId + "): " + ex.getMessage(), ex);
+			throw new APIException(
+					"Unable to update ambulance bill (consommationId=" + consommationId + "): "
+							+ describeCause(ex), ex);
 		}
 		return transfer;
 	}
@@ -219,9 +224,8 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 	private Transfer deleteAmbulanceBillForTransfer(Transfer transfer, Integer consommationId) {
 		BillingService billingService = resolveBillingService();
 		if (billingService == null) {
-			log.warn("Skipping ambulance bill delete for transfer " + transfer.getUuid()
-					+ ": mohbilling BillingService is not available");
-			return transfer;
+			throw new APIException(
+					"Cannot delete ambulance bill: mohbilling BillingService is not available on this server.");
 		}
 
 		try {
@@ -231,9 +235,13 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 			log.info("Deleted ambulance bill consommationId=" + consommationId
 					+ " for transfer " + transfer.getUuid());
 		}
+		catch (APIException ex) {
+			throw ex;
+		}
 		catch (Exception ex) {
-			log.warn("Skipping ambulance bill delete for transfer " + transfer.getUuid()
-					+ " (consommationId=" + consommationId + "): " + ex.getMessage(), ex);
+			throw new APIException(
+					"Unable to delete ambulance bill (consommationId=" + consommationId + "): "
+							+ describeCause(ex), ex);
 		}
 		return transfer;
 	}
@@ -241,28 +249,29 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 	private AmbulanceBillParams resolveBillParams(Transfer transfer, String action) {
 		ReceivingFacility destination = resolveDestination(transfer);
 		if (destination == null) {
-			log.warn("Skipping ambulance bill " + action + " for transfer " + transfer.getUuid()
-					+ ": receiving facility configuration not found");
-			return null;
+			throw new APIException(
+					"Cannot " + action + " ambulance bill: receiving facility configuration was not found"
+							+ " for code " + StringUtils.defaultString(transfer.getReceivingFacilityCode(), "(blank)")
+							+ ". Add the facility under Transfer Admin and set its distance.");
 		}
 
 		Integer distance = destination.getDistance();
 		if (distance == null || distance.intValue() <= 0) {
-			log.warn("Skipping ambulance bill " + action + " for transfer " + transfer.getUuid()
-					+ ": destination distance is missing or not greater than zero for "
-					+ destination.getFacilityName());
-			return null;
+			throw new APIException(
+					"Cannot " + action + " ambulance bill: destination distance is missing or not greater than zero"
+							+ " for " + destination.getFacilityName()
+							+ ". Set the facility distance under Transfer Admin, then try again.");
 		}
 
-		String insuranceCardNumber = null;
 		if ("create".equals(action)) {
-			insuranceCardNumber = patientInsuranceService != null
+			String insuranceCardNumber = patientInsuranceService != null
 					? patientInsuranceService.resolveInsuranceCardNumber(transfer.getPatient())
 					: null;
 			if (StringUtils.isBlank(insuranceCardNumber)) {
-				log.warn("Skipping ambulance bill create for transfer " + transfer.getUuid()
-						+ ": insurance card/policy number not found on registration encounter");
-				return null;
+				throw new APIException(
+						"Cannot create ambulance bill: insurance card/policy number not found on the current"
+								+ " registration encounter. Register or update the patient's insurance policy,"
+								+ " open a global bill if needed, then try again.");
 			}
 		}
 
@@ -272,7 +281,6 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 		}
 
 		AmbulanceBillParams params = new AmbulanceBillParams();
-		params.insuranceCardNumber = StringUtils.trimToNull(insuranceCardNumber);
 		params.kilometers = distance.intValue();
 		params.description = "Transfer to " + destinationName;
 		return params;
@@ -309,8 +317,19 @@ public class TransferAmbulanceBillingServiceImpl implements TransferAmbulanceBil
 		}
 	}
 
+	private static String describeCause(Throwable throwable) {
+		Throwable current = throwable;
+		String last = null;
+		while (current != null) {
+			if (StringUtils.isNotBlank(current.getMessage())) {
+				last = current.getMessage().trim();
+			}
+			current = current.getCause();
+		}
+		return StringUtils.isNotBlank(last) ? last : "unknown billing error";
+	}
+
 	private static class AmbulanceBillParams {
-		private String insuranceCardNumber;
 		private int kilometers;
 		private String description;
 	}

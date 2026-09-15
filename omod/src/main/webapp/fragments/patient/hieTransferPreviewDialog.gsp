@@ -5,7 +5,7 @@
     </div>
     <div class="dialog-content">
         <div id="hie-transfer-preview-body"></div>
-        <div id="hie-transfer-feedback-wrap" class="hie-transfer-feedback-wrap" style="display:none;">
+            <div id="hie-transfer-feedback-wrap" class="hie-transfer-feedback-wrap" style="display:none;">
             <h4 class="hie-transfer-feedback-title">${ ui.message("transferapp.patient.hieTransfer.feedback.title") }</h4>
             <form id="hie-transfer-feedback-form" autocomplete="off">
                 <div class="hie-feedback-section">
@@ -70,6 +70,9 @@
                     <span id="hie-fb-status" class="hie-transfer-status" style="display:none;"></span>
                 </div>
             </form>
+            <p id="hie-fb-preview-hint" class="hie-fb-preview-hint" style="display:none;">
+                ${ ui.message("transferapp.patient.hieTransfer.feedback.previewHint") }
+            </p>
         </div>
         <div class="transfer-preview-actions">
             <button type="button" id="hie-transfer-validate-btn" class="confirm" style="display:none;">
@@ -78,7 +81,11 @@
             <button type="button" id="hie-transfer-export-pdf-btn" class="confirm" style="display:none;">
                 ${ ui.message("transferapp.patient.hieTransfer.exportPdf") }
             </button>
-            <button type="button" id="hie-transfer-provide-feedback-btn" class="confirm" style="display:none;">
+            <button type="button" id="hie-transfer-provide-feedback-btn" class="confirm" style="display:none;"
+                    data-mode="provide"
+                    data-label-provide="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.hieTransfer.feedback.provide')) }"
+                    data-label-send="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.hieTransfer.feedback.send')) }"
+                    data-label-sending="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.hieTransfer.feedback.sending')) }">
                 ${ ui.message("transferapp.patient.hieTransfer.feedback.provide") }
             </button>
             <span id="hie-transfer-validate-status" class="hie-transfer-status" style="display:none;"></span>
@@ -109,6 +116,10 @@
   cursor: pointer;
 }
 #hie-transfer-export-pdf-btn.confirm {
+  background: #1d4ed8;
+  border-color: #1e40af;
+}
+#hie-transfer-provide-feedback-btn.confirm.hie-fb-mode-send {
   background: #1d4ed8;
   border-color: #1e40af;
 }
@@ -277,6 +288,11 @@
 #hie-fb-save.confirm:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+.hie-fb-preview-hint {
+  margin: 10px 0 0;
+  color: #475569;
+  font-size: 13px;
 }
 #hie-transfer-preview-dialog.has-feedback #hie-transfer-preview-body {
   max-height: 38vh;

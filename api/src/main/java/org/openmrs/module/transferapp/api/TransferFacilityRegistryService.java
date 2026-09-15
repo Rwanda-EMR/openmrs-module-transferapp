@@ -26,7 +26,9 @@ public interface TransferFacilityRegistryService {
 	@Authorized(TransferAppActivator.PRIVILEGE_DASHBOARD)
 	List<RegistryFacility> listReceivingFacilitiesFromHie();
 
-	@Authorized(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
+	@Authorized(value = {
+			TransferAppActivator.PRIVILEGE_LIST_TRANSFERS,
+			TransferAppActivator.PRIVILEGE_FEEDBACK }, requireAll = false)
 	List<RegistryFacility> listCounterReferralFacilitiesFromHie();
 
 	/**

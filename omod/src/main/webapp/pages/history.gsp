@@ -3,8 +3,12 @@
     ui.includeCss("transferapp", "dashboard.css")
     ui.includeCss("transferapp", "transferRecords.css")
     ui.includeCss("transferapp", "transferFormPreview.css")
+    ui.includeCss("transferapp", "flatpickr.min.css")
+    ui.includeCss("transferapp", "flatpickr/monthSelect.css")
     ui.includeCss("uicommons", "datatables/dataTables_jui.css")
     ui.includeJavascript("uicommons", "datatables/jquery.dataTables.min.js")
+    ui.includeJavascript("transferapp", "flatpickr/flatpickr.min.js")
+    ui.includeJavascript("transferapp", "flatpickr/plugins/monthSelect/index.js")
     ui.includeJavascript("transferapp", "transferMohLogo.js")
     ui.includeJavascript("transferapp", "transferFormPreview.js")
     ui.includeJavascript("transferapp", "transferPreviewCommon.js")
@@ -25,6 +29,7 @@
         previewUrl: openmrsContextPath + "/module/transferapp/transfer/preview.form",
         canCreateTransfer: ${ canCreateTransfer ? 'true' : 'false' },
         hasHistory: ${ hasHistory ? 'true' : 'false' },
+        filterMonth: "${ ui.encodeJavaScript(filterMonth ?: '') }",
         messages: {
             loading: "${ ui.encodeJavaScript(ui.message('transferapp.history.preview.loading')) }",
             missingIds: "${ ui.encodeJavaScript(ui.message('transferapp.history.preview.missingIds')) }",
@@ -49,6 +54,30 @@
             exportPdfTitle: "${ ui.encodeJavaScript(ui.message('transferapp.history.exportPdf.title')) }"
         }
     };
+    jq(function() {
+        var monthInput = document.getElementById("history-filter-month");
+        if (monthInput && typeof flatpickr === "function") {
+            var monthSelect = (typeof monthSelectPlugin === "function")
+                ? monthSelectPlugin({
+                    shorthand: true,
+                    dateFormat: "Y-m",
+                    altFormat: "F Y"
+                })
+                : null;
+            var options = {
+                dateFormat: "Y-m",
+                altInput: true,
+                altFormat: "F Y",
+                allowInput: true,
+                disableMobile: true,
+                defaultDate: (window.transferHistoryConfig && window.transferHistoryConfig.filterMonth) || null
+            };
+            if (monthSelect) {
+                options.plugins = [monthSelect];
+            }
+            flatpickr(monthInput, options);
+        }
+    });
 </script>
 
 <div class="transfer-records-page transfer-history-page">
@@ -76,15 +105,12 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "histo
         </div>
         <div class="transfer-records-filter-field">
             <label for="history-filter-month">${ ui.message("transferapp.history.filter.month") }</label>
-            <select id="history-filter-month" name="month">
-                <option value="" <% if (filterMonth == null || filterMonth.length() == 0) { %>selected="selected"<% } %>>${ ui.message("transferapp.history.filter.month.all") }</option>
-                <% if (monthOptions != null) { monthOptions.each { option -> %>
-                <option value="${ ui.encodeHtmlAttribute(option.value) }"
-                    <% if (filterMonth != null && filterMonth == option.value) { %>selected="selected"<% } %>>
-                    ${ ui.encodeHtmlContent(option.label) }
-                </option>
-                <% } } %>
-            </select>
+            <input type="text"
+                   id="history-filter-month"
+                   name="month"
+                   value="${ ui.encodeHtmlAttribute(filterMonth ?: '') }"
+                   placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.history.filter.month.all')) }"
+                   autocomplete="off" />
         </div>
         <div class="transfer-records-filter-field">
             <label for="history-filter-form-type">${ ui.message("transferapp.history.filter.formType") }</label>

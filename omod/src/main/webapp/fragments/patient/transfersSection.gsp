@@ -558,12 +558,14 @@
                     </thead>
                     <tbody>
                         <% transfers.each { transfer -> %>
-                            <tr class="transfer-row${ transfer.hieSent ? ' transfer-row-sent' : '' }" data-transfer-id="${ ui.encodeHtmlAttribute(transfer.id) }" data-hie-sent="${ transfer.hieSent ? 'true' : 'false' }" data-form-type="${ ui.encodeHtmlAttribute(transfer.formType) }">
+                            <tr class="transfer-row${ transfer.hieSent ? ' transfer-row-sent' : '' }${ transfer.receivedFromHie ? ' transfer-row-received' : '' }" data-transfer-id="${ ui.encodeHtmlAttribute(transfer.id) }" data-hie-sent="${ transfer.hieSent ? 'true' : 'false' }" data-received-from-hie="${ transfer.receivedFromHie ? 'true' : 'false' }" data-form-type="${ ui.encodeHtmlAttribute(transfer.formType) }">
                                 <td>${ ui.format(transfer.transferDate) }</td>
                                 <td>${ ui.format(transfer.toFacility) }</td>
                                 <td>${ ui.format(transfer.service) }</td>
                                 <td>
-                                    <% if (transfer.hieSent) { %>
+                                    <% if (transfer.receivedFromHie) { %>
+                                        <span class="transfer-status-received">${ ui.message("transferapp.patient.transfers.statusReceived") }</span>
+                                    <% } else if (transfer.hieSent) { %>
                                         <span class="transfer-status-sent">${ ui.message("transferapp.patient.transfers.statusSent") }</span>
                                     <% } else { %>
                                         <span class="transfer-status-pending">${ ui.message("transferapp.patient.transfers.statusPending") }</span>
