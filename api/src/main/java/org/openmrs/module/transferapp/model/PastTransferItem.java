@@ -41,6 +41,12 @@ public class PastTransferItem {
 	/** Local {@code transfers} row UUID when this HIE transfer is already cached. */
 	private String localTransferUuid;
 
+	/** Insurance type from the visit's registration encounter (e.g. CBHI). */
+	private String insuranceType;
+
+	/** Insurance card/policy number from the visit's registration encounter. */
+	private String insuranceId;
+
 	public Integer getVisitId() {
 		return visitId;
 	}
@@ -111,5 +117,21 @@ public class PastTransferItem {
 
 	public void setLocalTransferUuid(String localTransferUuid) {
 		this.localTransferUuid = localTransferUuid;
+	}
+
+	public String getInsuranceType() {
+		return insuranceType;
+	}
+
+	public void setInsuranceType(String insuranceType) {
+		this.insuranceType = insuranceType;
+	}
+
+	public String getInsuranceId() {
+		return insuranceId;
+	}
+
+	public void setInsuranceId(String insuranceId) {
+		this.insuranceId = insuranceId;
 	}
 }

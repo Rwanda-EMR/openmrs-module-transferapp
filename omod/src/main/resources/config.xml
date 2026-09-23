@@ -305,4 +305,9 @@
 		<description>Provide referral feedback and counter-referral on inbound transfers</description>
 	</privilege>
 
+	<privilege>
+		<name>Task: transferapp.configuration</name>
+		<description>Configure transfer destinations and approvers</description>
+	</privilege>
+
 </module>

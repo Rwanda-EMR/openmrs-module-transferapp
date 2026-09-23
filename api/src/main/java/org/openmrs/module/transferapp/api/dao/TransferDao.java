@@ -17,6 +17,7 @@ import org.openmrs.Patient;
 import org.openmrs.PersonAddress;
 import org.openmrs.PersonAttribute;
 import org.openmrs.module.transferapp.model.Transfer;
+import org.openmrs.module.transferapp.model.TransferApprovalStatus;
 
 import java.util.Date;
 import java.util.List;
@@ -52,6 +53,10 @@ public interface TransferDao {
 	Transfer getTransferByUuid(String uuid);
 
 	Transfer getTransferByHieTransferId(Integer patientId, String hieTransferId);
+
+	List<Transfer> getTransfersByLocalApprovalStatus(TransferApprovalStatus status);
+
+	int countTransfersByLocalApprovalStatus(TransferApprovalStatus status);
 
 	/**
 	 * Local transfers scheduled for reuse whose rendez-vous date falls in {@code [fromDate, toDate]}

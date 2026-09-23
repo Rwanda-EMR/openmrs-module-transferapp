@@ -18,6 +18,7 @@ import org.openmrs.Concept;
 import org.openmrs.Patient;
 import org.openmrs.api.APIException;
 import org.openmrs.api.context.Context;
+import org.openmrs.module.transferapp.PatientTransferIdentifierDetector;
 import org.openmrs.module.transferapp.TransferAppConstants;
 import org.openmrs.module.transferapp.api.PastTransfersService;
 import org.openmrs.module.transferapp.api.TransferPatientSnapshotResolver;
@@ -58,19 +59,29 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 
 	@Override
 	public List<PastTransferItem> findVisitsForMonth(String yearMonth) {
-		PastTransferPageResult page = findVisitsForMonth(yearMonth, 0, DEFAULT_PAGE_SIZE);
+		PastTransferPageResult page = findVisitsForMonth(yearMonth, null, 0, DEFAULT_PAGE_SIZE);
 		return page != null ? page.getItems() : Collections.<PastTransferItem>emptyList();
 	}
 
 	@Override
 	public PastTransferPageResult findVisitsForMonth(String yearMonth, int offset, int limit) {
+		return findVisitsForMonth(yearMonth, null, offset, limit);
+	}
+
+	@Override
+	public PastTransferPageResult findVisitsForMonth(String yearMonth, String upid, int offset, int limit) {
 		String normalizedMonth = StringUtils.trimToNull(yearMonth);
-		if (normalizedMonth == null) {
-			throw new APIException("Month is required. Use yyyy-MM.");
-		}
-		if (!normalizedMonth.matches("\\d{4}-\\d{2}")) {
+		if (normalizedMonth == null || !normalizedMonth.matches("\\d{4}-\\d{2}")) {
 			throw new APIException("Invalid month filter. Use yyyy-MM.");
 		}
+		Date[] range = resolveMonthRange(normalizedMonth);
+		SimpleDateFormat dayFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH);
+		return findVisitsInRange(dayFormat.format(range[0]), dayFormat.format(range[1]), upid, offset, limit);
+	}
+
+	@Override
+	public PastTransferPageResult findVisitsInRange(String startDate, String endDate, String upid, int offset,
+			int limit) {
 		if (pastTransfersDao == null) {
 			throw new APIException("Past transfers data access is not configured");
 		}
@@ -89,9 +100,20 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 			return page;
 		}
 
-		Date[] range = resolveMonthRange(normalizedMonth);
+		Integer patientIdFilter = null;
+		String normalizedUpid = PatientTransferIdentifierDetector.normalize(upid);
+		if (StringUtils.isNotBlank(normalizedUpid)) {
+			patientIdFilter = pastTransfersDao.findPatientIdByUpid(normalizedUpid);
+			if (patientIdFilter == null) {
+				page.setItems(Collections.<PastTransferItem>emptyList());
+				page.setTotalCount(0);
+				return page;
+			}
+		}
+
+		Date[] range = resolveInclusiveDayRange(startDate, endDate);
 		int totalCount = pastTransfersDao.countVisitsWithRegistrationInRange(
-				range[0], range[1], registrationTypeId);
+				range[0], range[1], registrationTypeId, patientIdFilter);
 		page.setTotalCount(totalCount);
 		if (totalCount <= 0 || safeOffset >= totalCount) {
 			page.setItems(Collections.<PastTransferItem>emptyList());
@@ -99,7 +121,7 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 		}
 
 		List<Object[]> visitRows = pastTransfersDao.findVisitsWithRegistrationInRange(
-				range[0], range[1], registrationTypeId, safeOffset, safeLimit);
+				range[0], range[1], registrationTypeId, patientIdFilter, safeOffset, safeLimit);
 		if (visitRows == null || visitRows.isEmpty()) {
 			page.setItems(Collections.<PastTransferItem>emptyList());
 			return page;
@@ -120,6 +142,15 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 		Map<Integer, List<String>> transferIdsByVisit = transferIdConceptId != null
 				? pastTransfersDao.findTransferIdValuesByVisitIds(visitIds, transferIdConceptId)
 				: Collections.<Integer, List<String>>emptyMap();
+
+		Integer insuranceTypeConceptId = resolveConceptId(
+				TransferAppConstants.GP_INSURANCE_TYPE_CONCEPT_UUID,
+				TransferAppConstants.DEFAULT_INSURANCE_TYPE_CONCEPT_UUID);
+		Integer insuranceNumberConceptId = resolveConceptId(
+				TransferAppConstants.GP_INSURANCE_NUMBER_CONCEPT_UUID,
+				TransferAppConstants.DEFAULT_INSURANCE_NUMBER_CONCEPT_UUID);
+		Map<Integer, String[]> insuranceByVisit = pastTransfersDao.findInsuranceByVisitIds(
+				visitIds, insuranceTypeConceptId, insuranceNumberConceptId, registrationTypeId);
 
 		TransferVerificationUrlService verificationUrlService =
 				Context.getService(TransferVerificationUrlService.class);
@@ -153,6 +184,12 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 			item.setUpid(patientSnapshotResolver.resolveUpid(patient));
 			item.setVisitStartDatetime(start);
 			item.setVisitStopDatetime(stop);
+
+			String[] insurance = insuranceByVisit.get(visitId);
+			if (insurance != null) {
+				item.setInsuranceType(formatInsuranceTypeDisplay(insurance[0]));
+				item.setInsuranceId(StringUtils.trimToEmpty(insurance[1]));
+			}
 
 			String transferRecords = formatTransferRecords(transferIdsByVisit.get(visitId), verificationUrlService);
 			item.setTransferRecords(transferRecords);
@@ -289,6 +326,45 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 		}
 	}
 
+	/**
+	 * Inclusive day bounds: start at 00:00:00.000, end at 23:59:59.999.
+	 * If end is before start, the dates are swapped.
+	 */
+	private Date[] resolveInclusiveDayRange(String startDate, String endDate) {
+		Date startDay = parseDay(startDate, "Start date");
+		Date endDay = parseDay(endDate, "End date");
+		if (endDay.before(startDay)) {
+			Date swap = startDay;
+			startDay = endDay;
+			endDay = swap;
+		}
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(startDay);
+		clearTime(calendar);
+		Date start = calendar.getTime();
+		calendar.setTime(endDay);
+		clearTime(calendar);
+		calendar.add(Calendar.DAY_OF_MONTH, 1);
+		calendar.add(Calendar.MILLISECOND, -1);
+		Date end = calendar.getTime();
+		return new Date[] { start, end };
+	}
+
+	private Date parseDay(String value, String label) {
+		String normalized = StringUtils.trimToNull(value);
+		if (normalized == null || !normalized.matches("\\d{4}-\\d{2}-\\d{2}")) {
+			throw new APIException(label + " is required. Use yyyy-MM-dd.");
+		}
+		try {
+			SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH);
+			format.setLenient(false);
+			return format.parse(normalized);
+		}
+		catch (ParseException ex) {
+			throw new APIException(label + " is invalid. Use yyyy-MM-dd.");
+		}
+	}
+
 	private Concept resolveTransferIdConcept() {
 		String conceptUuid = StringUtils.trimToNull(Context.getAdministrationService().getGlobalProperty(
 				TransferAppConstants.GP_RECEIVED_TRANSFER_CONCEPT_UUID,
@@ -301,6 +377,32 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 			return null;
 		}
 		return Context.getConceptService().getConceptByUuid(conceptUuid);
+	}
+
+	private Integer resolveConceptId(String globalProperty, String defaultUuid) {
+		String conceptUuid = StringUtils.trimToNull(Context.getAdministrationService().getGlobalProperty(
+				globalProperty, defaultUuid));
+		if (conceptUuid == null) {
+			return null;
+		}
+		Concept concept = Context.getConceptService().getConceptByUuid(conceptUuid);
+		return concept != null ? concept.getConceptId() : null;
+	}
+
+	/**
+	 * Prefer short category labels (CBHI/RSSB/MMI/NONE/OTHER) when the registration display
+	 * matches; otherwise keep the concept name.
+	 */
+	private String formatInsuranceTypeDisplay(String rawDisplay) {
+		String display = StringUtils.trimToNull(rawDisplay);
+		if (display == null) {
+			return "";
+		}
+		String category = PatientInsuranceServiceImpl.matchCategoryByDisplayName(display);
+		if (StringUtils.isNotBlank(category)) {
+			return category;
+		}
+		return display;
 	}
 
 	private void clearTime(Calendar calendar) {

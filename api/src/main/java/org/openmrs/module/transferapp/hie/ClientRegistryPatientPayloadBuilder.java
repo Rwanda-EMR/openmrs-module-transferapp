@@ -219,7 +219,9 @@ public class ClientRegistryPatientPayloadBuilder {
 			return trim(address.getCityVillage());
 		}
 		if ("cell".equals(level)) {
-			return firstNonBlank(trim(address.getAddress3()), trim(address.getNeighborhoodCell()));
+			// Use address3 only — getNeighborhoodCell() was removed in OpenMRS 2.x
+			// (it was a 1.9 deprecated alias for address3) and blows up CR push at runtime.
+			return trim(address.getAddress3());
 		}
 		if ("village".equals(level)) {
 			return trim(address.getAddress1());

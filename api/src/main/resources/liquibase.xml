@@ -1605,4 +1605,117 @@
         </sql>
     </changeSet>
 
+    <changeSet id="transferapp-20260916-create-approvers-table" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="approvers"/>
+            </not>
+        </preConditions>
+        <comment>Clinician users designated as transfer approvers</comment>
+        <createTable tableName="approvers">
+            <column name="approver_id" type="int" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="uuid" type="char(38)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="user_id" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="position" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="creator" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="date_created" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+            <column name="changed_by" type="int"/>
+            <column name="date_changed" type="datetime"/>
+            <column name="voided" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="voided_by" type="int"/>
+            <column name="date_voided" type="datetime"/>
+            <column name="void_reason" type="varchar(255)"/>
+        </createTable>
+
+        <addForeignKeyConstraint constraintName="approvers_user_fk"
+                                 baseTableName="approvers"
+                                 baseColumnNames="user_id"
+                                 referencedTableName="users"
+                                 referencedColumnNames="user_id"/>
+
+        <addForeignKeyConstraint constraintName="approvers_creator_fk"
+                                 baseTableName="approvers"
+                                 baseColumnNames="creator"
+                                 referencedTableName="users"
+                                 referencedColumnNames="user_id"/>
+
+        <addForeignKeyConstraint constraintName="approvers_changed_by_fk"
+                                 baseTableName="approvers"
+                                 baseColumnNames="changed_by"
+                                 referencedTableName="users"
+                                 referencedColumnNames="user_id"/>
+
+        <addForeignKeyConstraint constraintName="approvers_voided_by_fk"
+                                 baseTableName="approvers"
+                                 baseColumnNames="voided_by"
+                                 referencedTableName="users"
+                                 referencedColumnNames="user_id"/>
+
+        <createIndex tableName="approvers" indexName="approvers_user_id_idx">
+            <column name="user_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="transferapp-20260916-transfer-local-approval" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="transfers"/>
+                <not>
+                    <columnExists tableName="transfers" columnName="local_approval_status"/>
+                </not>
+            </and>
+        </preConditions>
+        <comment>Local approval workflow for transfers targeting external hospitals</comment>
+        <addColumn tableName="transfers">
+            <column name="local_approval_status" type="varchar(20)" defaultValue="NONE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="approver_user_id" type="int"/>
+            <column name="approved_at" type="datetime"/>
+            <column name="rejected_at" type="datetime"/>
+            <column name="rejection_reason" type="varchar(1000)"/>
+        </addColumn>
+
+        <addForeignKeyConstraint constraintName="transfers_approver_user_fk"
+                                 baseTableName="transfers"
+                                 baseColumnNames="approver_user_id"
+                                 referencedTableName="users"
+                                 referencedColumnNames="user_id"/>
+
+        <createIndex tableName="transfers" indexName="transfers_local_approval_status_idx">
+            <column name="local_approval_status"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="transferapp-20260916-transfer-approver-snapshot" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="transfers"/>
+                <not>
+                    <columnExists tableName="transfers" columnName="approver_name"/>
+                </not>
+            </and>
+        </preConditions>
+        <comment>Snapshot of approver identity for HIE insurance reference and preview</comment>
+        <addColumn tableName="transfers">
+            <column name="approver_name" type="varchar(255)"/>
+            <column name="approver_position" type="varchar(255)"/>
+            <column name="approver_phone" type="varchar(64)"/>
+        </addColumn>
+    </changeSet>
+
 </databaseChangeLog>

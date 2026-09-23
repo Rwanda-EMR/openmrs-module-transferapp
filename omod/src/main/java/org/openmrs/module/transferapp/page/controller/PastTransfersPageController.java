@@ -33,7 +33,9 @@ public class PastTransfersPageController {
 	public void get(UiSessionContext sessionContext,
 			PageModel model,
 			@SpringBean("pastTransfersService") PastTransfersService pastTransfersService,
-			@RequestParam(value = "month", required = false) String month,
+			@RequestParam(value = "startDate", required = false) String startDate,
+			@RequestParam(value = "endDate", required = false) String endDate,
+			@RequestParam(value = "upid", required = false) String upid,
 			@RequestParam(value = "app", required = false) String app) {
 
 		sessionContext.requireAuthentication();
@@ -43,10 +45,21 @@ public class PastTransfersPageController {
 		model.addAttribute("accessDeniedMessage",
 				TransferPrivilegeHelper.requiredPrivilegeMessage(TransferAppActivator.PRIVILEGE_PAST_TRANSFERS));
 
-		String filterMonth = normalizeMonth(month);
-		if (month == null) {
-			filterMonth = currentYearMonth();
+		String today = currentDay();
+		String filterStartDate = normalizeDay(startDate);
+		String filterEndDate = normalizeDay(endDate);
+		if (startDate == null && endDate == null) {
+			filterStartDate = today;
+			filterEndDate = today;
+		} else {
+			if (filterStartDate == null) {
+				filterStartDate = filterEndDate != null ? filterEndDate : today;
+			}
+			if (filterEndDate == null) {
+				filterEndDate = filterStartDate;
+			}
 		}
+		String filterUpid = StringUtils.trimToEmpty(upid);
 
 		PastTransferPageResult page = new PastTransferPageResult();
 		page.setItems(Collections.emptyList());
@@ -54,10 +67,10 @@ public class PastTransfersPageController {
 		page.setLimit(PastTransfersService.DEFAULT_PAGE_SIZE);
 		page.setTotalCount(0);
 		String listError = null;
-		if (canAccess && StringUtils.isNotBlank(filterMonth)) {
+		if (canAccess && StringUtils.isNotBlank(filterStartDate) && StringUtils.isNotBlank(filterEndDate)) {
 			try {
-				page = pastTransfersService.findVisitsForMonth(
-						filterMonth, 0, PastTransfersService.DEFAULT_PAGE_SIZE);
+				page = pastTransfersService.findVisitsInRange(
+						filterStartDate, filterEndDate, filterUpid, 0, PastTransfersService.DEFAULT_PAGE_SIZE);
 			}
 			catch (Exception ex) {
 				listError = TransferPrivilegeHelper.resolveUserFacingMessage(
@@ -79,7 +92,9 @@ public class PastTransfersPageController {
 		model.addAttribute("pastTransfersHasMore", page.isHasMore());
 		model.addAttribute("pastTransfersNextOffset", page.getNextOffset());
 		model.addAttribute("pastTransfersPageSize", PastTransfersService.DEFAULT_PAGE_SIZE);
-		model.addAttribute("filterMonth", filterMonth != null ? filterMonth : "");
+		model.addAttribute("filterStartDate", filterStartDate != null ? filterStartDate : "");
+		model.addAttribute("filterEndDate", filterEndDate != null ? filterEndDate : "");
+		model.addAttribute("filterUpid", filterUpid);
 		model.addAttribute("listError", listError);
 		model.addAttribute("appId", StringUtils.isNotBlank(app) ? app.trim() : "transferapp.dashboard");
 		model.addAttribute("canCreateTransfer",
@@ -89,18 +104,15 @@ public class PastTransfersPageController {
 						|| canAccess);
 	}
 
-	private String normalizeMonth(String month) {
-		String value = StringUtils.trimToNull(month);
-		if (value == null) {
+	private String normalizeDay(String value) {
+		String day = StringUtils.trimToNull(value);
+		if (day == null || !day.matches("\\d{4}-\\d{2}-\\d{2}")) {
 			return null;
 		}
-		if (!value.matches("\\d{4}-\\d{2}")) {
-			return null;
-		}
-		return value;
+		return day;
 	}
 
-	private String currentYearMonth() {
-		return new SimpleDateFormat("yyyy-MM", Locale.ENGLISH).format(Calendar.getInstance().getTime());
+	private String currentDay() {
+		return new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(Calendar.getInstance().getTime());
 	}
 }

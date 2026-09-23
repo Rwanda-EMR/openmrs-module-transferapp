@@ -111,6 +111,36 @@
 		<property name="sessionFactory" ref="dbSessionFactory" />
 	</bean>
 
+	<bean id="approverDao" class="org.openmrs.module.transferapp.api.dao.hibernate.HibernateApproverDao">
+		<property name="sessionFactory" ref="dbSessionFactory" />
+	</bean>
+
+	<bean id="approverService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+		<property name="transactionManager">
+			<ref bean="transactionManager" />
+		</property>
+		<property name="target">
+			<bean class="org.openmrs.module.transferapp.api.impl.ApproverServiceImpl">
+				<property name="approverDao" ref="approverDao" />
+			</bean>
+		</property>
+		<property name="preInterceptors">
+			<ref bean="serviceInterceptors" />
+		</property>
+		<property name="transactionAttributeSource">
+			<ref bean="transactionAttributeSource" />
+		</property>
+	</bean>
+
+	<bean parent="serviceContext">
+		<property name="moduleService">
+			<list>
+				<value>org.openmrs.module.transferapp.api.ApproverService</value>
+				<ref bean="approverService" />
+			</list>
+		</property>
+	</bean>
+
 	<bean id="transferAdminServiceTarget" class="org.openmrs.module.transferapp.api.impl.TransferAdminServiceImpl">
 		<property name="transferAdminDao" ref="transferAdminDao" />
 		<property name="locationService" ref="locationService" />
@@ -583,6 +613,36 @@
 			<list>
 				<value>org.openmrs.module.transferapp.api.TransferHieSubmissionService</value>
 				<ref bean="transferHieSubmissionService" />
+			</list>
+		</property>
+	</bean>
+
+	<bean id="transferApprovalService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+		<property name="transactionManager">
+			<ref bean="transactionManager" />
+		</property>
+		<property name="target">
+			<bean class="org.openmrs.module.transferapp.api.impl.TransferApprovalServiceImpl">
+				<property name="transferDao" ref="transferDao" />
+				<property name="approverService" ref="approverService" />
+				<property name="transferHieSubmissionService" ref="transferHieSubmissionService" />
+				<property name="transferAdminService" ref="transferAdminService" />
+				<property name="transferProfileService" ref="transferProfileService" />
+			</bean>
+		</property>
+		<property name="preInterceptors">
+			<ref bean="serviceInterceptors" />
+		</property>
+		<property name="transactionAttributeSource">
+			<ref bean="transactionAttributeSource" />
+		</property>
+	</bean>
+
+	<bean parent="serviceContext">
+		<property name="moduleService">
+			<list>
+				<value>org.openmrs.module.transferapp.api.TransferApprovalService</value>
+				<ref bean="transferApprovalService" />
 			</list>
 		</property>
 	</bean>

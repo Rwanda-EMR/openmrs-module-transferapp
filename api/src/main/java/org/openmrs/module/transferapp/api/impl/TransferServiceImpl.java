@@ -35,6 +35,7 @@ import org.openmrs.module.transferapp.model.PatientInsuranceInfo;
 import org.openmrs.module.transferapp.model.ReceivingFacility;
 import org.openmrs.module.transferapp.model.RegistryFacility;
 import org.openmrs.module.transferapp.model.Transfer;
+import org.openmrs.module.transferapp.model.TransferApprovalStatus;
 import org.openmrs.module.transferapp.model.TransferFormExtras;
 import org.openmrs.module.transferapp.model.TransferFormKind;
 import org.openmrs.module.transferapp.model.TransferProfile;
@@ -250,7 +251,9 @@ public class TransferServiceImpl implements TransferService {
 		}
 		transfer.setCallingTime(StringUtils.trimToNull(callingTime));
 		transfer.setReceivingFacilityCode(StringUtils.trimToNull(receivingFacilityCode));
-		applyReceivingFacilitySnapshot(transfer, receivingFacilityCode, receivingFacilityId);
+		ReceivingFacility receivingFacility = resolveReceivingFacility(receivingFacilityCode, receivingFacilityId);
+		applyReceivingFacilitySnapshot(transfer, receivingFacility);
+		applyLocalApprovalForDestination(transfer, receivingFacility);
 		transfer.setReceivingService(StringUtils.trimToNull(receivingService));
 		transfer.setStaffContactedName(StringUtils.trimToNull(staffContactedName));
 		transfer.setStaffContactedPhone(StringUtils.trimToNull(staffContactedPhone));
@@ -587,12 +590,17 @@ public class TransferServiceImpl implements TransferService {
 		}
 	}
 
-	private void applyReceivingFacilitySnapshot(Transfer transfer, String receivingFacilityCode,
-			Integer receivingFacilityId) {
-		if (transferAdminService == null) {
-			return;
+	private void applyReceivingFacilitySnapshot(Transfer transfer, ReceivingFacility facility) {
+		if (facility != null) {
+			transfer.setReceivingProvince(StringUtils.trimToNull(facility.getProvince()));
+			transfer.setReceivingDistrict(StringUtils.trimToNull(facility.getDistrict()));
 		}
+	}
 
+	private ReceivingFacility resolveReceivingFacility(String receivingFacilityCode, Integer receivingFacilityId) {
+		if (transferAdminService == null) {
+			return null;
+		}
 		ReceivingFacility facility = null;
 		if (receivingFacilityId != null) {
 			facility = transferAdminService.getReceivingFacility(receivingFacilityId);
@@ -603,10 +611,39 @@ public class TransferServiceImpl implements TransferService {
 				facility = transferAdminService.getReceivingFacilityByCode(sendingLocationId, receivingFacilityCode);
 			}
 		}
-		if (facility != null) {
-			transfer.setReceivingProvince(StringUtils.trimToNull(facility.getProvince()));
-			transfer.setReceivingDistrict(StringUtils.trimToNull(facility.getDistrict()));
+		return facility;
+	}
+
+	/**
+	 * External destinations require approver sign-off before HIE submit.
+	 * Non-external destinations clear any prior approval hold.
+	 */
+	private void applyLocalApprovalForDestination(Transfer transfer, ReceivingFacility facility) {
+		if (facility != null && facility.isExternal()) {
+			transfer.setLocalApprovalStatus(TransferApprovalStatus.PENDING);
+			transfer.setApproverUserId(null);
+			transfer.setApprovedAt(null);
+			transfer.setRejectedAt(null);
+			transfer.setRejectionReason(null);
+			transfer.setApproverName(null);
+			transfer.setApproverPosition(null);
+			transfer.setApproverPhone(null);
 		}
+		else {
+			transfer.setLocalApprovalStatus(TransferApprovalStatus.NONE);
+			transfer.setApproverUserId(null);
+			transfer.setApprovedAt(null);
+			transfer.setRejectedAt(null);
+			transfer.setRejectionReason(null);
+			transfer.setApproverName(null);
+			transfer.setApproverPosition(null);
+			transfer.setApproverPhone(null);
+		}
+	}
+
+	private void applyReceivingFacilitySnapshot(Transfer transfer, String receivingFacilityCode,
+			Integer receivingFacilityId) {
+		applyReceivingFacilitySnapshot(transfer, resolveReceivingFacility(receivingFacilityCode, receivingFacilityId));
 	}
 
 	private void validateTransferTypeFields(String transferType, String ambulanceCalledTime,

@@ -913,7 +913,11 @@
 			needsInsuranceApproval: resolveFlag(normalized.needsInsuranceApproval,
 				resolveFlag(normalized.requiresInsuranceAgentVerification, false)
 					&& !resolveFlag(normalized.hasAgentApprovedExtension, false)),
-			referralFeedback: normalized.referralFeedback || null
+			referralFeedback: normalized.referralFeedback || null,
+			approverName: firstNonBlank(normalized.approverName, ""),
+			approverPosition: firstNonBlank(normalized.approverPosition, ""),
+			approverPhone: firstNonBlank(normalized.approverPhone, ""),
+			approvedAt: firstNonBlank(normalized.approvedAt, "")
 		};
 	}
 
@@ -1032,7 +1036,12 @@
 			+ "<div class='tf-row tf-signature-row'><strong>Date:</strong> " + line(p.referringSignedDate, 120)
 			+ " <strong>Time:</strong> " + line(p.referringSignedTime, 120)
 			+ " <strong>Phone:</strong> " + line(p.referringProviderPhone, 180)
-			+ signatureBlock + "</div>";
+			+ signatureBlock + "</div>"
+			+ (p.approverName || p.approverPosition || p.approverPhone
+				? ("<div class='tf-row tf-bottom-gap'><strong>Approver name:</strong> " + line(p.approverName, 220)
+					+ " <strong>Approver position:</strong> " + line(p.approverPosition, 180) + "</div>"
+					+ "<div class='tf-row'><strong>Approver phone:</strong> " + line(p.approverPhone, 180) + "</div>")
+				: "");
 
 		var bottomSection = bottomRows;
 		if (p.verifyQrUrl) {

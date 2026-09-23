@@ -1641,6 +1641,13 @@ public class TransferSaveController {
 		preview.put("hieSent", transfer.isSentToHie());
 		preview.put("hieSentAt", formatDateTime(transfer.getHieSentAt()));
 		preview.put("hieSendError", nullToEmpty(transfer.getHieSendError()));
+		preview.put("localApprovalStatus", transfer.getLocalApprovalStatus().name());
+		preview.put("awaitingLocalApproval", transfer.isAwaitingLocalApproval());
+		preview.put("rejectionReason", nullToEmpty(transfer.getRejectionReason()));
+		preview.put("approverName", nullToEmpty(transfer.getApproverName()));
+		preview.put("approverPosition", nullToEmpty(transfer.getApproverPosition()));
+		preview.put("approverPhone", nullToEmpty(transfer.getApproverPhone()));
+		preview.put("approvedAt", formatDateTime(transfer.getApprovedAt()));
 		preview.put("receivedFromHie", transfer.isReceivedFromHie());
 		preview.put("hieTransferId", nullToEmpty(transfer.getHieTransferId()));
 		org.openmrs.module.transferapp.model.TransferFormKind formKind = transfer.getFormKind();
@@ -1956,23 +1963,9 @@ public class TransferSaveController {
 	}
 
 	private String formatReferringProviderNameForPreview(Transfer transfer) {
-		String name = nullToEmpty(transfer.getReferringProviderName());
-		try {
-			TransferProfileService profileService = Context.getService(TransferProfileService.class);
-			org.openmrs.User owner = transfer.getCreator() != null
-					? transfer.getCreator()
-					: Context.getAuthenticatedUser();
-			if (profileService != null && owner != null) {
-				TransferProfile profile = profileService.getProfileForUser(owner);
-				if (profile != null) {
-					return TransferProfile.formatCareProviderName(name, profile.getLicenseNumber());
-				}
-			}
-		}
-		catch (Exception ignored) {
-			// Fall back to the stored name when profile lookup is unavailable.
-		}
-		return name;
+		// Use the stored referring-provider display as-is. License is already applied at save
+		// time via TransferProfile.formatCareProviderName; re-appending here duplicates suffixes.
+		return nullToEmpty(transfer.getReferringProviderName());
 	}
 
 	private String nullToEmpty(String value) {

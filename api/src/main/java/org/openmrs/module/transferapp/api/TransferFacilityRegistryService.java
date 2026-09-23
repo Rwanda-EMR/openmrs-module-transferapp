@@ -23,7 +23,9 @@ import java.util.List;
 @Transactional(readOnly = true)
 public interface TransferFacilityRegistryService {
 
-	@Authorized(TransferAppActivator.PRIVILEGE_DASHBOARD)
+	@Authorized(value = {
+			TransferAppActivator.PRIVILEGE_CONFIGURATION,
+			TransferAppActivator.PRIVILEGE_DASHBOARD }, requireAll = false)
 	List<RegistryFacility> listReceivingFacilitiesFromHie();
 
 	@Authorized(value = {

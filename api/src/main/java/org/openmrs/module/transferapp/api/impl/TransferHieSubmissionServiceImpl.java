@@ -37,6 +37,7 @@ import org.openmrs.module.transferapp.hie.HieInsuranceAgentDecisionPreserver;
 import org.openmrs.module.transferapp.hie.HieShrClient;
 import org.openmrs.module.transferapp.hie.TransferEncounterPayloadBuilder;
 import org.openmrs.module.transferapp.model.Transfer;
+import org.openmrs.module.transferapp.model.TransferApprovalStatus;
 import org.openmrs.module.transferapp.model.TransferProfile;
 
 import java.util.Date;
@@ -125,6 +126,21 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 		if (transfer.isSentToHie()) {
 			throw new APIException("This transfer has already been sent to HIE. Edit the transfer first to resubmit an update.");
 		}
+		if (transfer.isAwaitingLocalApproval()) {
+			throw new APIException(
+					"This transfer targets an external hospital and is awaiting approver approval before it can be sent to HIE.");
+		}
+		if (TransferApprovalStatus.REJECTED.equals(transfer.getLocalApprovalStatus())) {
+			throw new APIException(
+					"This transfer was rejected by an approver. Edit and save it again to resubmit for approval.");
+		}
+		boolean externalReceivingFacility = false;
+		ensurePayloadBuilderConfigured();
+		externalReceivingFacility = payloadBuilder.isExternalReceivingFacility(transfer);
+		if (externalReceivingFacility && !transfer.isLocallyApproved()) {
+			throw new APIException(
+					"This transfer targets an external hospital and must be approved before it can be sent to HIE.");
+		}
 
 		boolean firstSuccessfulSubmit = StringUtils.isBlank(transfer.getHieTransferId());
 
@@ -136,21 +152,21 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 			ensurePatientUpidPersisted(transfer);
 			HieBasicConnection connection = hieConnectionResolver.resolveConnection();
 			String receivingFacilityLabel = resolveReceivingFacilityLabel(transfer);
-			ensurePayloadBuilderConfigured();
 			User currentUser = Context.getAuthenticatedUser();
 
-			boolean externalReceivingFacility = payloadBuilder.isExternalReceivingFacility(transfer);
+			boolean requiresInsuranceAgentVerification = payloadBuilder.requiresInsuranceAgentVerification(
+					transfer, externalReceivingFacility);
 			boolean isHieUpdate = StringUtils.isNotBlank(transfer.getHieTransferId());
 			String encounterId = resolveEncounterIdForSubmit(transfer);
 			String encounterJson = payloadBuilder.buildEncounterJson(
 					transfer, currentUser, receivingFacilityLabel, externalReceivingFacility, encounterId);
 
-			// On resubmit (or any external destination), pull the existing HIE Encounter so
-			// HIE-owned attributes such as insurance approval status are kept while local
-			// clinical/UPID updates from the rebuilt payload are applied.
-			if (isHieUpdate || externalReceivingFacility) {
+			// On resubmit (or external destinations that need agent verification), pull the
+			// existing HIE Encounter so HIE-owned attributes such as insurance approval status
+			// are kept while local clinical/UPID updates from the rebuilt payload are applied.
+			if (isHieUpdate || requiresInsuranceAgentVerification) {
 				encounterJson = mergeWithExistingHieDecision(
-						connection, encounterJson, encounterId, externalReceivingFacility);
+						connection, encounterJson, encounterId, requiresInsuranceAgentVerification);
 			}
 
 			postEncounterRegisteringPatientInCrIfNeeded(connection, transfer, encounterJson);

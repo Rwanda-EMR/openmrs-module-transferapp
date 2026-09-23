@@ -62,7 +62,7 @@ public class TransferAdminController {
 		catch (Exception e) {
 			log.error("Unable to load facilities from HIE registry", e);
 			data.put("status", "error");
-			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_DASHBOARD,
+			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_CONFIGURATION,
 					"Unable to load facilities from HIE registry"));
 			data.put("facilities", new ArrayList<Map<String, Object>>());
 		}
@@ -98,7 +98,7 @@ public class TransferAdminController {
 		catch (Exception e) {
 			log.error("Unable to save receiving facility", e);
 			data.put("status", "error");
-			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_DASHBOARD,
+			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_CONFIGURATION,
 					"Unable to save receiving facility"));
 		}
 		writeJson(response, data);
@@ -119,7 +119,7 @@ public class TransferAdminController {
 		catch (Exception e) {
 			log.error("Unable to remove receiving facility", e);
 			data.put("status", "error");
-			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_DASHBOARD,
+			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_CONFIGURATION,
 					"Unable to remove receiving facility"));
 		}
 		writeJson(response, data);
@@ -146,7 +146,7 @@ public class TransferAdminController {
 		catch (Exception e) {
 			log.error("Unable to save receiving service", e);
 			data.put("status", "error");
-			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_DASHBOARD,
+			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_CONFIGURATION,
 					"Unable to save receiving service"));
 		}
 		writeJson(response, data);
@@ -167,7 +167,7 @@ public class TransferAdminController {
 		catch (Exception e) {
 			log.error("Unable to remove receiving service", e);
 			data.put("status", "error");
-			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_DASHBOARD,
+			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_CONFIGURATION,
 					"Unable to remove receiving service"));
 		}
 		writeJson(response, data);
@@ -181,6 +181,7 @@ public class TransferAdminController {
 		// Used by transfer wizards (clinicians) as well as admin UI.
 		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
 				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
+				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CONFIGURATION)
 				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_DASHBOARD)) {
 			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
 			return;
@@ -201,10 +202,10 @@ public class TransferAdminController {
 	}
 
 	private boolean requireDashboardPrivilege(HttpServletResponse response, Map<String, Object> data) throws Exception {
-		if (TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_DASHBOARD)) {
+		if (TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CONFIGURATION)) {
 			return true;
 		}
-		writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_DASHBOARD);
+		writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_CONFIGURATION);
 		return false;
 	}
 

@@ -43,7 +43,9 @@ public class PastTransfersWebController {
 
 	@RequestMapping(value = "/module/transferapp/transfer/pastTransfersList.form", method = RequestMethod.GET)
 	public void listPastTransfers(HttpServletResponse response,
-			@RequestParam("month") String month,
+			@RequestParam("startDate") String startDate,
+			@RequestParam("endDate") String endDate,
+			@RequestParam(value = "upid", required = false) String upid,
 			@RequestParam(value = "offset", required = false) Integer offset,
 			@RequestParam(value = "limit", required = false) Integer limit) throws Exception {
 
@@ -58,10 +60,12 @@ public class PastTransfersWebController {
 			return;
 		}
 
-		String normalizedMonth = StringUtils.trimToNull(month);
-		if (normalizedMonth == null || !normalizedMonth.matches("\\d{4}-\\d{2}")) {
+		String normalizedStart = StringUtils.trimToNull(startDate);
+		String normalizedEnd = StringUtils.trimToNull(endDate);
+		if (normalizedStart == null || !normalizedStart.matches("\\d{4}-\\d{2}-\\d{2}")
+				|| normalizedEnd == null || !normalizedEnd.matches("\\d{4}-\\d{2}-\\d{2}")) {
 			data.put("status", "error");
-			data.put("message", "Month is required. Use yyyy-MM.");
+			data.put("message", "Start date and end date are required. Use yyyy-MM-dd.");
 			writeJson(response, data);
 			return;
 		}
@@ -72,10 +76,14 @@ public class PastTransfersWebController {
 			int pageLimit = limit != null && limit.intValue() > 0
 					? limit.intValue()
 					: PastTransfersService.DEFAULT_PAGE_SIZE;
-			PastTransferPageResult page = service.findVisitsForMonth(normalizedMonth, pageOffset, pageLimit);
+			String filterUpid = StringUtils.trimToEmpty(upid);
+			PastTransferPageResult page = service.findVisitsInRange(
+					normalizedStart, normalizedEnd, filterUpid, pageOffset, pageLimit);
 
 			data.put("status", "success");
-			data.put("month", normalizedMonth);
+			data.put("startDate", normalizedStart);
+			data.put("endDate", normalizedEnd);
+			data.put("upid", filterUpid);
 			data.put("offset", page.getOffset());
 			data.put("limit", page.getLimit());
 			data.put("totalCount", page.getTotalCount());
@@ -116,6 +124,8 @@ public class PastTransfersWebController {
 					? formatDisplay(item.getVisitStopDatetime())
 					: "");
 			row.put("visitOpen", item.getVisitStopDatetime() == null);
+			row.put("insuranceType", StringUtils.defaultString(item.getInsuranceType()));
+			row.put("insuranceId", StringUtils.defaultString(item.getInsuranceId()));
 			row.put("transferRecords", StringUtils.defaultString(item.getTransferRecords()));
 			row.put("primaryTransferId", StringUtils.defaultString(item.getPrimaryTransferId()));
 			row.put("localTransferUuid", StringUtils.defaultString(item.getLocalTransferUuid()));

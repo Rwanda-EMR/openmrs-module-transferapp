@@ -41,7 +41,7 @@ import java.util.UUID;
  * {@code devs/transfer.json}:
  * <ul>
  *   <li>{@code status=in-progress}, {@code class=IMP}</li>
- *   <li>{@code patient-phone}, {@code doctor-details}, {@code transfer-details}</li>
+ *   <li>{@code patient-phone}, {@code doctor-details}, {@code transfer-approver-details}, {@code transfer-details}</li>
  *   <li>{@code transfer-type}: NORMAL_TRANSFER / REFERRAL / COUNTER_REFERRAL</li>
  *   <li>{@code transport} nested under transfer-details</li>
  *   <li>{@code type} (TRANSFER_ENCOUNTER), {@code serviceType} (HL7 253)</li>
@@ -62,6 +62,9 @@ public class TransferEncounterPayloadBuilder {
 
 	private static final String DOCTOR_DETAILS_URL =
 			"http://example.rw/fhir/StructureDefinition/doctor-details";
+
+	private static final String APPROVER_DETAILS_URL =
+			"http://example.rw/fhir/StructureDefinition/transfer-approver-details";
 
 	private static final String TRANSFER_DETAILS_URL =
 			"http://example.rw/fhir/StructureDefinition/transfer-details";
@@ -208,6 +211,20 @@ public class TransferEncounterPayloadBuilder {
 		return resolveExternalReceivingFacility(transfer);
 	}
 
+	/**
+	 * Insurance-agent verification is required only for external destinations when the
+	 * patient insurance is CBHI or RSSB (RAMA).
+	 */
+	public boolean requiresInsuranceAgentVerification(Transfer transfer, boolean externalReceivingFacility) {
+		if (!externalReceivingFacility || transfer == null) {
+			return false;
+		}
+		String type = StringUtils.trimToEmpty(transfer.getHealthInsuranceType()).toUpperCase();
+		return TransferAppConstants.HEALTH_INSURANCE_CBHI.equals(type)
+				|| TransferAppConstants.HEALTH_INSURANCE_RSSB.equals(type)
+				|| "RAMA".equals(type);
+	}
+
 	private boolean resolveExternalReceivingFacility(Transfer transfer) {
 		if (transfer == null || StringUtils.isBlank(transfer.getReceivingFacilityCode())) {
 			return false;
@@ -284,11 +301,12 @@ public class TransferEncounterPayloadBuilder {
 
 		addDoctorDetailsExtension(extensions, transfer, profile, license);
 		addInsuranceDetailsExtension(extensions, transfer);
-		if (externalReceivingFacility) {
+		if (requiresInsuranceAgentVerification(transfer, externalReceivingFacility)) {
 			ObjectNode requires = addObjectNode(extensions);
 			requires.put("url", "http://example.org/fhir/StructureDefinition/requires-insurance-agent-verification");
 			requires.put("valueBoolean", true);
 		}
+		addApproverDetailsExtension(extensions, transfer);
 
 		addTransferFormKindExtension(extensions);
 		addUrgencyTransferTypeExtension(extensions, transfer.getTransferType());
@@ -630,6 +648,46 @@ public class TransferEncounterPayloadBuilder {
 			ObjectNode phoneExt = addObjectNode(nested);
 			phoneExt.put("url", "phone-number");
 			phoneExt.put("valueString", phone.trim());
+		}
+	}
+
+	/**
+	 * Local facility approver snapshot for insurance-agent reference on external transfers.
+	 * Populated when an Approvers-page user approves the transfer before HIE submit.
+	 */
+	private void addApproverDetailsExtension(ArrayNode extensions, Transfer transfer) {
+		if (transfer == null || !transfer.isLocallyApproved()) {
+			return;
+		}
+		String name = StringUtils.trimToNull(transfer.getApproverName());
+		String position = StringUtils.trimToNull(transfer.getApproverPosition());
+		String phone = StringUtils.trimToNull(transfer.getApproverPhone());
+		if (name == null && position == null && phone == null) {
+			return;
+		}
+
+		ObjectNode approverDetails = addObjectNode(extensions);
+		approverDetails.put("url", APPROVER_DETAILS_URL);
+		ArrayNode nested = approverDetails.putArray("extension");
+		if (name != null) {
+			ObjectNode nameExt = addObjectNode(nested);
+			nameExt.put("url", "approver-name");
+			nameExt.put("valueString", name);
+		}
+		if (position != null) {
+			ObjectNode positionExt = addObjectNode(nested);
+			positionExt.put("url", "approver-position");
+			positionExt.put("valueString", position);
+		}
+		if (phone != null) {
+			ObjectNode phoneExt = addObjectNode(nested);
+			phoneExt.put("url", "approver-phone");
+			phoneExt.put("valueString", phone);
+		}
+		if (transfer.getApprovedAt() != null) {
+			ObjectNode approvedAtExt = addObjectNode(nested);
+			approvedAtExt.put("url", "approved-at");
+			approvedAtExt.put("valueDateTime", formatDateTime(transfer.getApprovedAt()));
 		}
 	}
 

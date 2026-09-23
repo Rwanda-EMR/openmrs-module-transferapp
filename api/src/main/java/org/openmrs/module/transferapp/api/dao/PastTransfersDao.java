@@ -27,21 +27,37 @@ import java.util.Map;
 public interface PastTransfersDao {
 
 	/**
+	 * Resolves a non-voided patient id by exact UPID identifier match.
+	 * Prefers identifier types named UPID; returns null when none found.
+	 */
+	Integer findPatientIdByUpid(String upid);
+
+	/**
 	 * Visits whose {@code date_started} falls in {@code [start, end]} and that have at least one
 	 * non-voided registration encounter. Newest start first.
+	 * When {@code patientId} is non-null, results are limited to that patient (fast UPID filter).
 	 *
 	 * @return rows as {@code [visitId, patientId, startDatetime, stopDatetime]}
 	 */
 	List<Object[]> findVisitsWithRegistrationInRange(Date start, Date end, Integer registrationEncounterTypeId,
-			int offset, int maxResults);
+			Integer patientId, int offset, int maxResults);
 
-	int countVisitsWithRegistrationInRange(Date start, Date end, Integer registrationEncounterTypeId);
+	int countVisitsWithRegistrationInRange(Date start, Date end, Integer registrationEncounterTypeId,
+			Integer patientId);
 
 	/**
 	 * Transfer Id observation value_text values keyed by visit id for the given concept.
 	 */
 	Map<Integer, List<String>> findTransferIdValuesByVisitIds(Collection<Integer> visitIds,
 			Integer transferIdConceptId);
+
+	/**
+	 * Registration-encounter insurance type / id for the given visits, keyed by visit id.
+	 * Values are {@code [insuranceTypeDisplay, insuranceId]} (either may be blank).
+	 * One batched query; does not load full Patient/Encounter graphs.
+	 */
+	Map<Integer, String[]> findInsuranceByVisitIds(Collection<Integer> visitIds, Integer insuranceTypeConceptId,
+			Integer insuranceNumberConceptId, Integer registrationEncounterTypeId);
 
 	/**
 	 * Loads patients (with names + identifiers initialized) for UPID/name display.

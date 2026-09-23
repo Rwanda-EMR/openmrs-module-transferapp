@@ -288,9 +288,12 @@
         }
         row.attr("data-transfer-id", transferId || "");
         row.attr("data-local-uuid", localUuid || "");
-        var recordsCell = row.find("td").eq(5);
+        var recordsCell = row.find("td.past-transfers-records-cell");
+        if (!recordsCell.length) {
+            recordsCell = row.find("td").eq(7);
+        }
         if (recordsCell.length && transferId) {
-            recordsCell.text(transferId);
+            recordsCell.replaceWith(buildTransferRecordsCellHtml(transferId));
         }
         var actionCell = row.find("td.transfer-past-action");
         if (actionCell.length) {
@@ -562,6 +565,110 @@
             + "<i class='icon-download-alt'></i></a>";
     }
 
+    function splitTransferRecordIds(raw) {
+        var text = jq.trim(raw || "");
+        if (!text) {
+            return [];
+        }
+        var parts = text.split(",");
+        var ids = [];
+        for (var i = 0; i < parts.length; i++) {
+            var id = jq.trim(parts[i] || "");
+            if (id && ids.indexOf(id) < 0) {
+                ids.push(id);
+            }
+        }
+        return ids;
+    }
+
+    function buildTransferRecordsCellHtml(transferRecords) {
+        var ids = splitTransferRecordIds(transferRecords);
+        if (!ids.length) {
+            return "<td class='past-transfers-records-cell'></td>";
+        }
+        return "<td class='past-transfers-records-cell'>"
+            + "<a href='javascript:void(0);' class='past-transfers-ready-link' role='button' aria-haspopup='true'"
+            + " data-transfer-records='" + esc(ids.join(", ")) + "'>"
+            + esc(messages().transferReady || "Ready")
+            + "</a></td>";
+    }
+
+    function closeTransferUuidPopover() {
+        jq(".past-transfers-uuid-popover").remove();
+        jq(".past-transfers-ready-link.is-open").removeClass("is-open");
+    }
+
+    function copyTextToClipboard(text) {
+        var deferred = jq.Deferred();
+        var value = String(text || "");
+        if (!value) {
+            deferred.reject();
+            return deferred.promise();
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(value).then(function() {
+                deferred.resolve();
+            }, function() {
+                deferred.reject();
+            });
+            return deferred.promise();
+        }
+        try {
+            var area = document.createElement("textarea");
+            area.value = value;
+            area.setAttribute("readonly", "readonly");
+            area.style.position = "absolute";
+            area.style.left = "-9999px";
+            document.body.appendChild(area);
+            area.select();
+            var ok = document.execCommand("copy");
+            document.body.removeChild(area);
+            if (ok) {
+                deferred.resolve();
+            } else {
+                deferred.reject();
+            }
+        } catch (err) {
+            deferred.reject();
+        }
+        return deferred.promise();
+    }
+
+    function openTransferUuidPopover(link) {
+        closeTransferUuidPopover();
+        var ids = splitTransferRecordIds(link.attr("data-transfer-records"));
+        if (!ids.length) {
+            return;
+        }
+        var title = messages().transferUuidTitle || "Transfer UUID";
+        var copyLabel = messages().transferCopy || "Copy";
+        var rowsHtml = "";
+        for (var i = 0; i < ids.length; i++) {
+            rowsHtml += "<div class='past-transfers-uuid-row'>"
+                + "<code class='past-transfers-uuid-value'>" + esc(ids[i]) + "</code>"
+                + "<button type='button' class='button past-transfers-uuid-copy' data-uuid='"
+                + esc(ids[i]) + "'>" + esc(copyLabel) + "</button>"
+                + "</div>";
+        }
+        var popover = jq(
+            "<div class='past-transfers-uuid-popover' role='dialog'>"
+            + "<div class='past-transfers-uuid-popover-title'>" + esc(title) + "</div>"
+            + rowsHtml
+            + "</div>"
+        );
+        jq("body").append(popover);
+        link.addClass("is-open");
+
+        var offset = link.offset();
+        var top = offset.top + link.outerHeight() + 8;
+        var left = offset.left;
+        var maxLeft = jq(window).scrollLeft() + jq(window).width() - popover.outerWidth() - 12;
+        if (left > maxLeft) {
+            left = Math.max(12, maxLeft);
+        }
+        popover.css({ top: top, left: left });
+    }
+
     function appendPastTransferRows(items) {
         var tbody = jq("#past-transfers-table tbody");
         if (!tbody.length || !items || !items.length) {
@@ -586,7 +693,9 @@
                 + "<td>" + esc(row.patientName || "") + "</td>"
                 + "<td>" + esc(row.visitDateDisplay || "") + "</td>"
                 + "<td>" + endCell + "</td>"
-                + "<td>" + esc(row.transferRecords || "") + "</td>"
+                + "<td>" + esc(row.insuranceType || "") + "</td>"
+                + "<td>" + esc(row.insuranceId || "") + "</td>"
+                + buildTransferRecordsCellHtml(row.transferRecords || row.primaryTransferId || "")
                 + "<td class='transfer-past-action'>" + buildActionHtml(row) + "</td>"
                 + "</tr>";
         });
@@ -610,23 +719,30 @@
         if (!btn.length || btn.prop("disabled")) {
             return;
         }
-        var month = config().filterMonth || "";
+        var startDate = config().filterStartDate || "";
+        var endDate = config().filterEndDate || "";
+        var upid = jq.trim(config().filterUpid || "");
         var offset = config().nextOffset || 0;
         var limit = config().pageSize || 100;
-        if (!month) {
+        if (!startDate || !endDate) {
             setLoadMoreStatus(messages().loadMoreError || "Unable to load more visits.", true);
             return;
         }
         btn.prop("disabled", true);
         setLoadMoreStatus(messages().loadMoreLoading || "Loading more visits...", false);
+        var requestData = {
+            startDate: startDate,
+            endDate: endDate,
+            offset: offset,
+            limit: limit
+        };
+        if (upid) {
+            requestData.upid = upid;
+        }
         jq.ajax({
             url: listUrl(),
             type: "GET",
-            data: {
-                month: month,
-                offset: offset,
-                limit: limit
-            },
+            data: requestData,
             dataType: "json",
             headers: { "Accept": "application/json" }
         }).done(function(response) {
@@ -672,15 +788,54 @@
             loadMorePastTransfers();
         });
 
+        jq(document).on("click", ".past-transfers-ready-link", function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            var link = jq(this);
+            if (link.hasClass("is-open")) {
+                closeTransferUuidPopover();
+                return;
+            }
+            openTransferUuidPopover(link);
+        });
+
+        jq(document).on("click", ".past-transfers-uuid-copy", function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            var btn = jq(this);
+            var uuid = btn.attr("data-uuid") || "";
+            copyTextToClipboard(uuid).done(function() {
+                var original = messages().transferCopy || "Copy";
+                btn.addClass("is-copied").text(messages().transferCopied || "Copied");
+                window.setTimeout(function() {
+                    btn.removeClass("is-copied").text(original);
+                }, 1400);
+            });
+        });
+
+        jq(document).on("click", ".past-transfers-uuid-popover", function(event) {
+            event.stopPropagation();
+        });
+
+        jq(document).on("click", function() {
+            closeTransferUuidPopover();
+        });
+
+        jq(window).on("resize scroll", function() {
+            closeTransferUuidPopover();
+        });
+
         jq(document).on("click", ".past-transfers-preview-link", function(event) {
             event.preventDefault();
             event.stopPropagation();
+            closeTransferUuidPopover();
             openTransferPreviewFromVisitRow(jq(this).closest("tr.past-transfers-row"));
         });
 
         jq(document).on("click", ".past-transfers-download-link", function(event) {
             event.preventDefault();
             event.stopPropagation();
+            closeTransferUuidPopover();
             openHieDownloadList(jq(this).closest("tr.past-transfers-row"));
         });
 
