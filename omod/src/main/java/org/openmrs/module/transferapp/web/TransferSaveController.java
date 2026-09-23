@@ -37,6 +37,10 @@ import org.openmrs.module.transferapp.api.TransferProfileService;
 import org.openmrs.module.transferapp.api.TransferQrCodeService;
 import org.openmrs.module.transferapp.api.TransferService;
 import org.openmrs.module.transferapp.api.TransferVerificationUrlService;
+import org.openmrs.module.transferapp.api.TransferReferralFeedbackService;
+import org.openmrs.module.transferapp.api.TransferPatientSnapshotResolver;
+import org.openmrs.module.transferapp.pdf.TransferFormPdfRenderer;
+import org.openmrs.Patient;
 import org.openmrs.module.transferapp.api.impl.PatientInsuranceServiceImpl;
 import org.openmrs.module.transferapp.model.AmbulanceVoucherPreview;
 import org.openmrs.module.transferapp.model.RegistryFacility;
@@ -352,6 +356,14 @@ public class TransferSaveController {
 			@RequestParam(value = "diagnosis", required = false) String diagnosis,
 			@RequestParam(value = "caregiverName", required = false) String caregiverName,
 			@RequestParam(value = "caregiverTelephone", required = false) String caregiverTelephone,
+			@RequestParam(value = "vitalBp", required = false) String vitalBp,
+			@RequestParam(value = "vitalTemp", required = false) String vitalTemp,
+			@RequestParam(value = "vitalSpo2", required = false) String vitalSpo2,
+			@RequestParam(value = "vitalRr", required = false) String vitalRr,
+			@RequestParam(value = "vitalPulse", required = false) String vitalPulse,
+			@RequestParam(value = "vitalWeight", required = false) String vitalWeight,
+			@RequestParam(value = "vitalHeight", required = false) String vitalHeight,
+			@RequestParam(value = "vitalMuac", required = false) String vitalMuac,
 			@RequestParam(value = "providerQualification", required = false) String providerQualification,
 			@RequestParam(value = "signedDate", required = false) String signedDate,
 			@RequestParam(value = "signedTime", required = false) String signedTime) throws Exception {
@@ -374,7 +386,8 @@ public class TransferSaveController {
 		try {
 			TransferFormExtras formExtras = buildFormExtras(clinicalPresentation, disabilityType, laboratory,
 					proceduresTreatments, otherNotes, diagnosis, caregiverName, caregiverTelephone,
-					providerQualification, signedDate, signedTime);
+					providerQualification, signedDate, signedTime,
+					vitalBp, vitalTemp, vitalSpo2, vitalRr, vitalPulse, vitalWeight, vitalHeight, vitalMuac);
 			Transfer transfer = transferService.saveReferralTransfer(
 					patientId,
 					transferUuid,
@@ -415,7 +428,8 @@ public class TransferSaveController {
 
 		Map<String, Object> data = new HashMap<String, Object>();
 
-		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
+				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_PAST_TRANSFERS)) {
 			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
 			return;
 		}
@@ -457,6 +471,153 @@ public class TransferSaveController {
 		writeJson(response, data);
 	}
 
+	/**
+	 * Server-side PDF of an inbound HIE transfer (with referral feedback when saved).
+	 * Uses iText so Export PDF is controlled and consistent.
+	 */
+	@RequestMapping(value = "/module/transferapp/transfer/exportHiePdf.form", method = RequestMethod.GET)
+	public void exportHieTransferPdf(HttpServletResponse response,
+			@RequestParam("patientId") Integer patientId,
+			@RequestParam("hieTransferId") String hieTransferId,
+			@RequestParam(value = "upid", required = false) String upid) throws Exception {
+
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
+				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_FEEDBACK)
+				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_PAST_TRANSFERS)) {
+			response.sendError(HttpServletResponse.SC_FORBIDDEN, "Missing privilege to export transfer PDF");
+			return;
+		}
+
+		String transferId = StringUtils.trimToNull(hieTransferId);
+		if (patientId == null || transferId == null) {
+			response.sendError(HttpServletResponse.SC_BAD_REQUEST, "patientId and hieTransferId are required");
+			return;
+		}
+
+		try {
+			String resolvedUpid = StringUtils.trimToNull(upid);
+			if (resolvedUpid == null) {
+				Patient patient = Context.getPatientService().getPatient(patientId);
+				if (patient == null) {
+					response.sendError(HttpServletResponse.SC_NOT_FOUND, "Patient not found");
+					return;
+				}
+				resolvedUpid = new TransferPatientSnapshotResolver().resolveUpid(patient);
+			}
+			if (StringUtils.isBlank(resolvedUpid)) {
+				response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Patient UPID is required to load the transfer");
+				return;
+			}
+
+			Map<String, Object> searchResult = getTransferHieSearchService()
+					.searchTransfers(resolvedUpid, transferId, false);
+			@SuppressWarnings("unchecked")
+			List<Map<String, Object>> transfers = searchResult != null
+					? (List<Map<String, Object>>) searchResult.get("data")
+					: null;
+			Map<String, Object> transfer = null;
+			if (transfers != null) {
+				for (Map<String, Object> row : transfers) {
+					if (row == null) {
+						continue;
+					}
+					Object id = row.get("id");
+					if (id == null) {
+						id = row.get("uuid");
+					}
+					if (id == null) {
+						id = row.get("hieTransferId");
+					}
+					if (id != null && transferId.equals(String.valueOf(id))) {
+						transfer = row;
+						break;
+					}
+				}
+				if (transfer == null && !transfers.isEmpty()) {
+					transfer = transfers.get(0);
+				}
+			}
+			if (transfer == null) {
+				response.sendError(HttpServletResponse.SC_NOT_FOUND, "Transfer not found in HIE");
+				return;
+			}
+
+			Map<String, Object> feedback = null;
+			if (TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_FEEDBACK)
+					|| TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
+				try {
+					if (TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_FEEDBACK)) {
+						Map<String, Object> feedbackResult = Context.getService(TransferReferralFeedbackService.class)
+								.getFeedbackForm(patientId, transferId);
+						if (feedbackResult != null && Boolean.TRUE.equals(feedbackResult.get("completed"))) {
+							@SuppressWarnings("unchecked")
+							Map<String, Object> feedbackMap = (Map<String, Object>) feedbackResult.get("feedback");
+							if (feedbackMap == null) {
+								@SuppressWarnings("unchecked")
+								Map<String, Object> defaults = (Map<String, Object>) feedbackResult.get("defaults");
+								feedbackMap = defaults;
+							}
+							feedback = feedbackMap;
+							if (feedback != null) {
+								if (!feedback.containsKey("clientName")) {
+									feedback.put("clientName", transfer.get("clientName"));
+								}
+								if (!feedback.containsKey("sex")) {
+									feedback.put("sex", transfer.get("sex"));
+								}
+								if (!feedback.containsKey("ageOrDob")) {
+									Object age = transfer.get("ageDob");
+									if (age == null) {
+										age = transfer.get("ageOrDob");
+									}
+									feedback.put("ageOrDob", age);
+								}
+							}
+						}
+					}
+				}
+				catch (Exception ignored) {
+					// PDF of the transfer should still download without feedback.
+				}
+			}
+
+			byte[] qrPng = null;
+			try {
+				TransferVerificationUrlService verificationUrlService = getTransferVerificationUrlService();
+				if (verificationUrlService != null) {
+					verificationUrlService.enrichPreviewVerificationFields(transfer);
+					String verifyUrl = null;
+					Object remote = transfer.get("verifyRemoteUrl");
+					if (remote != null) {
+						verifyUrl = StringUtils.trimToNull(String.valueOf(remote));
+					}
+					if (verifyUrl == null) {
+						verifyUrl = verificationUrlService.buildRemoteVerifyUrlForTransferId(transferId);
+					}
+					if (StringUtils.isNotBlank(verifyUrl)) {
+						qrPng = getTransferQrCodeService().generatePng(verifyUrl);
+					}
+				}
+			}
+			catch (Exception ignored) {
+				// PDF should still download without the QR code.
+			}
+
+			byte[] pdf = new TransferFormPdfRenderer().render(transfer, feedback, qrPng);
+			String fileName = "External-Transfer-Form-" + transferId + ".pdf";
+			response.setStatus(HttpServletResponse.SC_OK);
+			response.setContentType("application/pdf");
+			response.setHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+			response.setContentLength(pdf.length);
+			response.getOutputStream().write(pdf);
+			response.getOutputStream().flush();
+		}
+		catch (Exception ex) {
+			response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+					"Unable to export transfer PDF: " + ex.getMessage());
+		}
+	}
+
 	@RequestMapping(value = "/module/transferapp/transfer/ambulanceProviderFacilities.form", method = RequestMethod.GET)
 	public void listAmbulanceProviderFacilities(HttpServletResponse response) throws Exception {
 		Map<String, Object> data = new HashMap<String, Object>();
@@ -493,6 +654,8 @@ public class TransferSaveController {
 					"Unable to load ambulance provider facilities");
 			data.put("facilities", new ArrayList<Map<String, Object>>());
 		}
+
+		writeJson(response, data);
 	}
 	@RequestMapping(value = "/module/transferapp/transfer/saveMaternity.form", method = RequestMethod.POST)
 	public void saveMaternityTransfer(HttpServletResponse response,
@@ -603,6 +766,14 @@ public class TransferSaveController {
 
 		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)) {
 			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+			return;
+		}
+
+		if (!transferAdminService.isOutboundFacilityNameConfigured()) {
+			data.put("status", "error");
+			data.put("message", Context.getMessageSourceService().getMessage(
+					"transferapp.patient.transfers.outboundFacilityRequired"));
+			writeJson(response, data);
 			return;
 		}
 
@@ -748,19 +919,21 @@ public class TransferSaveController {
 			@RequestParam("patientId") Integer patientId,
 			@RequestParam("hieTransferId") String hieTransferId,
 			@RequestParam("kilometers") Integer kilometers,
-			@RequestParam(value = "district", required = false) String district) throws Exception {
+			@RequestParam(value = "district", required = false) String district,
+			@RequestParam(value = "province", required = false) String province) throws Exception {
 
 		Map<String, Object> data = new HashMap<String, Object>();
 
 		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
 				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
-			if (kilometers == null || kilometers.intValue() <= 0) {
-				data.put("status", "error");
-				data.put("message", "Distance in kilometers must be greater than zero");
-			}
+			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+			return;
+		}
+		if (kilometers == null || kilometers.intValue() <= 0) {
+			data.put("status", "error");
+			data.put("message", "Distance in kilometers must be greater than zero");
 			writeJson(response, data);
 			return;
-			
 		}
 		if (StringUtils.isBlank(district)) {
 			data.put("status", "error");
@@ -771,7 +944,7 @@ public class TransferSaveController {
 
 		try {
 			Transfer transfer = transferAmbulanceVoucherService.createAmbulanceVoucherFromHie(
-					patientId, hieTransferId, kilometers.intValue(), district);
+					patientId, hieTransferId, kilometers.intValue(), district, province);
 			data.put("status", "success");
 			data.put("uuid", transfer.getUuid());
 			data.put("transferId", transfer.getTransferId());
@@ -783,6 +956,8 @@ public class TransferSaveController {
 			putError(data, e, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER,
 					"Unable to create ambulance voucher from HIE transfer");
 		}
+
+		writeJson(response, data);
 	}
 	@RequestMapping(value = "/module/transferapp/transfer/saveNeonatal.form", method = RequestMethod.POST)
 	public void saveNeonatalTransfer(HttpServletResponse response,
@@ -932,6 +1107,14 @@ public class TransferSaveController {
 
 		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)) {
 			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+			return;
+		}
+
+		if (!transferAdminService.isOutboundFacilityNameConfigured()) {
+			data.put("status", "error");
+			data.put("message", Context.getMessageSourceService().getMessage(
+					"transferapp.patient.transfers.outboundFacilityRequired"));
+			writeJson(response, data);
 			return;
 		}
 
@@ -1458,6 +1641,13 @@ public class TransferSaveController {
 		preview.put("hieSent", transfer.isSentToHie());
 		preview.put("hieSentAt", formatDateTime(transfer.getHieSentAt()));
 		preview.put("hieSendError", nullToEmpty(transfer.getHieSendError()));
+		preview.put("localApprovalStatus", transfer.getLocalApprovalStatus().name());
+		preview.put("awaitingLocalApproval", transfer.isAwaitingLocalApproval());
+		preview.put("rejectionReason", nullToEmpty(transfer.getRejectionReason()));
+		preview.put("approverName", nullToEmpty(transfer.getApproverName()));
+		preview.put("approverPosition", nullToEmpty(transfer.getApproverPosition()));
+		preview.put("approverPhone", nullToEmpty(transfer.getApproverPhone()));
+		preview.put("approvedAt", formatDateTime(transfer.getApprovedAt()));
 		preview.put("receivedFromHie", transfer.isReceivedFromHie());
 		preview.put("hieTransferId", nullToEmpty(transfer.getHieTransferId()));
 		org.openmrs.module.transferapp.model.TransferFormKind formKind = transfer.getFormKind();
@@ -1773,23 +1963,9 @@ public class TransferSaveController {
 	}
 
 	private String formatReferringProviderNameForPreview(Transfer transfer) {
-		String name = nullToEmpty(transfer.getReferringProviderName());
-		try {
-			TransferProfileService profileService = Context.getService(TransferProfileService.class);
-			org.openmrs.User owner = transfer.getCreator() != null
-					? transfer.getCreator()
-					: Context.getAuthenticatedUser();
-			if (profileService != null && owner != null) {
-				TransferProfile profile = profileService.getProfileForUser(owner);
-				if (profile != null) {
-					return TransferProfile.formatCareProviderName(name, profile.getLicenseNumber());
-				}
-			}
-		}
-		catch (Exception ignored) {
-			// Fall back to the stored name when profile lookup is unavailable.
-		}
-		return name;
+		// Use the stored referring-provider display as-is. License is already applied at save
+		// time via TransferProfile.formatCareProviderName; re-appending here duplicates suffixes.
+		return nullToEmpty(transfer.getReferringProviderName());
 	}
 
 	private String nullToEmpty(String value) {
@@ -1849,6 +2025,9 @@ public class TransferSaveController {
 				transfer.get("district"),
 				transfer.get("receivingDistrict"),
 				transfer.get("patientDistrict")));
+		row.put("province", firstNonBlank(
+				transfer.get("province"),
+				transfer.get("receivingProvince")));
 		row.put("uuid", firstNonBlank(transfer.get("uuid"), transfer.get("id")));
 		return row;
 	}
@@ -1928,13 +2107,19 @@ public class TransferSaveController {
 
 	private TransferFormExtras buildFormExtras(String clinicalPresentation, String disabilityType, String laboratory,
 			String proceduresTreatments, String otherNotes, String diagnosis, String caregiverName,
-			String caregiverTelephone, String providerQualification, String signedDate, String signedTime) {
+			String caregiverTelephone, String providerQualification, String signedDate, String signedTime,
+			String vitalBp, String vitalTemp, String vitalSpo2, String vitalRr, String vitalPulse,
+			String vitalWeight, String vitalHeight, String vitalMuac) {
 		if (StringUtils.isBlank(clinicalPresentation) && StringUtils.isBlank(disabilityType)
 				&& StringUtils.isBlank(laboratory) && StringUtils.isBlank(proceduresTreatments)
 				&& StringUtils.isBlank(otherNotes) && StringUtils.isBlank(diagnosis)
 				&& StringUtils.isBlank(caregiverName) && StringUtils.isBlank(caregiverTelephone)
 				&& StringUtils.isBlank(providerQualification)
-				&& StringUtils.isBlank(signedDate) && StringUtils.isBlank(signedTime)) {
+				&& StringUtils.isBlank(signedDate) && StringUtils.isBlank(signedTime)
+				&& StringUtils.isBlank(vitalBp) && StringUtils.isBlank(vitalTemp)
+				&& StringUtils.isBlank(vitalSpo2) && StringUtils.isBlank(vitalRr)
+				&& StringUtils.isBlank(vitalPulse) && StringUtils.isBlank(vitalWeight)
+				&& StringUtils.isBlank(vitalHeight) && StringUtils.isBlank(vitalMuac)) {
 			return null;
 		}
 		TransferFormExtras extras = new TransferFormExtras();
@@ -1949,6 +2134,14 @@ public class TransferSaveController {
 		extras.setProviderQualification(providerQualification);
 		extras.setSignedDate(signedDate);
 		extras.setSignedTime(signedTime);
+		extras.setVitalBp(vitalBp);
+		extras.setVitalTemp(vitalTemp);
+		extras.setVitalSpo2(vitalSpo2);
+		extras.setVitalRr(vitalRr);
+		extras.setVitalPulse(vitalPulse);
+		extras.setVitalWeight(vitalWeight);
+		extras.setVitalHeight(vitalHeight);
+		extras.setVitalMuac(vitalMuac);
 		return extras;
 	}
 

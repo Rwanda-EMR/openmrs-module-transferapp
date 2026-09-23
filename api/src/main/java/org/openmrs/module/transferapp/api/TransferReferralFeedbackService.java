@@ -22,13 +22,27 @@ import java.util.Map;
 @Transactional
 public interface TransferReferralFeedbackService {
 
-	@Authorized(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
+	@Authorized(TransferAppActivator.PRIVILEGE_FEEDBACK)
 	@Transactional(readOnly = true)
 	Map<String, Object> getFeedbackForm(Integer patientId, String hieTransferId);
 
-	@Authorized(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
+	@Authorized(TransferAppActivator.PRIVILEGE_FEEDBACK)
 	Map<String, Object> saveFeedback(Integer patientId, String hieTransferId,
 			String dateOfDischarge, String finalDiagnosis, String treatmentGiven, String outcome,
-			String recommendations, String referBackToFacility, String contactPerson,
-			String providerName, String qualification, String signedDate, String signedTime, String phone);
+			String recommendations, String referBackToFacility, String referBackToFacilityFosaId,
+			String contactPerson, String providerName, String qualification, String signedDate,
+			String signedTime, String phone);
+
+	/**
+	 * Builds the Encounter JSON that would be upserted to HIE (existing transfer + feedback extensions).
+	 */
+	@Authorized(TransferAppActivator.PRIVILEGE_FEEDBACK)
+	@Transactional(readOnly = true)
+	Map<String, Object> previewFeedbackHiePayload(Integer patientId, String hieTransferId);
+
+	/**
+	 * Upserts the merged Encounter to HIE and marks the local feedback row as sent.
+	 */
+	@Authorized(TransferAppActivator.PRIVILEGE_FEEDBACK)
+	Map<String, Object> submitFeedbackToHie(Integer patientId, String hieTransferId);
 }

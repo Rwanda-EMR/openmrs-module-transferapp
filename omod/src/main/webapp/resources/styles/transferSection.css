@@ -134,8 +134,22 @@ table.transfer-datatable tbody tr.transfer-row-sent:hover {
   background: #bbf7d0;
 }
 
+table.transfer-datatable tbody tr.transfer-row-received,
+table.transfer-datatable tbody tr.transfer-row-received:nth-child(even) {
+  background: #ecfeff;
+}
+
+table.transfer-datatable tbody tr.transfer-row-received:hover {
+  background: #cffafe;
+}
+
 .transfer-status-sent {
   color: #166534;
+  font-weight: 600;
+}
+
+.transfer-status-received {
+  color: #0e7490;
   font-weight: 600;
 }
 

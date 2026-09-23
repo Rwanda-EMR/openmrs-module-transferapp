@@ -24,13 +24,10 @@ import org.openmrs.ui.framework.page.PageModel;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class HistoryPageController {
 
@@ -39,6 +36,7 @@ public class HistoryPageController {
 			@SpringBean("transferHistoryService") TransferHistoryService transferHistoryService,
 			@RequestParam(value = "upid", required = false) String upid,
 			@RequestParam(value = "month", required = false) String month,
+			@RequestParam(value = "formType", required = false) String formType,
 			@RequestParam(value = "app", required = false) String app) {
 
 		sessionContext.requireAuthentication();
@@ -48,11 +46,17 @@ public class HistoryPageController {
 		String listAccessDeniedMessage = null;
 		List<TransferHistoryItem> historyItems = Collections.emptyList();
 		String filterUpid = StringUtils.trimToNull(upid);
+		// Initial load (month param omitted) defaults to the first month option = current month.
+		// Explicit empty month="" keeps the "(Default)" / today-only mode.
 		String filterMonth = normalizeMonth(month);
+		if (month == null) {
+			filterMonth = currentYearMonth();
+		}
+		String filterFormType = normalizeFormType(formType);
 
 		if (canListTransfers) {
 			try {
-				historyItems = transferHistoryService.findHistory(filterUpid, filterMonth);
+				historyItems = transferHistoryService.findHistory(filterUpid, filterMonth, filterFormType);
 			}
 			catch (Exception ex) {
 				canListTransfers = false;
@@ -75,9 +79,22 @@ public class HistoryPageController {
 		model.addAttribute("hasHistory", historyItems != null && !historyItems.isEmpty());
 		model.addAttribute("filterUpid", filterUpid != null ? filterUpid : "");
 		model.addAttribute("filterMonth", filterMonth != null ? filterMonth : "");
-		model.addAttribute("monthOptions", buildMonthOptions());
+		model.addAttribute("filterFormType", filterFormType != null ? filterFormType : "");
 		model.addAttribute("appId", StringUtils.isNotBlank(app) ? app.trim() : "transferapp.dashboard");
 		model.addAttribute("defaultModeToday", filterUpid == null && filterMonth == null);
+	}
+
+	private String normalizeFormType(String formType) {
+		String value = StringUtils.trimToNull(formType);
+		if (value == null || "all".equalsIgnoreCase(value)) {
+			return null;
+		}
+		String lower = value.toLowerCase(Locale.ENGLISH);
+		if ("external".equals(lower) || "general".equals(lower)
+				|| "maternity".equals(lower) || "neonatal".equals(lower)) {
+			return "general".equals(lower) ? "external" : lower;
+		}
+		return null;
 	}
 
 	private String normalizeMonth(String month) {
@@ -91,19 +108,7 @@ public class HistoryPageController {
 		return value;
 	}
 
-	private List<Map<String, String>> buildMonthOptions() {
-		List<Map<String, String>> options = new ArrayList<Map<String, String>>();
-		Calendar calendar = Calendar.getInstance();
-		calendar.set(Calendar.DAY_OF_MONTH, 1);
-		SimpleDateFormat valueFormat = new SimpleDateFormat("yyyy-MM", Locale.ENGLISH);
-		SimpleDateFormat labelFormat = new SimpleDateFormat("MMMM yyyy", Locale.ENGLISH);
-		for (int i = 0; i < 24; i++) {
-			Map<String, String> option = new LinkedHashMap<String, String>();
-			option.put("value", valueFormat.format(calendar.getTime()));
-			option.put("label", labelFormat.format(calendar.getTime()));
-			options.add(option);
-			calendar.add(Calendar.MONTH, -1);
-		}
-		return options;
+	private String currentYearMonth() {
+		return new SimpleDateFormat("yyyy-MM", Locale.ENGLISH).format(Calendar.getInstance().getTime());
 	}
 }

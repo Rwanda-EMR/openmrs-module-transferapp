@@ -39,6 +39,18 @@ public class TransferHistoryItem {
 	/** yyyy-MM-dd when set; used by History to schedule reuse for reception. */
 	private String reuseRendezvousDate;
 
+	/** Local {@code transfers} row UUID when a local copy exists for this HIE id. */
+	private String localTransferUuid;
+
+	/** {@link TransferFormKind} name: GENERAL, MATERNITY, or NEONATAL. */
+	private String formKind;
+
+	/** FHIR-style code: external, maternity, or neonatal. */
+	private String formKindCode;
+
+	/** Short label for History filter/column (External / Maternity / Neonatal). */
+	private String formKindLabel;
+
 	public Integer getPatientId() {
 		return patientId;
 	}
@@ -109,5 +121,37 @@ public class TransferHistoryItem {
 
 	public void setReuseRendezvousDate(String reuseRendezvousDate) {
 		this.reuseRendezvousDate = reuseRendezvousDate;
+	}
+
+	public String getLocalTransferUuid() {
+		return localTransferUuid;
+	}
+
+	public void setLocalTransferUuid(String localTransferUuid) {
+		this.localTransferUuid = localTransferUuid;
+	}
+
+	public String getFormKind() {
+		return formKind;
+	}
+
+	public void setFormKind(String formKind) {
+		this.formKind = formKind;
+	}
+
+	public String getFormKindCode() {
+		return formKindCode;
+	}
+
+	public void setFormKindCode(String formKindCode) {
+		this.formKindCode = formKindCode;
+	}
+
+	public String getFormKindLabel() {
+		return formKindLabel;
+	}
+
+	public void setFormKindLabel(String formKindLabel) {
+		this.formKindLabel = formKindLabel;
 	}
 }

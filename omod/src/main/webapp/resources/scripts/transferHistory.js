@@ -239,6 +239,224 @@
         });
     }
 
+    function previewUrl() {
+        if (config().previewUrl) {
+            return config().previewUrl;
+        }
+        var base = window.transferOpenmrsPath || openmrsContextPath || "";
+        return base + "/module/transferapp/transfer/preview.form";
+    }
+
+    function formatProgress(template, current, total) {
+        var text = template || "Building combined PDF ({0} of {1})...";
+        return String(text).replace("{0}", String(current)).replace("{1}", String(total));
+    }
+
+    function listExportRows() {
+        var table = jq("#transfer-history-table");
+        if (!table.length) {
+            return [];
+        }
+        var rows = [];
+        if (jq.fn && jq.fn.dataTable && jq.fn.dataTable.fnIsDataTable
+                && jq.fn.dataTable.fnIsDataTable(table[0])) {
+            var api = table.dataTable();
+            var nodes = typeof api.fnGetFilteredNodes === "function"
+                ? api.fnGetFilteredNodes()
+                : api.fnGetNodes();
+            jq(nodes).filter(".transfer-history-row").each(function() {
+                rows.push(jq(this));
+            });
+        } else {
+            table.find("tbody tr.transfer-history-row").each(function() {
+                rows.push(jq(this));
+            });
+        }
+        return rows;
+    }
+
+    function fetchLocalPreview(localUuid) {
+        var deferred = jq.Deferred();
+        if (!localUuid) {
+            deferred.resolve(null);
+            return deferred.promise();
+        }
+        jq.ajax({
+            url: previewUrl(),
+            type: "GET",
+            data: { uuid: localUuid },
+            dataType: "json",
+            headers: { "Accept": "application/json" }
+        }).done(function(response) {
+            if (typeof response === "string") {
+                try {
+                    response = jq.parseJSON(response);
+                } catch (err) {
+                    deferred.resolve(null);
+                    return;
+                }
+            }
+            if (response && response.status === "success" && response.transfer) {
+                deferred.resolve(response.transfer);
+                return;
+            }
+            deferred.resolve(null);
+        }).fail(function() {
+            deferred.resolve(null);
+        });
+        return deferred.promise();
+    }
+
+    function fetchHiePreview(transferId, upid) {
+        var deferred = jq.Deferred();
+        if (!transferId || !upid) {
+            deferred.resolve(null);
+            return deferred.promise();
+        }
+        jq.ajax({
+            url: restUrl(),
+            type: "GET",
+            data: {
+                upid: upid,
+                transferId: transferId,
+                activeOnly: false
+            },
+            dataType: "json",
+            headers: { "Accept": "application/json" }
+        }).done(function(response) {
+            if (typeof response === "string") {
+                try {
+                    response = jq.parseJSON(response);
+                } catch (err) {
+                    deferred.resolve(null);
+                    return;
+                }
+            }
+            if (response && response.status === "error") {
+                deferred.resolve(null);
+                return;
+            }
+            var items = response && response.data ? response.data : [];
+            deferred.resolve(items.length ? items[0] : null);
+        }).fail(function() {
+            deferred.resolve(null);
+        });
+        return deferred.promise();
+    }
+
+    function loadPreviewDataForRow(row) {
+        var localUuid = jq.trim(row.attr("data-local-uuid") || "");
+        var transferId = jq.trim(row.attr("data-transfer-id") || "");
+        var upid = jq.trim(row.attr("data-upid") || "");
+        var deferred = jq.Deferred();
+        fetchLocalPreview(localUuid).done(function(localTransfer) {
+            if (localTransfer) {
+                deferred.resolve(localTransfer);
+                return;
+            }
+            fetchHiePreview(transferId, upid).done(function(hieTransfer) {
+                deferred.resolve(hieTransfer || null);
+            });
+        });
+        return deferred.promise();
+    }
+
+    function buildPreviewHtml(transfer) {
+        if (!transfer) {
+            return "";
+        }
+        var normalized = typeof enrichTransferPreviewData === "function"
+            ? enrichTransferPreviewData(transfer)
+            : transfer;
+        if (typeof buildTransferFormPreviewHtml === "function") {
+            return buildTransferFormPreviewHtml(normalized);
+        }
+        return "";
+    }
+
+    function showExportStatus(text, isError) {
+        var status = jq("#transfer-history-export-status");
+        if (!status.length) {
+            jq(".transfer-history-filters-grid").after(
+                "<p id='transfer-history-export-status' class='transfer-history-export-status'></p>"
+            );
+            status = jq("#transfer-history-export-status");
+        }
+        status.css("color", isError ? "#a94442" : "#334155").text(text || "").show();
+    }
+
+    function hideExportStatus() {
+        jq("#transfer-history-export-status").hide().text("");
+    }
+
+    function exportCombinedPdf() {
+        var rows = listExportRows();
+        var exportBtn = jq("#transfer-history-export-pdf");
+        if (!rows.length) {
+            showExportStatus(messages().exportPdfEmpty || "No transfers in the list to export.", true);
+            return;
+        }
+        if (typeof buildTransferFormPreviewHtml !== "function") {
+            showExportStatus(messages().exportPdfError || "Unable to build the combined PDF export.", true);
+            return;
+        }
+
+        exportBtn.prop("disabled", true);
+        var pages = [];
+        var failed = 0;
+        var index = 0;
+        var total = rows.length;
+
+        function finish() {
+            exportBtn.prop("disabled", false);
+            if (!pages.length) {
+                showExportStatus(messages().exportPdfError || "Unable to build the combined PDF export.", true);
+                return;
+            }
+            var combined = pages.join("");
+            var ok = typeof exportTransferFormPreviewPdf === "function"
+                && exportTransferFormPreviewPdf(combined, {
+                    fileName: messages().exportPdfTitle || "Transfer-History-Export"
+                });
+            if (!ok) {
+                showExportStatus(messages().exportPdfError || "Unable to build the combined PDF export.", true);
+                return;
+            }
+            if (failed > 0) {
+                var partial = messages().exportPdfPartial
+                    || "Exported {0} of {1} transfers. Some could not be loaded.";
+                showExportStatus(formatProgress(partial, pages.length, total), true);
+            } else {
+                hideExportStatus();
+            }
+        }
+
+        function next() {
+            if (index >= total) {
+                finish();
+                return;
+            }
+            showExportStatus(formatProgress(
+                messages().exportPdfProgress || "Building combined PDF ({0} of {1})...",
+                index + 1,
+                total
+            ), false);
+            var row = rows[index];
+            index += 1;
+            loadPreviewDataForRow(row).done(function(transfer) {
+                var html = buildPreviewHtml(transfer);
+                if (html) {
+                    pages.push("<div class='transfer-pdf-page'>" + html + "</div>");
+                } else {
+                    failed += 1;
+                }
+                next();
+            });
+        }
+
+        next();
+    }
+
     function renderPreview(transfer) {
         if (typeof renderTransferPreviewInto === "function") {
             renderTransferPreviewInto("#transfer-history-preview-body", transfer);
@@ -250,7 +468,7 @@
         jq("#transfer-history-preview-body").html(previewHtml);
     }
 
-    function loadTransferPreview(transferId, upid) {
+    function loadTransferPreview(transferId, upid, localUuid) {
         if (!transferId || !upid) {
             jq("#transfer-history-preview-body").html(
                 "<p style='color:red;'>" + esc(messages().missingIds || "Missing transfer UUID or UPID.") + "</p>"
@@ -265,49 +483,29 @@
         );
         showPreviewDialog();
 
-        jq.ajax({
-            url: restUrl(),
-            type: "GET",
-            data: {
-                upid: upid,
-                transferId: transferId,
-                activeOnly: false
-            },
-            dataType: "json",
-            headers: {
-                "Accept": "application/json"
-            }
-        }).done(function(response) {
-            if (typeof response === "string") {
-                try {
-                    response = jq.parseJSON(response);
-                } catch (err) {
-                    jq("#transfer-history-preview-body").html(
-                        "<p style='color:red;'>" + esc(messages().loadError || "Unable to load transfer.") + "</p>"
-                    );
-                    return;
+        var rowLike = {
+            attr: function(name) {
+                if (name === "data-local-uuid") {
+                    return localUuid || "";
                 }
+                if (name === "data-transfer-id") {
+                    return transferId || "";
+                }
+                if (name === "data-upid") {
+                    return upid || "";
+                }
+                return "";
             }
-            if (response && response.status === "error") {
-                jq("#transfer-history-preview-body").html(
-                    "<p style='color:red;'>" + esc(response.message || messages().loadError || "Unable to load transfer.") + "</p>"
-                );
-                return;
-            }
-            var items = response && response.data ? response.data : [];
-            if (items.length) {
-                renderPreview(items[0]);
+        };
+
+        loadPreviewDataForRow(rowLike).done(function(transfer) {
+            if (transfer) {
+                renderPreview(transfer);
                 return;
             }
             jq("#transfer-history-preview-body").html(
                 "<p style='color:red;'>" + esc(messages().empty || "No matching transfer found in HIE.") + "</p>"
             );
-        }).fail(function(xhr) {
-            var message = messages().loadError || "Unable to load transfer details.";
-            if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
-                message = xhr.responseJSON.message;
-            }
-            jq("#transfer-history-preview-body").html("<p style='color:red;'>" + esc(message) + "</p>");
         });
     }
 
@@ -334,11 +532,21 @@
             });
         }
 
+        jq("#transfer-history-export-pdf").on("click", function(event) {
+            event.preventDefault();
+            exportCombinedPdf();
+        });
+
         jq(document).on("click", ".transfer-history-view-link", function(event) {
             event.preventDefault();
             event.stopPropagation();
             var link = jq(this);
-            loadTransferPreview(link.attr("data-transfer-id"), link.attr("data-upid"));
+            var row = link.closest("tr.transfer-history-row");
+            loadTransferPreview(
+                link.attr("data-transfer-id"),
+                link.attr("data-upid"),
+                row.attr("data-local-uuid") || ""
+            );
         });
 
         jq(document).on("click", ".transfer-history-reuse-link", function(event) {

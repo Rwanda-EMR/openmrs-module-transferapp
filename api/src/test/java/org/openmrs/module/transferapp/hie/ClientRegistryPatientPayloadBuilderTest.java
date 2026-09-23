@@ -24,20 +24,19 @@ import org.openmrs.PatientIdentifier;
 import org.openmrs.PatientIdentifierType;
 import org.openmrs.PersonAddress;
 import org.openmrs.PersonName;
+import org.openmrs.module.transferapp.model.Transfer;
 
 import java.util.GregorianCalendar;
 
+/**
+ * Address hierarchy values match {@code client_registry_request_sample.json} /
+ * Rwanda|Northern Province/Amajyaruguru|Burera|Rugengabari|Mucaca|Gahinga.
+ */
 public class ClientRegistryPatientPayloadBuilderTest {
 
 	@Test
 	public void buildsAddressFromPersonAddressColumns() throws Exception {
-		PersonAddress address = new PersonAddress();
-		address.setCountry("Rwanda");
-		address.setStateProvince("Northern Province/Amajyaruguru");
-		address.setCountyDistrict("Burera");
-		address.setCityVillage("Rugengabari");
-		address.setAddress3("Gahinga");
-		address.setAddress1("Mucaca");
+		PersonAddress address = samplePersonAddress();
 
 		ClientRegistryPatientPayloadBuilder builder = new ClientRegistryPatientPayloadBuilder();
 		JsonNode node = builder.buildAddress(address);
@@ -49,12 +48,32 @@ public class ClientRegistryPatientPayloadBuilderTest {
 
 		JsonNode line = node.get("line");
 		assertEquals(6, line.size());
-		assertEquals("Country: Rwanda", line.get(0).getTextValue());
-		assertEquals("Province: Northern Province/Amajyaruguru", line.get(1).getTextValue());
-		assertEquals("District: Burera", line.get(2).getTextValue());
-		assertEquals("Sector: Rugengabari", line.get(3).getTextValue());
-		assertEquals("Cell: Gahinga", line.get(4).getTextValue());
-		assertEquals("Village: Mucaca", line.get(5).getTextValue());
+		assertEquals("country: Rwanda", line.get(0).getTextValue());
+		assertEquals("province: Northern Province/Amajyaruguru", line.get(1).getTextValue());
+		assertEquals("district: Burera", line.get(2).getTextValue());
+		assertEquals("sector: Rugengabari", line.get(3).getTextValue());
+		assertEquals("cell: Mucaca", line.get(4).getTextValue());
+		assertEquals("village: Gahinga", line.get(5).getTextValue());
+	}
+
+	@Test
+	public void buildsAddressUsingTransferFallbacksWhenPersonAddressIncomplete() throws Exception {
+		Transfer transfer = new Transfer();
+		transfer.setClientDistrict("Burera");
+		transfer.setSector("Rugengabari");
+		transfer.setCell("Mucaca");
+		transfer.setVillage("Gahinga");
+
+		PersonAddress address = new PersonAddress();
+		address.setCountry("Rwanda");
+		address.setStateProvince("Northern Province/Amajyaruguru");
+
+		JsonNode node = new ClientRegistryPatientPayloadBuilder().buildAddress(address, transfer);
+		JsonNode line = node.get("line");
+		assertEquals("district: Burera", line.get(2).getTextValue());
+		assertEquals("sector: Rugengabari", line.get(3).getTextValue());
+		assertEquals("cell: Mucaca", line.get(4).getTextValue());
+		assertEquals("village: Gahinga", line.get(5).getTextValue());
 	}
 
 	@Test
@@ -68,14 +87,8 @@ public class ClientRegistryPatientPayloadBuilderTest {
 		patient.setGender("F");
 		patient.setBirthdate(new GregorianCalendar(1986, 0, 1).getTime());
 
-		PersonAddress address = new PersonAddress();
+		PersonAddress address = samplePersonAddress();
 		address.setPreferred(true);
-		address.setCountry("Rwanda");
-		address.setStateProvince("Northern Province");
-		address.setCountyDistrict("Burera");
-		address.setCityVillage("Rugengabari");
-		address.setAddress3("Gahinga");
-		address.setAddress1("Mucaca");
 		patient.addAddress(address);
 
 		PatientIdentifierType upidType = new PatientIdentifierType();
@@ -98,8 +111,21 @@ public class ClientRegistryPatientPayloadBuilderTest {
 		assertEquals("NYIRABAHUNDE", root.get("name").get(0).get("family").getTextValue());
 		assertTrue(root.get("identifier").toString().contains("UPI"));
 		assertTrue(root.get("identifier").toString().contains("NID"));
-		assertEquals("Village: Mucaca",
-				root.get("address").get(0).get("line").get(5).getTextValue());
+		JsonNode line = root.get("address").get(0).get("line");
+		assertEquals("cell: Mucaca", line.get(4).getTextValue());
+		assertEquals("village: Gahinga", line.get(5).getTextValue());
+	}
+
+	private static PersonAddress samplePersonAddress() {
+		PersonAddress address = new PersonAddress();
+		address.setCountry("Rwanda");
+		address.setStateProvince("Northern Province/Amajyaruguru");
+		address.setCountyDistrict("Burera");
+		address.setCityVillage("Rugengabari");
+		// Rwanda hierarchy: address3 = Cell, address1 = Village (Umudugudu)
+		address.setAddress3("Mucaca");
+		address.setAddress1("Gahinga");
+		return address;
 	}
 
 	private static String text(JsonNode node, String field) {

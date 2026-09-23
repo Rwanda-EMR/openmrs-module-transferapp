@@ -29,6 +29,12 @@ public interface TransferRegistrationObsService {
 
 	boolean destinationMatchesCurrentFacility(String destination);
 
+	/**
+	 * True when destination matches any alias in {@code transferapp.sendingFacilityName}.
+	 * Falls back to {@link #destinationMatchesCurrentFacility(String)} when that GP is blank.
+	 */
+	boolean destinationMatchesSendingFacilityName(String destination);
+
 	Encounter findRegistrationEncounterMissingTransferId(Patient patient);
 
 	/**
@@ -49,7 +55,18 @@ public interface TransferRegistrationObsService {
 	 */
 	org.openmrs.Obs findMatchingTransferIdObs(Patient patient, String hieTransferId);
 
+	/**
+	 * Validates the HIE transfer, records Transfer Id on a registration encounter missing it,
+	 * and caches the transfer locally. Uses the patient's active visit when {@code visitId} is null.
+	 */
 	@Authorized(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
 	Map<String, Object> validateAndSaveTransferId(Integer patientId, String hieTransferId);
+
+	/**
+	 * Same as {@link #validateAndSaveTransferId(Integer, String)} but records the Transfer Id on a
+	 * registration encounter belonging to the given visit (required for Past Transfers).
+	 */
+	@Authorized(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
+	Map<String, Object> validateAndSaveTransferId(Integer patientId, String hieTransferId, Integer visitId);
 
 }

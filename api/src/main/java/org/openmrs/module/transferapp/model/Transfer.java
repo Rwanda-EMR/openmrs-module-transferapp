@@ -217,6 +217,31 @@ public class Transfer extends BaseOpenmrsData {
 	@Column(name = "patient_sms_last_attempt_at")
 	private Date patientSmsLastAttemptAt;
 
+	@Enumerated(EnumType.STRING)
+	@Column(name = "local_approval_status", length = 20)
+	private TransferApprovalStatus localApprovalStatus = TransferApprovalStatus.NONE;
+
+	@Column(name = "approver_user_id")
+	private Integer approverUserId;
+
+	@Column(name = "approved_at")
+	private Date approvedAt;
+
+	@Column(name = "rejected_at")
+	private Date rejectedAt;
+
+	@Column(name = "rejection_reason", length = 1000)
+	private String rejectionReason;
+
+	@Column(name = "approver_name", length = 255)
+	private String approverName;
+
+	@Column(name = "approver_position", length = 255)
+	private String approverPosition;
+
+	@Column(name = "approver_phone", length = 64)
+	private String approverPhone;
+
 	@Column(name = "patient_sms_last_error", length = 500)
 	private String patientSmsLastError;
 
@@ -816,6 +841,78 @@ public class Transfer extends BaseOpenmrsData {
 
 	public void setPatientSmsLastError(String patientSmsLastError) {
 		this.patientSmsLastError = patientSmsLastError;
+	}
+
+	public TransferApprovalStatus getLocalApprovalStatus() {
+		return localApprovalStatus != null ? localApprovalStatus : TransferApprovalStatus.NONE;
+	}
+
+	public void setLocalApprovalStatus(TransferApprovalStatus localApprovalStatus) {
+		this.localApprovalStatus = localApprovalStatus != null ? localApprovalStatus : TransferApprovalStatus.NONE;
+	}
+
+	public Integer getApproverUserId() {
+		return approverUserId;
+	}
+
+	public void setApproverUserId(Integer approverUserId) {
+		this.approverUserId = approverUserId;
+	}
+
+	public Date getApprovedAt() {
+		return approvedAt;
+	}
+
+	public void setApprovedAt(Date approvedAt) {
+		this.approvedAt = approvedAt;
+	}
+
+	public Date getRejectedAt() {
+		return rejectedAt;
+	}
+
+	public void setRejectedAt(Date rejectedAt) {
+		this.rejectedAt = rejectedAt;
+	}
+
+	public String getRejectionReason() {
+		return rejectionReason;
+	}
+
+	public void setRejectionReason(String rejectionReason) {
+		this.rejectionReason = rejectionReason;
+	}
+
+	public String getApproverName() {
+		return approverName;
+	}
+
+	public void setApproverName(String approverName) {
+		this.approverName = approverName;
+	}
+
+	public String getApproverPosition() {
+		return approverPosition;
+	}
+
+	public void setApproverPosition(String approverPosition) {
+		this.approverPosition = approverPosition;
+	}
+
+	public String getApproverPhone() {
+		return approverPhone;
+	}
+
+	public void setApproverPhone(String approverPhone) {
+		this.approverPhone = approverPhone;
+	}
+
+	public boolean isAwaitingLocalApproval() {
+		return TransferApprovalStatus.PENDING.equals(getLocalApprovalStatus());
+	}
+
+	public boolean isLocallyApproved() {
+		return TransferApprovalStatus.APPROVED.equals(getLocalApprovalStatus());
 	}
 
 	public boolean isPatientSmsSent() {

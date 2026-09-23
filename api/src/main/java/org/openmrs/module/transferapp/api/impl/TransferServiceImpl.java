@@ -14,6 +14,8 @@
 package org.openmrs.module.transferapp.api.impl;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.openmrs.Patient;
 import org.openmrs.PersonAddress;
 import org.openmrs.User;
@@ -33,6 +35,7 @@ import org.openmrs.module.transferapp.model.PatientInsuranceInfo;
 import org.openmrs.module.transferapp.model.ReceivingFacility;
 import org.openmrs.module.transferapp.model.RegistryFacility;
 import org.openmrs.module.transferapp.model.Transfer;
+import org.openmrs.module.transferapp.model.TransferApprovalStatus;
 import org.openmrs.module.transferapp.model.TransferFormExtras;
 import org.openmrs.module.transferapp.model.TransferFormKind;
 import org.openmrs.module.transferapp.model.TransferProfile;
@@ -47,6 +50,8 @@ import java.util.List;
 import java.util.UUID;
 
 public class TransferServiceImpl implements TransferService {
+
+	private static final Log log = LogFactory.getLog(TransferServiceImpl.class);
 
 	private static final String DATETIME_LOCAL_PATTERN = "yyyy-MM-dd'T'HH:mm";
 	private static final String DATETIME_SPACE_PATTERN = "yyyy-MM-dd HH:mm";
@@ -246,7 +251,9 @@ public class TransferServiceImpl implements TransferService {
 		}
 		transfer.setCallingTime(StringUtils.trimToNull(callingTime));
 		transfer.setReceivingFacilityCode(StringUtils.trimToNull(receivingFacilityCode));
-		applyReceivingFacilitySnapshot(transfer, receivingFacilityCode, receivingFacilityId);
+		ReceivingFacility receivingFacility = resolveReceivingFacility(receivingFacilityCode, receivingFacilityId);
+		applyReceivingFacilitySnapshot(transfer, receivingFacility);
+		applyLocalApprovalForDestination(transfer, receivingFacility);
 		transfer.setReceivingService(StringUtils.trimToNull(receivingService));
 		transfer.setStaffContactedName(StringUtils.trimToNull(staffContactedName));
 		transfer.setStaffContactedPhone(StringUtils.trimToNull(staffContactedPhone));
@@ -266,7 +273,12 @@ public class TransferServiceImpl implements TransferService {
 			throw new APIException("Reason for Transfer is required");
 		}
 
+		String patientUpid = patientSnapshotResolver.resolveUpid(patient);
 		if (!isUpdate) {
+			if (StringUtils.isBlank(patientUpid)) {
+				throw new APIException(
+						"Patient UPID is required to create a transfer. Register a UPID on the patient chart first.");
+			}
 			applyHealthInsuranceSnapshot(transfer, patient);
 			patientSnapshotResolver.applyPatientSnapshot(transfer, patient, transferDao);
 
@@ -276,9 +288,20 @@ public class TransferServiceImpl implements TransferService {
 			}
 			patientSnapshotResolver.applyPersonAddressSnapshot(transfer, personAddress);
 		}
+		else {
+			// Keep EMR/UPID snapshot current so HIE resubmit payloads include UPID.
+			patientSnapshotResolver.ensureEmrIdFromPatient(transfer, patient);
+			if (StringUtils.isBlank(transfer.getEmrId())) {
+				throw new APIException(
+						"Patient UPID is required to update this transfer. Register a UPID on the patient chart first.");
+			}
+		}
 
 		applyFormExtras(transfer, formExtras, isUpdate);
+		// Form vitals always win over active-visit snapshot when the form posts vital fields.
+		applyVitalSignsFromForm(transfer, formExtras, formExtras != null);
 		validateRequiredClinicalFields(transfer);
+		validateRequiredVitalFields(transfer);
 		ensureSendingFacilityMatchesOutbound(transfer);
 
 		Date now = new Date();
@@ -296,6 +319,10 @@ public class TransferServiceImpl implements TransferService {
 		if (!isUpdate) {
 			markActiveQueueEntryTransferred(patient, savedTransfer, now);
 		}
+		// Run ambulance billing in the same active transaction so create/update/delete
+		// share the transfer save. Failures must propagate with mohbilling's message
+		// (do not swallow — that marks the TX rollback-only and surfaces only
+		// UnexpectedRollbackException to the UI).
 		if (transferAmbulanceBillingService != null) {
 			savedTransfer = transferAmbulanceBillingService.syncAmbulanceBill(
 					savedTransfer, previousReceivingFacilityCode, previousTransportType);
@@ -315,18 +342,32 @@ public class TransferServiceImpl implements TransferService {
 			if (replaceClinicalFields || StringUtils.isNotBlank(formExtras.getClinicalPresentation())) {
 				transfer.setClinicalPresentation(StringUtils.trimToNull(formExtras.getClinicalPresentation()));
 			}
-			transfer.setDisabilityType(StringUtils.trimToNull(formExtras.getDisabilityType()));
-			transfer.setLaboratory(StringUtils.trimToNull(formExtras.getLaboratory()));
-			transfer.setProceduresTreatments(StringUtils.trimToNull(formExtras.getProceduresTreatments()));
-			transfer.setOtherNotes(StringUtils.trimToNull(formExtras.getOtherNotes()));
+			// Disability is not on the simplified external form — only overwrite when supplied.
+			if (StringUtils.isNotBlank(formExtras.getDisabilityType())) {
+				transfer.setDisabilityType(StringUtils.trimToNull(formExtras.getDisabilityType()));
+			}
+			if (replaceClinicalFields || StringUtils.isNotBlank(formExtras.getLaboratory())) {
+				transfer.setLaboratory(StringUtils.trimToNull(formExtras.getLaboratory()));
+			}
+			if (replaceClinicalFields || StringUtils.isNotBlank(formExtras.getProceduresTreatments())) {
+				transfer.setProceduresTreatments(StringUtils.trimToNull(formExtras.getProceduresTreatments()));
+			}
+			if (replaceClinicalFields || StringUtils.isNotBlank(formExtras.getOtherNotes())) {
+				transfer.setOtherNotes(StringUtils.trimToNull(formExtras.getOtherNotes()));
+			}
 			if (replaceClinicalFields || StringUtils.isNotBlank(formExtras.getDiagnosis())) {
 				transfer.setDiagnosis(StringUtils.trimToNull(formExtras.getDiagnosis()));
 			}
 			if (StringUtils.isNotBlank(formExtras.getProviderQualification())) {
 				transfer.setProviderQualification(StringUtils.trimToNull(formExtras.getProviderQualification()));
 			}
-			transfer.setSignedDate(parseDateValue(formExtras.getSignedDate()));
-			transfer.setSignedTime(StringUtils.trimToNull(formExtras.getSignedTime()));
+			// Preserve existing sign-off unless the form explicitly sends new values.
+			if (StringUtils.isNotBlank(formExtras.getSignedDate())) {
+				transfer.setSignedDate(parseDateValue(formExtras.getSignedDate()));
+			}
+			if (StringUtils.isNotBlank(formExtras.getSignedTime())) {
+				transfer.setSignedTime(StringUtils.trimToNull(formExtras.getSignedTime()));
+			}
 		}
 
 		applyProviderProfileDetails(transfer);
@@ -346,6 +387,61 @@ public class TransferServiceImpl implements TransferService {
 		}
 		if (StringUtils.isBlank(transfer.getDiagnosis())) {
 			throw new APIException("Diagnosis is required");
+		}
+	}
+
+	private void applyVitalSignsFromForm(Transfer transfer, TransferFormExtras formExtras, boolean replaceFromForm) {
+		if (transfer == null || formExtras == null) {
+			return;
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalTemp())) {
+			transfer.setVitalTemp(StringUtils.trimToNull(formExtras.getVitalTemp()));
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalSpo2())) {
+			transfer.setVitalSpo2(StringUtils.trimToNull(formExtras.getVitalSpo2()));
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalRr())) {
+			transfer.setVitalRr(StringUtils.trimToNull(formExtras.getVitalRr()));
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalPulse())) {
+			transfer.setVitalPulse(StringUtils.trimToNull(formExtras.getVitalPulse()));
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalBp())) {
+			transfer.setVitalBp(StringUtils.trimToNull(formExtras.getVitalBp()));
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalWeight())) {
+			transfer.setVitalWt(StringUtils.trimToNull(formExtras.getVitalWeight()));
+		}
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalHeight())) {
+			transfer.setVitalHt(StringUtils.trimToNull(formExtras.getVitalHeight()));
+		}
+		// MUAC is optional; still accept an explicit blank on edit/replace.
+		if (replaceFromForm || StringUtils.isNotBlank(formExtras.getVitalMuac())) {
+			transfer.setVitalMuac(StringUtils.trimToNull(formExtras.getVitalMuac()));
+		}
+	}
+
+	private void validateRequiredVitalFields(Transfer transfer) {
+		if (StringUtils.isBlank(transfer.getVitalBp())) {
+			throw new APIException("Blood pressure (BP) is required");
+		}
+		if (StringUtils.isBlank(transfer.getVitalTemp())) {
+			throw new APIException("Temperature is required");
+		}
+		if (StringUtils.isBlank(transfer.getVitalSpo2())) {
+			throw new APIException("SpO2 is required");
+		}
+		if (StringUtils.isBlank(transfer.getVitalRr())) {
+			throw new APIException("Respiratory rate (RR) is required");
+		}
+		if (StringUtils.isBlank(transfer.getVitalPulse())) {
+			throw new APIException("Pulse is required");
+		}
+		if (StringUtils.isBlank(transfer.getVitalWt())) {
+			throw new APIException("Weight is required");
+		}
+		if (StringUtils.isBlank(transfer.getVitalHt())) {
+			throw new APIException("Height is required");
 		}
 	}
 
@@ -494,12 +590,17 @@ public class TransferServiceImpl implements TransferService {
 		}
 	}
 
-	private void applyReceivingFacilitySnapshot(Transfer transfer, String receivingFacilityCode,
-			Integer receivingFacilityId) {
-		if (transferAdminService == null) {
-			return;
+	private void applyReceivingFacilitySnapshot(Transfer transfer, ReceivingFacility facility) {
+		if (facility != null) {
+			transfer.setReceivingProvince(StringUtils.trimToNull(facility.getProvince()));
+			transfer.setReceivingDistrict(StringUtils.trimToNull(facility.getDistrict()));
 		}
+	}
 
+	private ReceivingFacility resolveReceivingFacility(String receivingFacilityCode, Integer receivingFacilityId) {
+		if (transferAdminService == null) {
+			return null;
+		}
 		ReceivingFacility facility = null;
 		if (receivingFacilityId != null) {
 			facility = transferAdminService.getReceivingFacility(receivingFacilityId);
@@ -510,10 +611,39 @@ public class TransferServiceImpl implements TransferService {
 				facility = transferAdminService.getReceivingFacilityByCode(sendingLocationId, receivingFacilityCode);
 			}
 		}
-		if (facility != null) {
-			transfer.setReceivingProvince(StringUtils.trimToNull(facility.getProvince()));
-			transfer.setReceivingDistrict(StringUtils.trimToNull(facility.getDistrict()));
+		return facility;
+	}
+
+	/**
+	 * External destinations require approver sign-off before HIE submit.
+	 * Non-external destinations clear any prior approval hold.
+	 */
+	private void applyLocalApprovalForDestination(Transfer transfer, ReceivingFacility facility) {
+		if (facility != null && facility.isExternal()) {
+			transfer.setLocalApprovalStatus(TransferApprovalStatus.PENDING);
+			transfer.setApproverUserId(null);
+			transfer.setApprovedAt(null);
+			transfer.setRejectedAt(null);
+			transfer.setRejectionReason(null);
+			transfer.setApproverName(null);
+			transfer.setApproverPosition(null);
+			transfer.setApproverPhone(null);
 		}
+		else {
+			transfer.setLocalApprovalStatus(TransferApprovalStatus.NONE);
+			transfer.setApproverUserId(null);
+			transfer.setApprovedAt(null);
+			transfer.setRejectedAt(null);
+			transfer.setRejectionReason(null);
+			transfer.setApproverName(null);
+			transfer.setApproverPosition(null);
+			transfer.setApproverPhone(null);
+		}
+	}
+
+	private void applyReceivingFacilitySnapshot(Transfer transfer, String receivingFacilityCode,
+			Integer receivingFacilityId) {
+		applyReceivingFacilitySnapshot(transfer, resolveReceivingFacility(receivingFacilityCode, receivingFacilityId));
 	}
 
 	private void validateTransferTypeFields(String transferType, String ambulanceCalledTime,

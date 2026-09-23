@@ -21,6 +21,7 @@ import org.openmrs.module.transferapp.TransferAppActivator;
 import org.openmrs.module.transferapp.TransferPrivilegeHelper;
 import org.openmrs.module.transferapp.api.NewTransferOutService;
 import org.openmrs.module.transferapp.api.TransferAdminService;
+import org.openmrs.module.transferapp.api.TransferPatientSnapshotResolver;
 import org.openmrs.module.transferapp.api.TransferProfileService;
 import org.openmrs.module.transferapp.model.NewTransferOutFormData;
 import org.openmrs.module.transferapp.model.TransferProfile;
@@ -72,6 +73,12 @@ public class NewTransferOutFormFragmentController {
 		Patient patient = patientService.getPatient(patientId);
 		if (patient == null) {
 			model.addAttribute("error", ui.message("transferapp.patient.transfers.wizard.patientNotFound"));
+			return;
+		}
+
+		boolean editing = transferUuid != null && transferUuid.trim().length() > 0;
+		if (!editing && !new TransferPatientSnapshotResolver().patientHasUpid(patient)) {
+			model.addAttribute("error", ui.message("transferapp.patient.transfers.upidRequired"));
 			return;
 		}
 

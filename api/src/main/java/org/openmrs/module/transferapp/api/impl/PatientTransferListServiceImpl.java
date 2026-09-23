@@ -146,6 +146,11 @@ public class PatientTransferListServiceImpl implements PatientTransferListServic
 		item.setClientName(transfer.getClientName());
 		item.setEmrId(transfer.getEmrId());
 		item.setHieSent(transfer.isSentToHie());
+		item.setReceivedFromHie(transfer.isReceivedFromHie());
+		item.setAwaitingLocalApproval(transfer.isAwaitingLocalApproval());
+		item.setRejectedLocalApproval(
+				org.openmrs.module.transferapp.model.TransferApprovalStatus.REJECTED.equals(
+						transfer.getLocalApprovalStatus()));
 		item.setFormType(FORM_TYPE_EXTERNAL);
 		return item;
 	}

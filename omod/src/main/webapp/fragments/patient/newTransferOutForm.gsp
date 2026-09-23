@@ -9,15 +9,15 @@ while (ambulanceFacilitiesCtxPath.startsWith("/")) {
 def ambulanceProviderFacilitiesUrl = "/" + ambulanceFacilitiesCtxPath + "/module/transferapp/transfer/ambulanceProviderFacilities.form"
 %>
 
-<g:if test="${error != null && error.trim().length() > 0}">
+<% if (error != null && error.toString().trim().length() > 0) { %>
     <p style="color: red;">${ ui.format(error) }</p>
-</g:if>
+<% } %>
 
-<g:if test="${formData}">
+<% if (formData != null) { %>
 <div class="transfer-wizard-shell">
     <header class="transfer-wizard-page-header">
         <h1 class="transfer-wizard-page-title">
-            <% if (formData.editing) { %>
+            <% if (formData.transferUuid) { %>
                 ${ ui.message("transferapp.patient.transfers.editTransferOut") }
             <% } else { %>
                 External Transfer Form
@@ -27,7 +27,7 @@ def ambulanceProviderFacilitiesUrl = "/" + ambulanceFacilitiesCtxPath + "/module
 
     <div class="transfer-wizard-panel" style="padding: 0 5px;">
         <form id="moh-transfer-wizard-form" class="transfer-out-form" novalidate="novalidate"
-              data-editing="${ formData.editing ? 'true' : 'false' }"
+              data-editing="${ formData.transferUuid ? 'true' : 'false' }"
               data-preferred-receiving-service="${ ui.encodeHtmlAttribute(formData.receivingService ?: '') }">
             <input type="hidden" name="patientId" value="${ formData.patientId }" />
             <% if (formData.transferUuid) { %>
@@ -182,6 +182,60 @@ def ambulanceProviderFacilitiesUrl = "/" + ambulanceFacilitiesCtxPath + "/module
             </div>
 
             <div class="transfer-wizard-section">
+                <h2 class="transfer-wizard-section-title">${ ui.message("transferapp.patient.transfers.vitalSigns") }</h2>
+                <div class="transfer-vitals-grid">
+                    <div class="transfer-wizard-field transfer-vital-field">
+                        <label for="vitalBp">${ ui.message("transferapp.patient.transfers.vitalBp") }</label>
+                        <input type="text" id="vitalBp" name="vitalBp" required="required"
+                               value="${ ui.encodeHtmlAttribute(formData.vitalBp ?: '') }"
+                               placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.transfers.vitalBp.placeholder')) }" />
+                    </div>
+                    <div class="transfer-wizard-field transfer-vital-field">
+                        <label for="vitalTemp">${ ui.message("transferapp.patient.transfers.vitalTemp") }</label>
+                        <input type="text" id="vitalTemp" name="vitalTemp" required="required"
+                               value="${ ui.encodeHtmlAttribute(formData.vitalTemp ?: '') }"
+                               placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.transfers.vitalTemp.placeholder')) }" />
+                    </div>
+                    <div class="transfer-wizard-field transfer-vital-field">
+                        <label for="vitalSpo2">${ ui.message("transferapp.patient.transfers.vitalSpo2") }</label>
+                        <input type="text" id="vitalSpo2" name="vitalSpo2" required="required"
+                               value="${ ui.encodeHtmlAttribute(formData.vitalSpo2 ?: '') }"
+                               placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.transfers.vitalSpo2.placeholder')) }" />
+                    </div>
+                    <div class="transfer-wizard-field transfer-vital-field">
+                        <label for="vitalRr">${ ui.message("transferapp.patient.transfers.vitalRr") }</label>
+                        <input type="text" id="vitalRr" name="vitalRr" required="required"
+                               value="${ ui.encodeHtmlAttribute(formData.vitalRr ?: '') }"
+                               placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.transfers.vitalRr.placeholder')) }" />
+                    </div>
+                    <div class="transfer-wizard-field transfer-vital-field">
+                        <label for="vitalPulse">${ ui.message("transferapp.patient.transfers.vitalPulse") }</label>
+                        <input type="text" id="vitalPulse" name="vitalPulse" required="required"
+                               value="${ ui.encodeHtmlAttribute(formData.vitalPulse ?: '') }"
+                               placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.transfers.vitalPulse.placeholder')) }" />
+                    </div>
+                    <div class="transfer-wizard-field transfer-vital-field">
+                        <label for="vitalWeight">${ ui.message("transferapp.patient.transfers.vitalWeight") }</label>
+                        <input type="text" id="vitalWeight" name="vitalWeight" required="required"
+                               value="${ ui.encodeHtmlAttribute(formData.vitalWeight ?: '') }"
+                               placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.transfers.vitalWeight.placeholder')) }" />
+                    </div>
+                    <div class="transfer-wizard-field transfer-vital-field">
+                        <label for="vitalHeight">${ ui.message("transferapp.patient.transfers.vitalHeight") }</label>
+                        <input type="text" id="vitalHeight" name="vitalHeight" required="required"
+                               value="${ ui.encodeHtmlAttribute(formData.vitalHeight ?: '') }"
+                               placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.transfers.vitalHeight.placeholder')) }" />
+                    </div>
+                    <div class="transfer-wizard-field transfer-vital-field">
+                        <label for="vitalMuac">${ ui.message("transferapp.patient.transfers.vitalMuac") }</label>
+                        <input type="text" id="vitalMuac" name="vitalMuac"
+                               value="${ ui.encodeHtmlAttribute(formData.vitalMuac ?: '') }"
+                               placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.patient.transfers.vitalMuac.placeholder')) }" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="transfer-wizard-section">
                 <h2 class="transfer-wizard-section-title">${ ui.message("transferapp.patient.transfers.transportationType") }</h2>
                 <div class="transfer-transport-options">
                     <% formData.transportationTypes.each { transport -> %>
@@ -225,4 +279,4 @@ def ambulanceProviderFacilitiesUrl = "/" + ambulanceFacilitiesCtxPath + "/module
         </form>
     </div>
 </div>
-</g:if>
+<% } %>

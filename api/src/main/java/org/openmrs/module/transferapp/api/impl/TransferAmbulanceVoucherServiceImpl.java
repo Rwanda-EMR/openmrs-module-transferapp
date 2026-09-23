@@ -105,7 +105,7 @@ public class TransferAmbulanceVoucherServiceImpl implements TransferAmbulanceVou
 
 	@Override
 	public Transfer createAmbulanceVoucherFromHie(Integer patientId, String hieTransferId, int kilometers,
-			String coveredDistrict) {
+			String coveredDistrict, String province) {
 		if (patientId == null) {
 			throw new APIException("Patient is required");
 		}
@@ -154,6 +154,7 @@ public class TransferAmbulanceVoucherServiceImpl implements TransferAmbulanceVou
 			transfer.setTransportType(TRANSPORT_TYPE_AMBULANCE);
 		}
 		transfer.setReceivingDistrict(StringUtils.left(district, 120));
+		ensureReceivingProvince(transfer, province);
 		// Creating the voucher at this facility implies we are providing the ambulance.
 		String currentFosaId = StringUtils.trimToNull(Context.getAdministrationService().getGlobalProperty(
 				org.openmrs.module.transferapp.TransferAppConstants.GP_SENDING_FOSA_ID,
@@ -181,6 +182,51 @@ public class TransferAmbulanceVoucherServiceImpl implements TransferAmbulanceVou
 			throw new APIException("Unable to create ambulance voucher");
 		}
 		return transfer;
+	}
+
+	/**
+	 * Keeps province from the HIE transfer when present; otherwise uses the create-dialog
+	 * value or the destination facility registry province.
+	 */
+	private void ensureReceivingProvince(Transfer transfer, String provinceFromRequest) {
+		if (transfer == null) {
+			return;
+		}
+		if (StringUtils.isNotBlank(transfer.getReceivingProvince())) {
+			return;
+		}
+		String province = StringUtils.trimToNull(provinceFromRequest);
+		if (province == null && transferAdminService != null) {
+			Integer sendingLocationId = transferAdminService.resolveCurrentSendingLocationId();
+			province = StringUtils.trimToNull(resolveProvinceFromDestination(transfer, sendingLocationId));
+		}
+		if (province != null) {
+			transfer.setReceivingProvince(StringUtils.left(province, 120));
+		}
+	}
+
+	private String resolveProvince(Transfer transfer, Integer sendingLocationId) {
+		String province = StringUtils.trimToNull(transfer != null ? transfer.getReceivingProvince() : null);
+		if (province != null) {
+			return province;
+		}
+		province = StringUtils.trimToNull(resolveProvinceFromDestination(transfer, sendingLocationId));
+		return province != null ? province : "";
+	}
+
+	private String resolveProvinceFromDestination(Transfer transfer, Integer sendingLocationId) {
+		if (transfer == null || transferAdminService == null || sendingLocationId == null) {
+			return null;
+		}
+		String code = StringUtils.trimToNull(transfer.getReceivingFacilityCode());
+		if (code == null) {
+			return null;
+		}
+		ReceivingFacility facility = transferAdminService.getReceivingFacilityByCode(sendingLocationId, code);
+		if (facility == null) {
+			return null;
+		}
+		return StringUtils.trimToNull(facility.getProvince());
 	}
 
 	/**
@@ -321,9 +367,24 @@ public class TransferAmbulanceVoucherServiceImpl implements TransferAmbulanceVou
 		AmbulanceVoucherPreview preview = new AmbulanceVoucherPreview();
 		preview.setTransferUuid(transfer.getUuid());
 		preview.setConsommationId(transfer.getAmbulanceConsommationId());
-		preview.setProvince("");
+		preview.setProvince(resolveProvince(transfer, sendingLocationId));
 		preview.setDistrict(StringUtils.defaultString(transfer.getReceivingDistrict()));
 		preview.setSectionHospital(StringUtils.defaultString(transfer.getSendingFacility()));
+
+		// Persist province onto the transfer when preview resolves it from destination registry
+		// so later voucher views keep the value without re-deriving.
+		if (StringUtils.isNotBlank(preview.getProvince())
+				&& StringUtils.isBlank(transfer.getReceivingProvince())
+				&& transferDao != null) {
+			transfer.setReceivingProvince(StringUtils.left(preview.getProvince(), 120));
+			try {
+				transferDao.saveTransfer(transfer);
+			}
+			catch (Exception ex) {
+				log.warn("Unable to persist resolved province on transfer " + transfer.getUuid()
+						+ ": " + ex.getMessage());
+			}
+		}
 
 		Date transferDate = transfer.getDecisionToTransferAt() != null
 				? transfer.getDecisionToTransferAt()

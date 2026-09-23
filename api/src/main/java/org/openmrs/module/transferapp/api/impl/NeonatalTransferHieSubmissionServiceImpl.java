@@ -31,9 +31,11 @@ import org.openmrs.module.transferapp.hie.HieBasicConnection;
 import org.openmrs.module.transferapp.hie.HieClientRegistryClient;
 import org.openmrs.module.transferapp.hie.HieConfigurationException;
 import org.openmrs.module.transferapp.hie.HieConnectionResolver;
+import org.openmrs.module.transferapp.hie.HieInsuranceAgentDecisionPreserver;
 import org.openmrs.module.transferapp.hie.HieShrClient;
 import org.openmrs.module.transferapp.hie.NeonatalTransferEncounterPayloadBuilder;
 import org.openmrs.module.transferapp.model.NeonatalTransfer;
+import org.openmrs.module.transferapp.model.ReceivingFacility;
 
 import java.util.Date;
 import java.util.UUID;
@@ -58,6 +60,8 @@ public class NeonatalTransferHieSubmissionServiceImpl implements NeonatalTransfe
 	private NeonatalTransferEncounterPayloadBuilder payloadBuilder = new NeonatalTransferEncounterPayloadBuilder();
 
 	private TransferPatientSnapshotResolver patientSnapshotResolver = new TransferPatientSnapshotResolver();
+
+	private HieInsuranceAgentDecisionPreserver agentDecisionPreserver = new HieInsuranceAgentDecisionPreserver();
 
 	public void setNeonatalTransferDao(NeonatalTransferDao neonatalTransferDao) {
 		this.neonatalTransferDao = neonatalTransferDao;
@@ -88,6 +92,12 @@ public class NeonatalTransferHieSubmissionServiceImpl implements NeonatalTransfe
 		this.payloadBuilder = payloadBuilder != null ? payloadBuilder : new NeonatalTransferEncounterPayloadBuilder();
 	}
 
+	public void setAgentDecisionPreserver(HieInsuranceAgentDecisionPreserver agentDecisionPreserver) {
+		this.agentDecisionPreserver = agentDecisionPreserver != null
+				? agentDecisionPreserver
+				: new HieInsuranceAgentDecisionPreserver();
+	}
+
 	@Override
 	public NeonatalTransfer submitNeonatalTransferToHie(String transferUuid) {
 		if (StringUtils.isBlank(transferUuid)) {
@@ -103,16 +113,22 @@ public class NeonatalTransferHieSubmissionServiceImpl implements NeonatalTransfe
 		}
 
 		try {
+			ensurePatientHasUpid(transfer);
 			ensurePayloadBuilderConfigured();
 			HieBasicConnection connection = hieConnectionResolver.resolveConnection();
 			String receivingFacilityLabel = resolveReceivingFacilityLabel(transfer);
 			User currentUser = Context.getAuthenticatedUser();
 
-			String encounterId = StringUtils.isNotBlank(transfer.getUuid())
-					? transfer.getUuid().trim()
-					: UUID.randomUUID().toString();
+			boolean externalReceivingFacility = isExternalReceivingFacility(transfer);
+			boolean isHieUpdate = StringUtils.isNotBlank(transfer.getHieTransferId());
+			String encounterId = resolveEncounterIdForSubmit(transfer);
 			String encounterJson = payloadBuilder.buildEncounterJson(
 					transfer, currentUser, receivingFacilityLabel, encounterId);
+
+			if (isHieUpdate || externalReceivingFacility) {
+				encounterJson = mergeWithExistingHieDecision(
+						connection, encounterJson, encounterId, externalReceivingFacility);
+			}
 
 			postEncounterRegisteringPatientInCrIfNeeded(connection, transfer, encounterJson);
 
@@ -169,6 +185,52 @@ public class NeonatalTransferHieSubmissionServiceImpl implements NeonatalTransfe
 		hieClientRegistryClient.postPatientAllowingAlreadyExists(connection, patientJson);
 	}
 
+	/**
+	 * Prefer the previously stored HIE encounter id so updates target the same resource.
+	 */
+	private String resolveEncounterIdForSubmit(NeonatalTransfer transfer) {
+		if (StringUtils.isNotBlank(transfer.getHieTransferId())) {
+			return transfer.getHieTransferId().trim();
+		}
+		if (StringUtils.isNotBlank(transfer.getUuid())) {
+			return transfer.getUuid().trim();
+		}
+		return UUID.randomUUID().toString();
+	}
+
+	/**
+	 * Pulls the existing Encounter from HIE and re-attaches HIE-owned insurance/agent attributes
+	 * onto the rebuilt clinical payload (local UPID/clinical updates remain from the rebuild).
+	 */
+	private String mergeWithExistingHieDecision(HieBasicConnection connection, String clinicalEncounterJson,
+			String encounterId, boolean keepRequiresVerification) {
+		String existingJson = hieShrClient.fetchEncounterById(connection, encounterId);
+		if (StringUtils.isBlank(existingJson)) {
+			log.info("No existing HIE Encounter for neonatal id " + encounterId
+					+ "; submitting clinical payload as a new transfer.");
+			if (keepRequiresVerification) {
+				return agentDecisionPreserver.ensureRequiresVerification(clinicalEncounterJson);
+			}
+			return clinicalEncounterJson;
+		}
+		return agentDecisionPreserver.mergePreservingAgentDecision(
+				clinicalEncounterJson, existingJson, encounterId, keepRequiresVerification);
+	}
+
+	private boolean isExternalReceivingFacility(NeonatalTransfer transfer) {
+		if (transfer == null || StringUtils.isBlank(transfer.getReceivingFacilityCode())
+				|| transferAdminService == null) {
+			return false;
+		}
+		Integer sendingLocationId = transferAdminService.resolveCurrentSendingLocationId();
+		if (sendingLocationId == null) {
+			return false;
+		}
+		ReceivingFacility facility = transferAdminService.getReceivingFacilityByCode(
+				sendingLocationId, transfer.getReceivingFacilityCode().trim());
+		return facility != null && facility.isExternal();
+	}
+
 	private void recordSubmissionFailure(NeonatalTransfer transfer, String message) {
 		transfer.setHieSent(false);
 		transfer.setHieSendError(truncateMessage(message));
@@ -188,6 +250,13 @@ public class NeonatalTransferHieSubmissionServiceImpl implements NeonatalTransfe
 			}
 		}
 		return facilityCode;
+	}
+
+	private void ensurePatientHasUpid(NeonatalTransfer transfer) {
+		if (transfer == null || !patientSnapshotResolver.patientHasUpid(transfer.getPatient())) {
+			throw new HieApiException(
+					"Cannot submit neonatal transfer: patient UPID is missing. Register a UPID on the patient chart, then edit and resubmit the transfer.");
+		}
 	}
 
 	private void ensurePayloadBuilderConfigured() {

@@ -73,6 +73,29 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 
 	@Override
 	public Map<String, Object> searchTransfers(String upid, String transferId, boolean activeOnly) {
+		String fromDate = null;
+		String endDate = null;
+		if (activeOnly) {
+			LocalDate today = LocalDate.now();
+			fromDate = today.minusDays(31).format(DateTimeFormatter.ISO_LOCAL_DATE);
+			endDate = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE);
+		}
+		return searchTransfersInternal(upid, transferId, fromDate, endDate, activeOnly);
+	}
+
+	@Override
+	public Map<String, Object> searchTransfers(String upid, String transferId, String fromDate, String endDate) {
+		String normalizedFrom = StringUtils.trimToNull(fromDate);
+		String normalizedEnd = StringUtils.trimToNull(endDate);
+		if (normalizedFrom == null || normalizedEnd == null) {
+			normalizedFrom = null;
+			normalizedEnd = null;
+		}
+		return searchTransfersInternal(upid, transferId, normalizedFrom, normalizedEnd, false);
+	}
+
+	private Map<String, Object> searchTransfersInternal(String upid, String transferId, String fromDate,
+			String endDate, boolean mergeScheduledReuse) {
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 
 		if (StringUtils.isBlank(upid)) {
@@ -92,14 +115,6 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 
 		try {
 			HieBasicConnection connection = hieConnectionResolver.resolveConnection();
-			String fromDate = null;
-			String endDate = null;
-			if (activeOnly) {
-				LocalDate today = LocalDate.now();
-				fromDate = today.minusDays(31).format(DateTimeFormatter.ISO_LOCAL_DATE);
-				endDate = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE);
-			}
-
 			String pathWithQuery = buildPatientListTransfersPath(upid.trim(), fromDate, endDate);
 			log.info("Requesting transfers from HIE: " + connection.getBaseUrl() + pathWithQuery);
 
@@ -108,11 +123,13 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 			if (StringUtils.isNotBlank(transferId)) {
 				transfers = filterByTransferId(transfers, transferId.trim());
 			}
-			if (activeOnly) {
+			if (mergeScheduledReuse) {
 				transfers = mergeScheduledReuseTransfers(transfers, upid.trim(), fromDate, endDate);
 			}
 
 			result.put("status", "success");
+			result.put("fromDate", fromDate != null ? fromDate : "");
+			result.put("endDate", endDate != null ? endDate : "");
 			result.put("data", transfers);
 			return result;
 		}
@@ -438,9 +455,15 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 			transfer.put("receivedFromHie", Boolean.TRUE);
 			String destination = TransferRegistrationObsServiceImpl.resolveDestination(transfer);
 			transfer.put("destinationDisplay", destination);
+			String toFacility = firstNonBlank(
+					asString(transfer.get("destinationDisplay")),
+					asString(transfer.get("destination")),
+					asString(transfer.get("receivingFacility")),
+					asString(transfer.get("toFacility")));
 			if (registrationObsService != null) {
-				transfer.put("targetsCurrentFacility",
-						registrationObsService.destinationMatchesCurrentFacility(destination));
+				boolean targetsCurrent = registrationObsService.destinationMatchesSendingFacilityName(toFacility)
+						|| registrationObsService.destinationMatchesSendingFacilityName(destination);
+				transfer.put("targetsCurrentFacility", targetsCurrent);
 			}
 			else {
 				transfer.put("targetsCurrentFacility", Boolean.FALSE);

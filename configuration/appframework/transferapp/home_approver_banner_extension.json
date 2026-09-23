@@ -1,0 +1,21 @@
+[
+  {
+    "id": "transferapp.home.approverPendingBanner",
+    "extensionPointId": "pihapps.homepageFragments",
+    "type": "fragment",
+    "order": 15,
+    "extensionParams": {
+      "fragmentProvider": "transferapp",
+      "fragmentPath": "home/approverPendingBanner"
+    }
+  },
+  {
+    "id": "transferapp.patientDashboard.approverPendingBanner",
+    "extensionPointId": "patientDashboard.includeFragments",
+    "order": 5,
+    "extensionParams": {
+      "provider": "transferapp",
+      "fragment": "home/approverPendingBanner"
+    }
+  }
+]

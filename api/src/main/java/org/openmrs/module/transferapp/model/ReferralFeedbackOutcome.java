@@ -18,20 +18,34 @@ package org.openmrs.module.transferapp.model;
  */
 public enum ReferralFeedbackOutcome {
 
-	STABILIZED_CURED("Stabilized/Cured"),
-	DIED("Died"),
-	ESCAPED("Escaped"),
-	TO_BE_FOLLOWED_UP("To be followed up"),
-	REFERRED_TO_HIGH_LEVEL("Referred to high level");
+	STABILIZED_CURED("Stabilized/Cured", "STABILIZED", "Stabilized"),
+	DIED("Died", "DIED", "Died"),
+	ESCAPED("Escaped", "ESCAPED", "Escaped"),
+	TO_BE_FOLLOWED_UP("To be followed up", "TO_BE_FOLLOWED_UP", "To be followed up"),
+	REFERRED_TO_HIGH_LEVEL("Referred to high level", "REFERRED_TO_HIGH_LEVEL", "Referred to high level");
 
 	private final String label;
 
-	ReferralFeedbackOutcome(String label) {
+	private final String hieCode;
+
+	private final String hieDisplay;
+
+	ReferralFeedbackOutcome(String label, String hieCode, String hieDisplay) {
 		this.label = label;
+		this.hieCode = hieCode;
+		this.hieDisplay = hieDisplay;
 	}
 
 	public String getLabel() {
 		return label;
+	}
+
+	public String getHieCode() {
+		return hieCode;
+	}
+
+	public String getHieDisplay() {
+		return hieDisplay;
 	}
 
 	public static ReferralFeedbackOutcome fromStoredValue(String value) {
@@ -43,7 +57,10 @@ public enum ReferralFeedbackOutcome {
 			return null;
 		}
 		for (ReferralFeedbackOutcome outcome : values()) {
-			if (outcome.name().equalsIgnoreCase(trimmed) || outcome.label.equalsIgnoreCase(trimmed)) {
+			if (outcome.name().equalsIgnoreCase(trimmed)
+					|| outcome.label.equalsIgnoreCase(trimmed)
+					|| outcome.hieCode.equalsIgnoreCase(trimmed)
+					|| outcome.hieDisplay.equalsIgnoreCase(trimmed)) {
 				return outcome;
 			}
 		}

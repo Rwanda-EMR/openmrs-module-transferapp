@@ -99,6 +99,7 @@ public class NewTransferOutServiceImpl implements NewTransferOutService {
 		prefillFromPatient(formData, patient);
 		prefillFromCurrentUser(formData);
 		prefillDefaults(formData);
+		prefillVitalSignsFromActiveVisit(formData, patient);
 
 		if (StringUtils.isNotBlank(transferUuid)) {
 			prefillFromExistingTransfer(formData, patient, transferUuid.trim());
@@ -171,6 +172,43 @@ public class NewTransferOutServiceImpl implements NewTransferOutService {
 		if (StringUtils.isNotBlank(transfer.getProviderPhone())) {
 			formData.setReferringProviderPhone(transfer.getProviderPhone());
 		}
+
+		// Prefer live patient UPID so edit/resubmit can rebuild HIE payloads correctly.
+		String upid = patientSnapshotResolver.resolveUpid(patient);
+		if (StringUtils.isNotBlank(upid)) {
+			formData.setSerialNumberEmr(upid);
+		}
+		else if (StringUtils.isNotBlank(transfer.getEmrId())) {
+			formData.setSerialNumberEmr(transfer.getEmrId());
+		}
+
+		formData.setVitalTemp(StringUtils.defaultString(transfer.getVitalTemp()));
+		formData.setVitalSpo2(StringUtils.defaultString(transfer.getVitalSpo2()));
+		formData.setVitalRr(StringUtils.defaultString(transfer.getVitalRr()));
+		formData.setVitalPulse(StringUtils.defaultString(transfer.getVitalPulse()));
+		formData.setVitalBp(StringUtils.defaultString(transfer.getVitalBp()));
+		formData.setVitalWeight(StringUtils.defaultString(transfer.getVitalWt()));
+		formData.setVitalHeight(StringUtils.defaultString(transfer.getVitalHt()));
+		formData.setVitalMuac(StringUtils.defaultString(transfer.getVitalMuac()));
+	}
+
+	/**
+	 * Same active-visit observation lookup used when creating a transfer ({@code applyVitalSignsSnapshot}).
+	 */
+	protected void prefillVitalSignsFromActiveVisit(NewTransferOutFormData formData, Patient patient) {
+		if (formData == null || patient == null || patientSnapshotResolver == null) {
+			return;
+		}
+		Transfer snapshot = new Transfer();
+		patientSnapshotResolver.applyVitalSignsSnapshot(snapshot, patient);
+		formData.setVitalTemp(StringUtils.defaultString(snapshot.getVitalTemp()));
+		formData.setVitalSpo2(StringUtils.defaultString(snapshot.getVitalSpo2()));
+		formData.setVitalRr(StringUtils.defaultString(snapshot.getVitalRr()));
+		formData.setVitalPulse(StringUtils.defaultString(snapshot.getVitalPulse()));
+		formData.setVitalBp(StringUtils.defaultString(snapshot.getVitalBp()));
+		formData.setVitalWeight(StringUtils.defaultString(snapshot.getVitalWt()));
+		formData.setVitalHeight(StringUtils.defaultString(snapshot.getVitalHt()));
+		formData.setVitalMuac(StringUtils.defaultString(snapshot.getVitalMuac()));
 	}
 
 	protected Integer resolveReceivingFacilityId(String facilityCode) {
@@ -197,11 +235,6 @@ public class NewTransferOutServiceImpl implements NewTransferOutService {
 		String upid = patientSnapshotResolver.resolveUpid(patient);
 		if (upid != null) {
 			formData.setSerialNumberEmr(upid);
-		} else {
-			PatientIdentifier openMrsId = patient.getPatientIdentifier();
-			if (openMrsId != null) {
-				formData.setSerialNumberEmr(openMrsId.getIdentifier());
-			}
 		}
 
 		PatientIdentifier nationalId = patientSnapshotResolver.resolveNationalIdentifier(patient);

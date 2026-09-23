@@ -163,7 +163,8 @@ public class TransfersSectionFragmentController {
 		boolean hasRecordedHieTransfer = recordedHieTransferId != null
 				&& patientUpid != null
 				&& patientUpid.trim().length() > 0;
-		boolean canProvideFeedback = canCreateTransfer && hasRecordedHieTransfer;
+		boolean canProvideFeedback = TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_FEEDBACK)
+				&& hasRecordedHieTransfer;
 		Integer patientId = patientWrapper.getPatient() != null ? patientWrapper.getPatient().getPatientId() : null;
 		String historyPageUrl = null;
 		if (patientUpid != null && patientUpid.trim().length() > 0) {

@@ -1,0 +1,44 @@
+.transferapp-approver-banner-wrap {
+  margin: 0 0 12px;
+  max-width: 30%;
+}
+
+.transferapp-approver-banner-wrap .transferapp-approver-banner {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.transferapp-approver-banner .text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.transferapp-approver-banner-link {
+  color: #1d4ed8;
+  text-decoration: underline;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.transferapp-approver-banner-link:hover,
+.transferapp-approver-banner-link:focus {
+  color: #1e3a8a;
+}
+
+.transferapp-approver-banner-badge {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #b45309;
+  color: #fff;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  text-decoration: none;
+}

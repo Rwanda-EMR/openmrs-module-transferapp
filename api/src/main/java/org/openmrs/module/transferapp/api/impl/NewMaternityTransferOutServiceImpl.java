@@ -16,7 +16,6 @@ package org.openmrs.module.transferapp.api.impl;
 import org.apache.commons.lang.StringUtils;
 import org.openmrs.Location;
 import org.openmrs.Patient;
-import org.openmrs.PatientIdentifier;
 import org.openmrs.PersonAddress;
 import org.openmrs.User;
 import org.openmrs.api.APIException;
@@ -237,6 +236,15 @@ public class NewMaternityTransferOutServiceImpl implements NewMaternityTransferO
 			formData.setReferringProviderPhone(transfer.getReferringProviderPhone());
 		}
 
+		// Prefer live patient UPID so edit/resubmit can rebuild HIE payloads correctly.
+		String upid = patientSnapshotResolver.resolveUpid(patient);
+		if (StringUtils.isNotBlank(upid)) {
+			formData.setSerialNumberEmr(upid);
+		}
+		else if (StringUtils.isNotBlank(transfer.getSerialNumberEmr())) {
+			formData.setSerialNumberEmr(transfer.getSerialNumberEmr());
+		}
+
 		List<MaternityTransferTreatment> treatments = transfer.getTreatments();
 		if (treatments != null && !treatments.isEmpty()) {
 			List<MaternityTransferTreatmentRow> rows = new ArrayList<MaternityTransferTreatmentRow>();
@@ -270,11 +278,6 @@ public class NewMaternityTransferOutServiceImpl implements NewMaternityTransferO
 		String upid = patientSnapshotResolver.resolveUpid(patient);
 		if (upid != null) {
 			formData.setSerialNumberEmr(upid);
-		} else {
-			PatientIdentifier openMrsId = patient.getPatientIdentifier();
-			if (openMrsId != null) {
-				formData.setSerialNumberEmr(openMrsId.getIdentifier());
-			}
 		}
 
 		formData.setAgeOrDob(patientSnapshotResolver.resolveAgeOrDob(patient));

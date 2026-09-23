@@ -37,6 +37,7 @@ import org.openmrs.module.transferapp.hie.HieInsuranceAgentDecisionPreserver;
 import org.openmrs.module.transferapp.hie.HieShrClient;
 import org.openmrs.module.transferapp.hie.TransferEncounterPayloadBuilder;
 import org.openmrs.module.transferapp.model.Transfer;
+import org.openmrs.module.transferapp.model.TransferApprovalStatus;
 import org.openmrs.module.transferapp.model.TransferProfile;
 
 import java.util.Date;
@@ -125,6 +126,21 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 		if (transfer.isSentToHie()) {
 			throw new APIException("This transfer has already been sent to HIE. Edit the transfer first to resubmit an update.");
 		}
+		if (transfer.isAwaitingLocalApproval()) {
+			throw new APIException(
+					"This transfer targets an external hospital and is awaiting approver approval before it can be sent to HIE.");
+		}
+		if (TransferApprovalStatus.REJECTED.equals(transfer.getLocalApprovalStatus())) {
+			throw new APIException(
+					"This transfer was rejected by an approver. Edit and save it again to resubmit for approval.");
+		}
+		boolean externalReceivingFacility = false;
+		ensurePayloadBuilderConfigured();
+		externalReceivingFacility = payloadBuilder.isExternalReceivingFacility(transfer);
+		if (externalReceivingFacility && !transfer.isLocallyApproved()) {
+			throw new APIException(
+					"This transfer targets an external hospital and must be approved before it can be sent to HIE.");
+		}
 
 		boolean firstSuccessfulSubmit = StringUtils.isBlank(transfer.getHieTransferId());
 
@@ -133,21 +149,24 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 			applyProviderQualificationWithSpeciality(transfer);
 			applyConfiguredSendingFacility(transfer);
 			ensureCaregiverFromPatientIfBlank(transfer);
+			ensurePatientUpidPersisted(transfer);
 			HieBasicConnection connection = hieConnectionResolver.resolveConnection();
 			String receivingFacilityLabel = resolveReceivingFacilityLabel(transfer);
-			ensurePayloadBuilderConfigured();
 			User currentUser = Context.getAuthenticatedUser();
 
-			boolean externalReceivingFacility = payloadBuilder.isExternalReceivingFacility(transfer);
+			boolean requiresInsuranceAgentVerification = payloadBuilder.requiresInsuranceAgentVerification(
+					transfer, externalReceivingFacility);
+			boolean isHieUpdate = StringUtils.isNotBlank(transfer.getHieTransferId());
 			String encounterId = resolveEncounterIdForSubmit(transfer);
 			String encounterJson = payloadBuilder.buildEncounterJson(
 					transfer, currentUser, receivingFacilityLabel, externalReceivingFacility, encounterId);
 
-			if (externalReceivingFacility) {
-				// Always try to pull existing HIE encounter for external destinations so any
-				// prior insurance-agent approval is preserved across clinician clinical updates.
+			// On resubmit (or external destinations that need agent verification), pull the
+			// existing HIE Encounter so HIE-owned attributes such as insurance approval status
+			// are kept while local clinical/UPID updates from the rebuilt payload are applied.
+			if (isHieUpdate || requiresInsuranceAgentVerification) {
 				encounterJson = mergeWithExistingHieDecision(
-						connection, encounterJson, encounterId, externalReceivingFacility);
+						connection, encounterJson, encounterId, requiresInsuranceAgentVerification);
 			}
 
 			postEncounterRegisteringPatientInCrIfNeeded(connection, transfer, encounterJson);
@@ -225,8 +244,9 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 	}
 
 	/**
-	 * Pulls the existing Encounter from HIE and re-attaches insurance-agent decision extensions
-	 * (and agent-redirected destination when decided) onto the newly built clinical payload.
+	 * Pulls the existing Encounter from HIE and re-attaches HIE-owned insurance/agent attributes
+	 * (approval status, comments, and agent-redirected destination when decided) onto the newly
+	 * built clinical payload. Local clinical fields and updated UPID remain from the rebuild.
 	 */
 	private String mergeWithExistingHieDecision(HieBasicConnection connection, String clinicalEncounterJson,
 			String encounterId, boolean keepRequiresVerification) {
@@ -235,6 +255,9 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 			// No prior HIE resource (404 or RHIE "Encounter … not found") — submit as a new transfer.
 			log.info("No existing HIE Encounter for id " + encounterId
 					+ "; submitting clinical payload as a new transfer.");
+			if (keepRequiresVerification) {
+				return agentDecisionPreserver.ensureRequiresVerification(clinicalEncounterJson);
+			}
 			return clinicalEncounterJson;
 		}
 		return agentDecisionPreserver.mergePreservingAgentDecision(
@@ -343,6 +366,28 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 		return defaultFacilityLabel(facilityCode);
 	}
 
+	/**
+	 * Resolves the patient's UPID into {@code transfer.emrId} and persists it so the HIE
+	 * payload (and later resubmits) include the identifier.
+	 */
+	private void ensurePatientUpidPersisted(Transfer transfer) {
+		if (transfer == null) {
+			return;
+		}
+		String before = StringUtils.trimToNull(transfer.getEmrId());
+		String upid = patientSnapshotResolver.ensureEmrIdFromPatient(transfer, transfer.getPatient());
+		if (StringUtils.isBlank(upid)) {
+			throw new HieApiException(
+					"Cannot submit transfer: patient UPID is missing. Register a UPID on the patient chart, then edit and resubmit the transfer.");
+		}
+		String after = StringUtils.trimToNull(transfer.getEmrId());
+		if (!StringUtils.equals(before, after)) {
+			transfer.setChangedBy(Context.getAuthenticatedUser());
+			transfer.setDateChanged(new Date());
+			transferDao.saveTransfer(transfer);
+		}
+	}
+
 	private void ensurePayloadBuilderConfigured() {
 		if (payloadBuilder == null) {
 			payloadBuilder = new TransferEncounterPayloadBuilder();
@@ -352,6 +397,9 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 		}
 		if (transferProfileService != null) {
 			payloadBuilder.setTransferProfileService(transferProfileService);
+		}
+		if (patientSnapshotResolver != null) {
+			payloadBuilder.setPatientSnapshotResolver(patientSnapshotResolver);
 		}
 	}
 

@@ -32,6 +32,12 @@ public class TransferAppActivator extends BaseModuleActivator {
 
 	public static final String PRIVILEGE_LIST_PENDING = "Task: transferapp.listpending";
 
+	public static final String PRIVILEGE_PAST_TRANSFERS = "View: transferapp.pasttransfers";
+
+	public static final String PRIVILEGE_FEEDBACK = "Task: transferapp.feedback";
+
+	public static final String PRIVILEGE_CONFIGURATION = "Task: transferapp.configuration";
+
 	private static final String[] DEFAULT_PRIVILEGE_ROLES = new String[] { "System Developer", "System Administrator" };
 
 	@Override
@@ -46,7 +52,9 @@ public class TransferAppActivator extends BaseModuleActivator {
 				PRIVILEGE_DASHBOARD,
 				PRIVILEGE_LIST_TRANSFERS,
 				PRIVILEGE_CREATE_TRANSFER,
-				PRIVILEGE_LIST_PENDING }) {
+				PRIVILEGE_LIST_PENDING,
+				PRIVILEGE_FEEDBACK,
+				PRIVILEGE_CONFIGURATION }) {
 			grantPrivilegeToRoles(userService, privilegeName, DEFAULT_PRIVILEGE_ROLES);
 		}
 	}

@@ -295,4 +295,19 @@
 		<description>List pending inbound transfers from HIE</description>
 	</privilege>
 
+	<privilege>
+		<name>View: transferapp.pasttransfers</name>
+		<description>View past transfer visits by month</description>
+	</privilege>
+
+	<privilege>
+		<name>Task: transferapp.feedback</name>
+		<description>Provide referral feedback and counter-referral on inbound transfers</description>
+	</privilege>
+
+	<privilege>
+		<name>Task: transferapp.configuration</name>
+		<description>Configure transfer destinations and approvers</description>
+	</privilege>
+
 </module>

@@ -35,11 +35,11 @@ public class TransferAdminPageController {
 
 		sessionContext.requireAuthentication();
 
-		boolean canAccessAdmin = TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_DASHBOARD);
+		boolean canAccessAdmin = TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CONFIGURATION);
 		model.addAttribute("canAccessAdmin", canAccessAdmin);
-		model.addAttribute("requiredAdminPrivilege", TransferAppActivator.PRIVILEGE_DASHBOARD);
+		model.addAttribute("requiredAdminPrivilege", TransferAppActivator.PRIVILEGE_CONFIGURATION);
 		model.addAttribute("adminAccessDeniedMessage",
-				TransferPrivilegeHelper.requiredPrivilegeMessage(TransferAppActivator.PRIVILEGE_DASHBOARD));
+				TransferPrivilegeHelper.requiredPrivilegeMessage(TransferAppActivator.PRIVILEGE_CONFIGURATION));
 
 		if (!canAccessAdmin) {
 			model.addAttribute("sendingLocations", Collections.emptyList());
@@ -80,8 +80,8 @@ public class TransferAdminPageController {
 			model.addAttribute("canAccessAdmin", false);
 			model.addAttribute("adminAccessDeniedMessage", TransferPrivilegeHelper.resolveUserFacingMessage(
 					ex,
-					TransferAppActivator.PRIVILEGE_DASHBOARD,
-					TransferPrivilegeHelper.requiredPrivilegeMessage(TransferAppActivator.PRIVILEGE_DASHBOARD)));
+					TransferAppActivator.PRIVILEGE_CONFIGURATION,
+					TransferPrivilegeHelper.requiredPrivilegeMessage(TransferAppActivator.PRIVILEGE_CONFIGURATION)));
 			model.addAttribute("sendingLocations", Collections.emptyList());
 			model.addAttribute("selectedLocationId", null);
 			model.addAttribute("receivingFacilities", Collections.emptyList());

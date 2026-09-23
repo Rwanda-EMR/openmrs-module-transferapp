@@ -34,6 +34,12 @@ public class PatientTransferListItem {
 
 	private boolean hieSent;
 
+	private boolean receivedFromHie;
+
+	private boolean awaitingLocalApproval;
+
+	private boolean rejectedLocalApproval;
+
 	private String formType = "External";
 
 	public String getId() {
@@ -90,6 +96,30 @@ public class PatientTransferListItem {
 
 	public void setHieSent(boolean hieSent) {
 		this.hieSent = hieSent;
+	}
+
+	public boolean isReceivedFromHie() {
+		return receivedFromHie;
+	}
+
+	public void setReceivedFromHie(boolean receivedFromHie) {
+		this.receivedFromHie = receivedFromHie;
+	}
+
+	public boolean isAwaitingLocalApproval() {
+		return awaitingLocalApproval;
+	}
+
+	public void setAwaitingLocalApproval(boolean awaitingLocalApproval) {
+		this.awaitingLocalApproval = awaitingLocalApproval;
+	}
+
+	public boolean isRejectedLocalApproval() {
+		return rejectedLocalApproval;
+	}
+
+	public void setRejectedLocalApproval(boolean rejectedLocalApproval) {
+		this.rejectedLocalApproval = rejectedLocalApproval;
 	}
 
 	public String getFormType() {

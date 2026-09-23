@@ -94,6 +94,8 @@
             createVoucherTitle: "${ ui.encodeJavaScript(ui.message('transferapp.ambulanceVoucher.search.createVoucher.title')) }",
             createVoucherInsuranceNumber: "${ ui.encodeJavaScript(ui.message('transferapp.ambulanceVoucher.search.createVoucher.insuranceNumber')) }",
             createVoucherInsuranceMissing: "${ ui.encodeJavaScript(ui.message('transferapp.ambulanceVoucher.search.createVoucher.insuranceMissing')) }",
+            createVoucherProvince: "${ ui.encodeJavaScript(ui.message('transferapp.ambulanceVoucher.search.createVoucher.province')) }",
+            createVoucherProvinceMissing: "${ ui.encodeJavaScript(ui.message('transferapp.ambulanceVoucher.search.createVoucher.provinceMissing')) }",
             createVoucherDistrict: "${ ui.encodeJavaScript(ui.message('transferapp.ambulanceVoucher.search.createVoucher.district')) }",
             createVoucherDistrictPlaceholder: "${ ui.encodeJavaScript(ui.message('transferapp.ambulanceVoucher.search.createVoucher.districtPlaceholder')) }",
             createVoucherDistrictRequired: "${ ui.encodeJavaScript(ui.message('transferapp.ambulanceVoucher.search.createVoucher.districtRequired')) }",
@@ -276,6 +278,10 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "ambul
             <div class="ambulance-voucher-create-field">
                 <label>${ ui.message("transferapp.ambulanceVoucher.search.createVoucher.insuranceNumber") }</label>
                 <div id="ambulance-voucher-create-insurance" class="ambulance-voucher-create-readonly">&nbsp;</div>
+            </div>
+            <div class="ambulance-voucher-create-field">
+                <label>${ ui.message("transferapp.ambulanceVoucher.search.createVoucher.province") }</label>
+                <div id="ambulance-voucher-create-province" class="ambulance-voucher-create-readonly">&nbsp;</div>
             </div>
             <div class="ambulance-voucher-create-field">
                 <label for="ambulance-voucher-create-district">${ ui.message("transferapp.ambulanceVoucher.search.createVoucher.district") }</label>

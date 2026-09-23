@@ -73,10 +73,18 @@
 		return path;
 	}
 
+	function isPlaceholderEmpty(value) {
+		if (value === null || value === undefined) {
+			return true;
+		}
+		var trimmed = String(value).trim();
+		return trimmed === "" || trimmed === "," || trimmed === ".";
+	}
+
 	function firstNonBlank() {
 		for (var i = 0; i < arguments.length; i++) {
 			var value = arguments[i];
-			if (value !== null && value !== undefined && String(value).trim() !== "") {
+			if (!isPlaceholderEmpty(value)) {
 				return String(value).trim();
 			}
 		}
@@ -340,6 +348,82 @@
 				findChildCodingCode(details, "transfer-type"),
 				findChildCodingDisplay(details, "transfer-type")
 			);
+			var demographics = findChildNode(details, "patient-demographics");
+			if (demographics) {
+				copy.clientName = firstNonBlank(copy.clientName, findChildLeaf(demographics, "name"));
+				copy.sex = firstNonBlank(copy.sex, findChildLeaf(demographics, "gender"));
+				copy.age = firstNonBlank(copy.age, findChildLeaf(demographics, "age"));
+				copy.ageDob = firstNonBlank(copy.ageDob, findChildLeaf(demographics, "age"));
+				copy.clientTelephone = firstNonBlank(
+					copy.clientTelephone,
+					findChildLeaf(demographics, "phone")
+				);
+				copy.serialNumberOrEmrId = firstNonBlank(
+					copy.serialNumberOrEmrId,
+					findChildLeaf(demographics, "serial-number")
+				);
+			}
+			var caregiver = findChildNode(details, "caregiver-info");
+			if (caregiver) {
+				copy.caregiverName = firstNonBlank(copy.caregiverName, findChildLeaf(caregiver, "name"));
+				copy.caregiverTelephone = firstNonBlank(
+					copy.caregiverTelephone,
+					findChildLeaf(caregiver, "phone")
+				);
+			}
+			var patientAddress = findChildNode(details, "patient-address");
+			if (patientAddress) {
+				copy.patientDistrict = firstNonBlank(
+					copy.patientDistrict,
+					findChildLeaf(patientAddress, "district")
+				);
+				copy.patientSector = firstNonBlank(
+					copy.patientSector,
+					findChildLeaf(patientAddress, "sector")
+				);
+				copy.patientCell = firstNonBlank(copy.patientCell, findChildLeaf(patientAddress, "cell"));
+				copy.patientVillage = firstNonBlank(
+					copy.patientVillage,
+					findChildLeaf(patientAddress, "village")
+				);
+			}
+			copy.province = firstNonBlank(copy.province, findChildLeaf(details, "receiving-province"));
+			copy.district = firstNonBlank(copy.district, findChildLeaf(details, "receiving-district"));
+			var clinicalPresentation = findChildLeaf(details, "clinical-presentation");
+			copy.clinicalPresentation = firstNonBlank(copy.clinicalPresentation, clinicalPresentation);
+			copy.reasonForTransfer = firstNonBlank(copy.reasonForTransfer, clinicalPresentation);
+			copy.laboratory = firstNonBlank(copy.laboratory, findChildLeaf(details, "lab-results"));
+			copy.others = firstNonBlank(
+				copy.others,
+				findChildLeaf(details, "others-notes"),
+				findChildLeaf(details, "additional-notes")
+			);
+			copy.proceduresAndTreatments = firstNonBlank(
+				copy.proceduresAndTreatments,
+				findChildLeaf(details, "procedures-treatments")
+			);
+			copy.vitals = firstNonBlank(copy.vitals, findChildLeaf(details, "vital-signs"));
+			var practitioner = findChildNode(details, "practitioner-info");
+			if (practitioner) {
+				copy.referringProviderName = firstNonBlank(
+					copy.referringProviderName,
+					findChildLeaf(practitioner, "name")
+				);
+				copy.referringProviderQualification = firstNonBlank(
+					copy.referringProviderQualification,
+					findChildLeaf(practitioner, "qualification")
+				);
+				copy.providerPhone = firstNonBlank(
+					copy.providerPhone,
+					findChildLeaf(practitioner, "phone")
+				);
+			}
+			if (!copy.referralFeedback) {
+				var hieFeedback = flattenReferralFeedbackFromDetails(details, copy);
+				if (hieFeedback) {
+					copy.referralFeedback = hieFeedback;
+				}
+			}
 			var transport = findChildNode(details, "transport");
 			if (transport) {
 				var transportType = firstNonBlank(
@@ -364,6 +448,34 @@
 				}
 			}
 		}
+		var receivingClinician = findExtensionNodeByUrl(out, "receiving-clinician-contact");
+		if (receivingClinician) {
+			copy.staffContactedAtReceivingFacility = firstNonBlank(
+				copy.staffContactedAtReceivingFacility,
+				findChildLeaf(receivingClinician, "name")
+			);
+			copy.staffContactPhone = firstNonBlank(
+				copy.staffContactPhone,
+				findChildLeaf(receivingClinician, "phone")
+			);
+			copy.receivingClinicianPhone = firstNonBlank(
+				copy.receivingClinicianPhone,
+				findChildLeaf(receivingClinician, "phone")
+			);
+		}
+		copy.referringUnit = firstNonBlank(
+			copy.referringUnit,
+			findExtensionLeaf(out, "referring-department")
+		);
+		copy.admissionDatetime = firstNonBlank(
+			copy.admissionDatetime,
+			findExtensionLeaf(out, "admission-datetime")
+		);
+		copy.transferDecisionDatetime = firstNonBlank(
+			copy.transferDecisionDatetime,
+			findExtensionLeaf(out, "decision-to-transfer-datetime")
+		);
+		copy.callingTime = firstNonBlank(copy.callingTime, findExtensionLeaf(out, "calling-time"));
 		if (out.subject) {
 			copy.clientName = firstNonBlank(copy.clientName, out.subject.display);
 			if (out.subject.identifier) {
@@ -407,6 +519,142 @@
 			copy.diagnosis = firstNonBlank(copy.diagnosis, out.diagnosis[0].condition.display);
 		}
 		return copy;
+	}
+
+	/**
+	 * Maps nested referral-feedback / counter-referral (under transfer-details) into the
+	 * flat referralFeedback object used by the paper-form preview.
+	 */
+	function flattenReferralFeedbackFromDetails(details, patientContext) {
+		if (!details) {
+			return null;
+		}
+		var feedback = findChildNode(details, "referral-feedback");
+		var counter = findChildNode(details, "counter-referral");
+		if (!feedback && !counter) {
+			return null;
+		}
+		var treatmentNode = findChildNode(feedback, "treatment-given");
+		var treatmentGiven = firstNonBlank(
+			findChildLeaf(treatmentNode, "description"),
+			extensionLeafValue(treatmentNode)
+		);
+		var outcomeCode = firstNonBlank(
+			findChildCodingCode(feedback, "outcome"),
+			findChildCodingDisplay(feedback, "outcome")
+		);
+		var outcomeMapped = mapHieFeedbackOutcome(outcomeCode);
+		var referredBack = findChildNode(counter, "referred-back-to");
+		var summary = {
+			finalDiagnosis: findChildLeaf(feedback, "final-diagnosis-comment"),
+			treatmentGiven: treatmentGiven,
+			outcome: outcomeMapped.code || outcomeCode,
+			outcomeLabel: outcomeMapped.label || outcomeCode,
+			outcomeHieCode: outcomeMapped.hieCode || outcomeCode,
+			recommendations: firstNonBlank(
+				findChildLeaf(feedback, "comments"),
+				findChildLeaf(counter, "recommendation")
+			),
+			referBackToFacility: firstNonBlank(
+				findChildLeaf(referredBack, "facility-name"),
+				extensionLeafValue(referredBack)
+			),
+			referBackToFacilityFosaId: findChildLeaf(referredBack, "fosa-id"),
+			dateOfAdmissionOrSeen: findChildLeaf(feedback, "date-of-admission"),
+			dateOfDischarge: findChildLeaf(feedback, "date-of-discharge"),
+			followUpDate: firstNonBlank(
+				findChildLeaf(counter, "follow-up-date"),
+				findChildLeaf(feedback, "signed-date"),
+				findChildLeaf(feedback, "date-of-discharge")
+			),
+			contactPerson: firstNonBlank(
+				findChildLeaf(feedback, "contact-person"),
+				findChildLeaf(counter, "contact-person")
+			),
+			providerName: firstNonBlank(
+				findChildLeaf(feedback, "provider-name"),
+				findChildLeaf(counter, "provider-name")
+			),
+			qualification: firstNonBlank(
+				findChildLeaf(feedback, "qualification"),
+				findChildLeaf(counter, "qualification")
+			),
+			signedDate: firstNonBlank(
+				findChildLeaf(feedback, "signed-date"),
+				findChildLeaf(counter, "signed-date")
+			),
+			signedTime: firstNonBlank(
+				findChildLeaf(feedback, "signed-time"),
+				findChildLeaf(counter, "signed-time")
+			),
+			phone: firstNonBlank(
+				findChildLeaf(feedback, "phone"),
+				findChildLeaf(counter, "phone")
+			),
+			clientName: firstNonBlank(patientContext && patientContext.clientName, ""),
+			sex: firstNonBlank(patientContext && patientContext.sex, ""),
+			ageOrDob: firstNonBlank(
+				patientContext && patientContext.ageOrDob,
+				patientContext && patientContext.ageDob,
+				patientContext && patientContext.age,
+				""
+			),
+			transferType: firstNonBlank(
+				findChildCodingCode(details, "transfer-type"),
+				"COUNTER_REFERRAL"
+			),
+			fromHie: true
+		};
+		var hasContent = firstNonBlank(
+			summary.finalDiagnosis,
+			summary.treatmentGiven,
+			summary.outcome,
+			summary.recommendations,
+			summary.referBackToFacility,
+			summary.dateOfDischarge,
+			summary.dateOfAdmissionOrSeen
+		);
+		return hasContent ? summary : null;
+	}
+
+	function mapHieFeedbackOutcome(raw) {
+		var value = String(raw || "").trim();
+		if (!value) {
+			return { code: "", label: "", hieCode: "" };
+		}
+		var key = value.toUpperCase().replace(/[\s/-]+/g, "_");
+		var table = {
+			STABILIZED_CURED: { code: "STABILIZED_CURED", label: "Stabilized/Cured", hieCode: "STABILIZED" },
+			STABILIZED: { code: "STABILIZED_CURED", label: "Stabilized/Cured", hieCode: "STABILIZED" },
+			DIED: { code: "DIED", label: "Died", hieCode: "DIED" },
+			ESCAPED: { code: "ESCAPED", label: "Escaped", hieCode: "ESCAPED" },
+			TO_BE_FOLLOWED_UP: { code: "TO_BE_FOLLOWED_UP", label: "To be followed up", hieCode: "TO_BE_FOLLOWED_UP" },
+			REFERRED_TO_HIGH_LEVEL: {
+				code: "REFERRED_TO_HIGH_LEVEL",
+				label: "Referred to high level",
+				hieCode: "REFERRED_TO_HIGH_LEVEL"
+			}
+		};
+		if (table[key]) {
+			return table[key];
+		}
+		var lower = value.toLowerCase();
+		if (lower.indexOf("stabilized") >= 0 || lower.indexOf("cured") >= 0) {
+			return table.STABILIZED;
+		}
+		if (lower.indexOf("died") >= 0) {
+			return table.DIED;
+		}
+		if (lower.indexOf("escaped") >= 0) {
+			return table.ESCAPED;
+		}
+		if (lower.indexOf("follow") >= 0) {
+			return table.TO_BE_FOLLOWED_UP;
+		}
+		if (lower.indexOf("high") >= 0) {
+			return table.REFERRED_TO_HIGH_LEVEL;
+		}
+		return { code: value, label: value, hieCode: value };
 	}
 
 	function findExtensionNodeByUrl(resource, urlOrSegment) {
@@ -573,6 +821,7 @@
 				normalized.decisionToTransferAt,
 				normalized.transferDecisionDatetime,
 				normalized.periodStart
+				// deliberately ignore periodEnd — that is decision+1 month on outbound payloads
 			),
 			receivingFacility: firstNonBlank(
 				normalized.receivingFacility,
@@ -663,7 +912,12 @@
 					&& resolveFlag(normalized.agentApproved, false)),
 			needsInsuranceApproval: resolveFlag(normalized.needsInsuranceApproval,
 				resolveFlag(normalized.requiresInsuranceAgentVerification, false)
-					&& !resolveFlag(normalized.hasAgentApprovedExtension, false))
+					&& !resolveFlag(normalized.hasAgentApprovedExtension, false)),
+			referralFeedback: normalized.referralFeedback || null,
+			approverName: firstNonBlank(normalized.approverName, ""),
+			approverPosition: firstNonBlank(normalized.approverPosition, ""),
+			approverPhone: firstNonBlank(normalized.approverPhone, ""),
+			approvedAt: firstNonBlank(normalized.approvedAt, "")
 		};
 	}
 
@@ -723,13 +977,34 @@
 		// Maternity/neonatal builders expect type-specific maps (toMaternityPreviewMap /
 		// toNeonatalPreviewMap). Do not run them through normalizeTransferPreviewItem,
 		// which reshapes fields into the external form layout.
+		var html;
 		if (formMeta.kind === "MATERNITY") {
-			return buildMaternityTransferFormPreviewHtml(raw);
+			html = buildMaternityTransferFormPreviewHtml(raw);
+		} else if (formMeta.kind === "NEONATAL") {
+			html = buildNeonatalTransferFormPreviewHtml(raw);
+		} else {
+			html = buildExternalTransferFormPreviewHtml(normalizeTransferPreviewItem(raw));
 		}
-		if (formMeta.kind === "NEONATAL") {
-			return buildNeonatalTransferFormPreviewHtml(raw);
+		if (formMeta.kind === "MATERNITY" || formMeta.kind === "NEONATAL") {
+			html = injectReferralFeedbackIntoPreviewHtml(html, raw);
 		}
-		return buildExternalTransferFormPreviewHtml(normalizeTransferPreviewItem(raw));
+		return html;
+	}
+
+	function injectReferralFeedbackIntoPreviewHtml(html, item) {
+		var section = buildReferralFeedbackPreviewHtml(
+			item && item.referralFeedback,
+			item || {}
+		);
+		if (!section || !html) {
+			return html;
+		}
+		var marker = "</div></div>";
+		var idx = html.lastIndexOf(marker);
+		if (idx < 0) {
+			return html + section;
+		}
+		return html.substring(0, idx) + section + html.substring(idx);
 	}
 
 	function buildExternalTransferFormPreviewHtml(itemOrNormalized, options) {
@@ -761,7 +1036,12 @@
 			+ "<div class='tf-row tf-signature-row'><strong>Date:</strong> " + line(p.referringSignedDate, 120)
 			+ " <strong>Time:</strong> " + line(p.referringSignedTime, 120)
 			+ " <strong>Phone:</strong> " + line(p.referringProviderPhone, 180)
-			+ signatureBlock + "</div>";
+			+ signatureBlock + "</div>"
+			+ (p.approverName || p.approverPosition || p.approverPhone
+				? ("<div class='tf-row tf-bottom-gap'><strong>Approver name:</strong> " + line(p.approverName, 220)
+					+ " <strong>Approver position:</strong> " + line(p.approverPosition, 180) + "</div>"
+					+ "<div class='tf-row'><strong>Approver phone:</strong> " + line(p.approverPhone, 180) + "</div>")
+				: "");
 
 		var bottomSection = bottomRows;
 		if (p.verifyQrUrl) {
@@ -856,7 +1136,98 @@
 			+ " MUAC:" + line(p.vitalMuac, 80) + "</div>"
 			+ bottomSection
 
+			+ buildReferralFeedbackPreviewHtml(p.referralFeedback, p)
+
 			+ "</div></div>";
+	}
+
+	/**
+	 * Paper-form REFERRAL FEEDBACK + COUNTER-REFERRAL block (added under the transfer sheet
+	 * when referralFeedback is present — typically after save, for users with feedback privilege).
+	 */
+	function buildReferralFeedbackPreviewHtml(feedback, patientContext) {
+		if (!feedback || feedback.show === false) {
+			return "";
+		}
+		var hasContent = firstNonBlank(
+			feedback.finalDiagnosis,
+			feedback.treatmentGiven,
+			feedback.outcome,
+			feedback.outcomeLabel,
+			feedback.recommendations,
+			feedback.referBackToFacility,
+			feedback.dateOfDischarge,
+			feedback.dateOfAdmissionOrSeen
+		);
+		if (!hasContent) {
+			return "";
+		}
+
+		var ctx = patientContext || {};
+		var clientName = firstNonBlank(feedback.clientName, ctx.clientName, ctx.patientName, "");
+		var sex = firstNonBlank(feedback.sex, ctx.sex, "");
+		var ageOrDob = firstNonBlank(feedback.ageOrDob, ctx.ageOrDob, ctx.age, "");
+		var outcomeCode = String(feedback.outcome || "").trim().toUpperCase();
+		var outcomeLabel = String(feedback.outcomeLabel || "").trim().toLowerCase();
+
+		function outcomeSelected(code, labelHint) {
+			if (outcomeCode && outcomeCode === code) {
+				return true;
+			}
+			if (outcomeLabel && labelHint && outcomeLabel.indexOf(labelHint.toLowerCase()) >= 0) {
+				return true;
+			}
+			return false;
+		}
+
+		var treatmentText = firstNonBlank(feedback.treatmentGiven, "");
+		var recommendations = firstNonBlank(feedback.recommendations, "");
+
+		return ""
+			+ "<div class='tf-feedback-sheet'>"
+			+ "<div class='tf-feedback-block-title'>REFERRAL FEEDBACK</div>"
+			+ "<div class='tf-row'><strong>Client name:</strong> " + line(clientName, 280)
+			+ " <strong>Sex:</strong> " + line(sex, 90)
+			+ " <strong>Age (DOB):</strong> " + line(ageOrDob, 160) + "</div>"
+			+ "<div class='tf-row'><strong>Date of admission or client seen at receiving facility:</strong> "
+			+ line(feedback.dateOfAdmissionOrSeen, 160)
+			+ " <strong>Date of Discharge:</strong> " + line(feedback.dateOfDischarge, 160) + "</div>"
+			+ "<div class='tf-row'><strong>Final Diagnosis:</strong> " + line(feedback.finalDiagnosis, 760) + "</div>"
+			+ "<div class='tf-row'><strong>Treatment at the receiving facility:</strong></div>"
+			+ (treatmentText
+				? "<div class='tf-lines-block'>" + escTransferPreview(treatmentText) + "</div>"
+				: "<div class='tf-lines-block'></div><div class='tf-lines-block'></div>")
+			+ "<div class='tf-row'><strong>Outcome:</strong>"
+			+ " Stabilized/Cured:<span class='tf-circle'>"
+			+ yesNoCircle(outcomeSelected("STABILIZED_CURED", "stabilized")) + "</span>"
+			+ " Died:<span class='tf-circle'>"
+			+ yesNoCircle(outcomeSelected("DIED", "died")) + "</span>"
+			+ " Escaped:<span class='tf-circle'>"
+			+ yesNoCircle(outcomeSelected("ESCAPED", "escaped")) + "</span>"
+			+ " To be followed up:<span class='tf-circle'>"
+			+ yesNoCircle(outcomeSelected("TO_BE_FOLLOWED_UP", "followed")) + "</span>"
+			+ " Referred to high level:<span class='tf-circle'>"
+			+ yesNoCircle(outcomeSelected("REFERRED_TO_HIGH_LEVEL", "high level")) + "</span>"
+			+ "</div>"
+
+			+ "<div class='tf-feedback-block-title'>COUNTER-REFERRAL</div>"
+			+ "<div class='tf-row'><strong>Recommendations (follow up care):</strong></div>"
+			+ (recommendations
+				? "<div class='tf-lines-block'>" + escTransferPreview(recommendations) + "</div>"
+				: "<div class='tf-lines-block'></div>")
+			+ "<div class='tf-lines-block'></div>"
+			+ "<div class='tf-row'><strong>Refer back to: Name of facility:</strong> "
+			+ line(feedback.referBackToFacility, 320)
+			+ " <strong>Contact person:</strong> " + line(feedback.contactPerson, 220) + "</div>"
+			+ "<div class='tf-row'><strong>Names of health care provider:</strong> "
+			+ line(feedback.providerName, 280)
+			+ " <strong>Qualification:</strong> " + line(feedback.qualification, 220) + "</div>"
+			+ "<div class='tf-row tf-signature-row'><strong>Date:</strong> " + line(feedback.signedDate, 120)
+			+ " <strong>Time:</strong> " + line(feedback.signedTime, 100)
+			+ " <strong>Phone:</strong> " + line(feedback.phone, 160)
+			+ line(feedback.signatureAndStamp || "", 220)
+			+ "</div>"
+			+ "</div>";
 	}
 
 	function yesNo(flag) {
@@ -1281,7 +1652,11 @@
 			+ "@page{size:A4 portrait;margin:10mm 12mm;}"
 			+ "body{margin:0;background:#fff;}"
 			+ ".transfer-form-preview{max-width:210mm;margin:0 auto;}"
+			+ ".transfer-pdf-page{page-break-after:always;break-after:page;}"
+			+ ".transfer-pdf-page:last-child{page-break-after:auto;break-after:auto;}"
 			+ ".tf-sheet{border:1px solid #111;padding:6px 8px;font-family:'Times New Roman',Times,serif;}"
+			+ ".tf-feedback-sheet{margin-top:10px;padding-top:8px;border-top:2px solid #111;}"
+			+ ".tf-feedback-block-title{font-size:16px;font-weight:700;text-decoration:underline;text-align:center;margin:8px 0;}"
 			+ ".tf-head{width:100%;border-collapse:collapse;table-layout:fixed;}"
 			+ ".tf-head-brand{width:52%;vertical-align:top;text-align:left;padding:0 12px 0 0;}"
 			+ ".tf-head-brand .tf-row{text-align:left;}"

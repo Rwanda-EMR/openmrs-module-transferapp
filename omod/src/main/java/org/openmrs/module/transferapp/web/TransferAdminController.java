@@ -51,8 +51,7 @@ public class TransferAdminController {
 	@RequestMapping(value = "/module/transferapp/admin/facilityRegistry.form", method = RequestMethod.GET)
 	public void listFacilityRegistry(HttpServletResponse response) throws Exception {
 		Map<String, Object> data = new HashMap<String, Object>();
-		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_DASHBOARD)) {
-			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_DASHBOARD);
+		if (!requireDashboardPrivilege(response, data)) {
 			return;
 		}
 		try {
@@ -63,7 +62,7 @@ public class TransferAdminController {
 		catch (Exception e) {
 			log.error("Unable to load facilities from HIE registry", e);
 			data.put("status", "error");
-			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_DASHBOARD,
+			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_CONFIGURATION,
 					"Unable to load facilities from HIE registry"));
 			data.put("facilities", new ArrayList<Map<String, Object>>());
 		}
@@ -81,6 +80,9 @@ public class TransferAdminController {
 			@RequestParam(value = "external", required = false) Boolean external) throws Exception {
 
 		Map<String, Object> data = new HashMap<String, Object>();
+		if (!requireDashboardPrivilege(response, data)) {
+			return;
+		}
 		try {
 			ReceivingFacility facility = getTransferAdminService().saveReceivingFacility(
 					sendingLocationId, facilityCode, facilityName, distance, province, district, external);
@@ -96,7 +98,8 @@ public class TransferAdminController {
 		catch (Exception e) {
 			log.error("Unable to save receiving facility", e);
 			data.put("status", "error");
-			data.put("message", resolveErrorMessage(e, null, "Unable to save receiving facility"));
+			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_CONFIGURATION,
+					"Unable to save receiving facility"));
 		}
 		writeJson(response, data);
 	}
@@ -106,6 +109,9 @@ public class TransferAdminController {
 			@RequestParam("receivingFacilityId") Integer receivingFacilityId) throws Exception {
 
 		Map<String, Object> data = new HashMap<String, Object>();
+		if (!requireDashboardPrivilege(response, data)) {
+			return;
+		}
 		try {
 			getTransferAdminService().voidReceivingFacility(receivingFacilityId, null);
 			data.put("status", "success");
@@ -113,7 +119,8 @@ public class TransferAdminController {
 		catch (Exception e) {
 			log.error("Unable to remove receiving facility", e);
 			data.put("status", "error");
-			data.put("message", resolveErrorMessage(e, null, "Unable to remove receiving facility"));
+			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_CONFIGURATION,
+					"Unable to remove receiving facility"));
 		}
 		writeJson(response, data);
 	}
@@ -125,6 +132,9 @@ public class TransferAdminController {
 			@RequestParam(value = "receivingServiceId", required = false) Integer receivingServiceId) throws Exception {
 
 		Map<String, Object> data = new HashMap<String, Object>();
+		if (!requireDashboardPrivilege(response, data)) {
+			return;
+		}
 		try {
 			ReceivingService service = getTransferAdminService().saveReceivingService(
 					receivingFacilityId, serviceName, receivingServiceId);
@@ -136,7 +146,8 @@ public class TransferAdminController {
 		catch (Exception e) {
 			log.error("Unable to save receiving service", e);
 			data.put("status", "error");
-			data.put("message", resolveErrorMessage(e, null, "Unable to save receiving service"));
+			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_CONFIGURATION,
+					"Unable to save receiving service"));
 		}
 		writeJson(response, data);
 	}
@@ -146,6 +157,9 @@ public class TransferAdminController {
 			@RequestParam("receivingServiceId") Integer receivingServiceId) throws Exception {
 
 		Map<String, Object> data = new HashMap<String, Object>();
+		if (!requireDashboardPrivilege(response, data)) {
+			return;
+		}
 		try {
 			getTransferAdminService().voidReceivingService(receivingServiceId, null);
 			data.put("status", "success");
@@ -153,7 +167,8 @@ public class TransferAdminController {
 		catch (Exception e) {
 			log.error("Unable to remove receiving service", e);
 			data.put("status", "error");
-			data.put("message", resolveErrorMessage(e, null, "Unable to remove receiving service"));
+			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_CONFIGURATION,
+					"Unable to remove receiving service"));
 		}
 		writeJson(response, data);
 	}
@@ -163,6 +178,14 @@ public class TransferAdminController {
 			@RequestParam("receivingFacilityId") Integer receivingFacilityId) throws Exception {
 
 		Map<String, Object> data = new HashMap<String, Object>();
+		// Used by transfer wizards (clinicians) as well as admin UI.
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER)
+				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
+				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CONFIGURATION)
+				&& !TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_DASHBOARD)) {
+			writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+			return;
+		}
 		try {
 			List<String> services = getTransferAdminService().getReceivingServiceNamesByFacility(receivingFacilityId);
 			data.put("status", "success");
@@ -171,10 +194,19 @@ public class TransferAdminController {
 		catch (Exception e) {
 			log.error("Unable to load receiving services", e);
 			data.put("status", "error");
-			data.put("message", resolveErrorMessage(e, null, "Unable to load receiving services"));
+			data.put("message", resolveErrorMessage(e, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER,
+					"Unable to load receiving services"));
 			data.put("services", new ArrayList<String>());
 		}
 		writeJson(response, data);
+	}
+
+	private boolean requireDashboardPrivilege(HttpServletResponse response, Map<String, Object> data) throws Exception {
+		if (TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CONFIGURATION)) {
+			return true;
+		}
+		writePrivilegeDenied(response, data, TransferAppActivator.PRIVILEGE_CONFIGURATION);
+		return false;
 	}
 
 	private List<Map<String, Object>> toFacilityMaps(List<RegistryFacility> facilities) {
@@ -205,6 +237,7 @@ public class TransferAdminController {
 		data.put("message", TransferPrivilegeHelper.requiredPrivilegeMessage(privilege));
 		data.put("requiredPrivilege", privilege);
 		data.put("facilities", new ArrayList<Map<String, Object>>());
+		data.put("services", new ArrayList<String>());
 		response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 		writeJson(response, data);
 	}

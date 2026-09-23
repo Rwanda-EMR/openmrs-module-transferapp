@@ -558,13 +558,19 @@
                     </thead>
                     <tbody>
                         <% transfers.each { transfer -> %>
-                            <tr class="transfer-row${ transfer.hieSent ? ' transfer-row-sent' : '' }" data-transfer-id="${ ui.encodeHtmlAttribute(transfer.id) }" data-hie-sent="${ transfer.hieSent ? 'true' : 'false' }" data-form-type="${ ui.encodeHtmlAttribute(transfer.formType) }">
+                            <tr class="transfer-row${ transfer.hieSent ? ' transfer-row-sent' : '' }${ transfer.receivedFromHie ? ' transfer-row-received' : '' }" data-transfer-id="${ ui.encodeHtmlAttribute(transfer.id) }" data-hie-sent="${ transfer.hieSent ? 'true' : 'false' }" data-awaiting-approval="${ transfer.awaitingLocalApproval ? 'true' : 'false' }" data-rejected-approval="${ transfer.rejectedLocalApproval ? 'true' : 'false' }" data-received-from-hie="${ transfer.receivedFromHie ? 'true' : 'false' }" data-form-type="${ ui.encodeHtmlAttribute(transfer.formType) }">
                                 <td>${ ui.format(transfer.transferDate) }</td>
                                 <td>${ ui.format(transfer.toFacility) }</td>
                                 <td>${ ui.format(transfer.service) }</td>
                                 <td>
-                                    <% if (transfer.hieSent) { %>
+                                    <% if (transfer.receivedFromHie) { %>
+                                        <span class="transfer-status-received">${ ui.message("transferapp.patient.transfers.statusReceived") }</span>
+                                    <% } else if (transfer.hieSent) { %>
                                         <span class="transfer-status-sent">${ ui.message("transferapp.patient.transfers.statusSent") }</span>
+                                    <% } else if (transfer.awaitingLocalApproval) { %>
+                                        <span class="transfer-status-pending">${ ui.message("transferapp.patient.transfers.statusAwaitingApproval") }</span>
+                                    <% } else if (transfer.rejectedLocalApproval) { %>
+                                        <span class="transfer-status-pending">${ ui.message("transferapp.patient.transfers.statusRejected") }</span>
                                     <% } else { %>
                                         <span class="transfer-status-pending">${ ui.message("transferapp.patient.transfers.statusPending") }</span>
                                     <% } %>
@@ -1180,6 +1186,8 @@
     var transferPreviewScriptsLoading = null;
     var currentPreviewTransferUuid = null;
     var currentPreviewTransferSent = false;
+    var currentPreviewAwaitingApproval = false;
+    var currentPreviewRejectedApproval = false;
     var currentPreviewIsHieUpdate = false;
     var currentPreviewFormType = "External";
 
@@ -1191,6 +1199,10 @@
         submitBtn.show();
         if (currentPreviewTransferSent) {
             submitBtn.prop("disabled", true).text("${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.alreadySent')) }");
+        } else if (currentPreviewAwaitingApproval) {
+            submitBtn.prop("disabled", true).text("${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.statusAwaitingApproval')) }");
+        } else if (currentPreviewRejectedApproval) {
+            submitBtn.prop("disabled", true).text("${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.statusRejected')) }");
         } else if (currentPreviewIsHieUpdate) {
             submitBtn.prop("disabled", false).text("${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.updateOnHie')) }");
         } else {
@@ -1251,9 +1263,16 @@
         }
         jq("#transfer-preview-body").html(previewHtml);
         currentPreviewTransferSent = !!(transfer && (transfer.hieSent === true || transfer.hieSent === "true"));
+        currentPreviewAwaitingApproval = !!(transfer && (transfer.awaitingLocalApproval === true
+            || transfer.awaitingLocalApproval === "true"
+            || transfer.localApprovalStatus === "PENDING"));
+        currentPreviewRejectedApproval = !!(transfer && (transfer.localApprovalStatus === "REJECTED"));
         // Only External supports resubmitting an update to an already-sent HIE encounter.
         currentPreviewIsHieUpdate = currentPreviewFormType === "External"
-            && !currentPreviewTransferSent && !!(transfer && String(transfer.hieTransferId || "").trim());
+            && !currentPreviewTransferSent
+            && !currentPreviewAwaitingApproval
+            && !currentPreviewRejectedApproval
+            && !!(transfer && String(transfer.hieTransferId || "").trim());
         syncTransferPreviewSubmitButton();
     }
 
@@ -1283,6 +1302,8 @@
         jq("#transfer-preview-body").html("<div style='padding: 10px;'><i class='icon-spinner icon-spin'></i> ${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.previewLoading')) }</div>");
         currentPreviewTransferUuid = transferUuid;
         currentPreviewTransferSent = false;
+        currentPreviewAwaitingApproval = false;
+        currentPreviewRejectedApproval = false;
         currentPreviewFormType = (formType === "Maternity" || formType === "Neonatal") ? formType : "External";
         currentPreviewIsHieUpdate = false;
         syncTransferPreviewSubmitButton();
@@ -1313,7 +1334,8 @@
     jq(document).ready(function() {
         jq(document).on("click", "#transfer-preview-submit", function(e) {
             e.preventDefault();
-            if (!currentPreviewTransferUuid || currentPreviewTransferSent) {
+            if (!currentPreviewTransferUuid || currentPreviewTransferSent
+                    || currentPreviewAwaitingApproval || currentPreviewRejectedApproval) {
                 return;
             }
             var submitBtn = jq(this);

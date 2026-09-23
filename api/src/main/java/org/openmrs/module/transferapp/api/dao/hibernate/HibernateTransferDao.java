@@ -26,6 +26,7 @@ import org.openmrs.api.db.hibernate.DbSession;
 import org.openmrs.api.db.hibernate.DbSessionFactory;
 import org.openmrs.module.transferapp.api.dao.TransferDao;
 import org.openmrs.module.transferapp.model.Transfer;
+import org.openmrs.module.transferapp.model.TransferApprovalStatus;
 
 import java.util.Collections;
 import java.util.Date;
@@ -256,6 +257,32 @@ public class HibernateTransferDao implements TransferDao {
 		}
 		criteria.addOrder(Order.asc("reuseRendezvousDate"));
 		return criteria.list();
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public List<Transfer> getTransfersByLocalApprovalStatus(TransferApprovalStatus status) {
+		if (status == null) {
+			return Collections.emptyList();
+		}
+		Criteria criteria = getSession().createCriteria(Transfer.class);
+		criteria.add(Restrictions.eq("voided", false));
+		criteria.add(Restrictions.eq("localApprovalStatus", status));
+		criteria.addOrder(Order.desc("dateCreated"));
+		return criteria.list();
+	}
+
+	@Override
+	public int countTransfersByLocalApprovalStatus(TransferApprovalStatus status) {
+		if (status == null) {
+			return 0;
+		}
+		Criteria criteria = getSession().createCriteria(Transfer.class);
+		criteria.add(Restrictions.eq("voided", false));
+		criteria.add(Restrictions.eq("localApprovalStatus", status));
+		criteria.setProjection(Projections.rowCount());
+		Number count = (Number) criteria.uniqueResult();
+		return count == null ? 0 : count.intValue();
 	}
 
 	@Override

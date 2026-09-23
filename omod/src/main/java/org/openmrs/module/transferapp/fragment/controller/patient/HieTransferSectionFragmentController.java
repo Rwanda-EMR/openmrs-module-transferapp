@@ -103,6 +103,7 @@ public class HieTransferSectionFragmentController {
 		}
 
 		boolean canCreateTransfer = TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_CREATE_TRANSFER);
+		boolean canProvideFeedback = TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_FEEDBACK);
 		model.addAttribute("canValidateTransfer", canCreateTransfer);
 		model.addAttribute("currentFacilityName", registrationObsService.resolveCurrentFacilityName());
 
@@ -172,7 +173,7 @@ public class HieTransferSectionFragmentController {
 			model.addAttribute("hasTransferIdObs", true);
 			model.addAttribute("transferId", transferId.trim());
 			model.addAttribute("listFromHie", false);
-			model.addAttribute("canProvideFeedback", canCreateTransfer);
+			model.addAttribute("canProvideFeedback", canProvideFeedback);
 			return;
 		}
 

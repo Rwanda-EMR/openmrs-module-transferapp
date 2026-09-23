@@ -21,6 +21,10 @@ public class ReferralFeedbackOutcomeTest {
 				ReferralFeedbackOutcome.fromStoredValue("To be followed up"));
 		assertEquals(ReferralFeedbackOutcome.REFERRED_TO_HIGH_LEVEL,
 				ReferralFeedbackOutcome.fromStoredValue("referred to high level"));
+		assertEquals(ReferralFeedbackOutcome.STABILIZED_CURED,
+				ReferralFeedbackOutcome.fromStoredValue("STABILIZED"));
+		assertEquals(ReferralFeedbackOutcome.STABILIZED_CURED,
+				ReferralFeedbackOutcome.fromStoredValue("Stabilized"));
 		assertNull(ReferralFeedbackOutcome.fromStoredValue(""));
 		assertNull(ReferralFeedbackOutcome.fromStoredValue(null));
 	}
