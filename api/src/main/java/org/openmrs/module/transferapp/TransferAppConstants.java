@@ -152,6 +152,18 @@ public final class TransferAppConstants {
 	/** Normalized facility display name used on outbound HIE payloads (sendingFacility). */
 	public static final String GP_OUTBOUND_FACILITY_NAME = "transferapp.outboundFacilityName";
 
+	/**
+	 * Province of the current (outbound) facility. Preview-only fallback when a transfer targeting
+	 * {@link #GP_OUTBOUND_FACILITY_NAME} has no province in the HIE payload. Not used on outbound HIE submit.
+	 */
+	public static final String GP_OUTBOUND_PROVINCE = "transferapp.outboundProvince";
+
+	/**
+	 * District of the current (outbound) facility. Preview-only fallback when a transfer targeting
+	 * {@link #GP_OUTBOUND_FACILITY_NAME} has no district in the HIE payload. Not used on outbound HIE submit.
+	 */
+	public static final String GP_OUTBOUND_DISTRICT = "transferapp.outboundDistrict";
+
 	/** When true and credentials are set, send patient SMS after HIE accepts the transfer. */
 	public static final String GP_SMS_INTOUCH_ENABLED = "transferapp.sms.intouch.enabled";
 

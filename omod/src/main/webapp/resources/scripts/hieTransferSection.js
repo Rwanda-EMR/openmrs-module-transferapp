@@ -80,6 +80,7 @@
             canCreateTransfer: false,
             canValidate: false,
             canProvideFeedback: false,
+            importCounterReferral: false,
             feedbackLoaded: false,
             feedbackCompleted: false,
             feedbackHieSent: false
@@ -117,6 +118,8 @@
                 runtime.patientId = cfg.attr("data-patient-id") || runtime.patientId;
                 runtime.hasTransferId = cfg.attr("data-has-transfer-id") === "true" || runtime.hasTransferId;
                 runtime.canProvideFeedback = cfg.attr("data-can-provide-feedback") === "true" || runtime.canProvideFeedback;
+                runtime.importCounterReferral = cfg.attr("data-import-counter-referral") === "true"
+                    || runtime.importCounterReferral;
             }
             if (source.length) {
                 runtime.restUrl = normalizeRootUrl(source.attr("data-rest-url") || runtime.restUrl);
@@ -124,10 +127,20 @@
                 runtime.facilitiesUrl = normalizeRootUrl(source.attr("data-facilities-url") || runtime.facilitiesUrl);
                 runtime.upid = source.attr("data-upid") || runtime.upid;
                 runtime.patientId = source.attr("data-patient-id") || runtime.patientId;
+                if (source.attr("data-has-transfer-id") === "true") {
+                    runtime.hasTransferId = true;
+                } else if (source.attr("data-has-transfer-id") === "false") {
+                    runtime.hasTransferId = false;
+                }
                 if (source.attr("data-can-provide-feedback") === "true") {
                     runtime.canProvideFeedback = true;
                 } else if (source.attr("data-can-provide-feedback") === "false") {
                     runtime.canProvideFeedback = false;
+                }
+                if (source.attr("data-import-counter-referral") === "true") {
+                    runtime.importCounterReferral = true;
+                } else if (source.attr("data-import-counter-referral") === "false") {
+                    runtime.importCounterReferral = false;
                 }
             }
             runtime.canValidate = runtime.canCreateTransfer && runtime.listFromHie && !runtime.hasTransferId;
@@ -270,6 +283,7 @@
         }
 
         function renderPreview(transfer) {
+            var hieFeedbackSummary = transfer && transfer.referralFeedback ? transfer.referralFeedback : null;
             function afterBasePreview() {
                 updateValidateButton(transfer);
                 runtime.feedbackLoaded = false;
@@ -283,6 +297,7 @@
                 runtime.feedbackCompleted = false;
                 runtime.feedbackHieSent = false;
                 updateProvideFeedbackButton(transfer);
+                maybeImportHieCounterReferral(transfer, hieFeedbackSummary);
                 loadSavedFeedbackIntoPreview(transfer);
             }
 
@@ -295,6 +310,69 @@
                 : "<p style='color:red;'>Preview renderer not loaded.</p>";
             jq("#hie-transfer-preview-body").html(previewHtml);
             afterBasePreview();
+        }
+
+        function maybeImportHieCounterReferral(transfer, summary) {
+            if (!runtime.importCounterReferral || !summary || !patientId) {
+                return;
+            }
+            var transferUuid = (transfer && (transfer.uuid || transfer.id || transfer.hieTransferId)) || "";
+            if (!transferUuid) {
+                return;
+            }
+            var pageConfig = window.missingOutboundCounterReferralsConfig || {};
+            var importUrl = pageConfig.importUrl
+                || normalizeRootUrl(transferOpenmrsPath + "/ws/rest/v1/transferapp/transfer/feedback/import");
+            var messages = pageConfig.messages || {};
+            var payload = {
+                patientId: patientId,
+                hieTransferId: transferUuid,
+                finalDiagnosis: summary.finalDiagnosis || "",
+                treatmentGiven: summary.treatmentGiven || "",
+                outcome: summary.outcome || "",
+                recommendations: summary.recommendations || "",
+                referBackToFacility: summary.referBackToFacility || "",
+                referBackToFacilityFosaId: summary.referBackToFacilityFosaId || "",
+                dateOfAdmissionOrSeen: summary.dateOfAdmissionOrSeen || "",
+                dateOfDischarge: summary.dateOfDischarge || "",
+                contactPerson: summary.contactPerson || "",
+                providerName: summary.providerName || "",
+                qualification: summary.qualification || "",
+                signedDate: summary.signedDate || "",
+                signedTime: summary.signedTime || "",
+                phone: summary.phone || ""
+            };
+            jq.ajax({
+                url: importUrl,
+                type: "POST",
+                data: payload,
+                dataType: "json",
+                headers: { "Accept": "application/json" }
+            }).done(function(response) {
+                if (!response) {
+                    return;
+                }
+                var statusEl = jq("#hie-transfer-validate-status");
+                if (response.imported === true || response.imported === "true") {
+                    statusEl.show().css("color", "#0f766e")
+                        .text(response.message || messages.importSuccess
+                            || "Counter referral imported from HIE and saved locally.");
+                    if (currentPreviewTransfer) {
+                        currentPreviewTransfer.referralFeedback = summary;
+                    }
+                    runtime.feedbackCompleted = true;
+                    runtime.feedbackHieSent = true;
+                    return;
+                }
+                if (response.status === "skipped") {
+                    statusEl.show().css("color", "#475569")
+                        .text(response.message || messages.importSkipped
+                            || "No counter-referral data was available on HIE to import.");
+                }
+            }).fail(function() {
+                jq("#hie-transfer-validate-status").show().css("color", "#a94442")
+                    .text(messages.importError || "Unable to import counter referral from HIE.");
+            });
         }
 
         function feedbackButtonLabels() {
@@ -1070,6 +1148,7 @@
             var destination = resolveDestination(item);
             var status = item.status || "";
             var statusClass = "transfer-status-pending";
+            var used = item.used === true || item.used === "true";
             if (item.reuseScheduled === true || item.reuseScheduled === "true") {
                 statusClass = "transfer-status-approved";
                 if (!status) {
@@ -1082,12 +1161,19 @@
             } else if (item.needsInsuranceApproval === true || item.needsInsuranceApproval === "true") {
                 statusClass = "transfer-status-awaiting";
             }
+            if (status && String(status).toLowerCase() === "used") {
+                status = "";
+            }
+            var usedBadge = used
+                ? " <span class='transfer-used-badge' title='Previously recorded on a past-month visit'>"
+                    + esc(item.usedBadge || "Used") + "</span>"
+                : "";
             var statusHtml = status
                 ? "<div class='" + statusClass + "' style='font-size:12px;margin-top:4px;'>" + esc(status) + "</div>"
                 : "";
             return ""
                 + "<tr class='hie-transfer-row' data-uuid='" + esc(uuid) + "' data-upid='" + esc(upid) + "'>"
-                + "<td>" + esc(date) + statusHtml + "</td>"
+                + "<td>" + esc(date) + usedBadge + statusHtml + "</td>"
                 + "<td>" + esc(from) + "</td>"
                 + "<td>" + esc(destination) + "</td>"
                 + "<td><a href='javascript:void(0);' class='hie-transfer-view-link' "

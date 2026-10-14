@@ -78,8 +78,32 @@
         document.getElementsByTagName("head")[0].appendChild(link);
     }
 
+    function ensureUsedBadgeStyles() {
+        if (jq("#registration-transfer-used-badge-styles").length) {
+            return;
+        }
+        jq("head").append(
+            "<style id='registration-transfer-used-badge-styles'>"
+            + ".transfer-used-badge{"
+            + "display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;"
+            + "font-size:11px;font-weight:700;letter-spacing:0.02em;line-height:1.4;"
+            + "color:#9a3412;background:#ffedd5;border:1px solid #fdba74;vertical-align:middle;"
+            + "}"
+            + "</style>"
+        );
+    }
+
+    function usedBadgeHtml(item) {
+        if (!item || !(item.used === true || item.used === "true")) {
+            return "";
+        }
+        return " <span class='transfer-used-badge' title='Previously recorded on a past-month visit'>"
+            + esc(item.usedBadge || "Used") + "</span>";
+    }
+
     function initRegistrationHieTransfer() {
         loadPreviewStylesheet();
+        ensureUsedBadgeStyles();
         var container = jq("#transfer_from_hie");
         if (!container.length) {
             return;
@@ -300,19 +324,28 @@
             var destination = resolveDestination(item);
             var status = item.status || "";
             var statusClass = "transfer-status-pending";
-            if (item.agentRejected === true || item.agentRejected === "true") {
+            if (item.reuseScheduled === true || item.reuseScheduled === "true") {
+                statusClass = "transfer-status-approved";
+                if (!status) {
+                    status = "Scheduled reuse";
+                }
+            } else if (item.agentRejected === true || item.agentRejected === "true") {
                 statusClass = "transfer-status-rejected";
             } else if (item.agentDecisionApproved === true || item.agentDecisionApproved === "true") {
                 statusClass = "transfer-status-approved";
             } else if (item.needsInsuranceApproval === true || item.needsInsuranceApproval === "true") {
                 statusClass = "transfer-status-awaiting";
             }
+            // Do not treat the Used badge as the status line (status "Used" is only a fallback).
+            if (status && String(status).toLowerCase() === "used") {
+                status = "";
+            }
             var statusHtml = status
                 ? "<div class='" + statusClass + "' style='font-size:12px;margin-top:4px;'>" + esc(status) + "</div>"
                 : "";
             return ""
                 + "<tr>"
-                + "<td>" + esc(date) + statusHtml + "</td>"
+                + "<td>" + esc(date) + usedBadgeHtml(item) + statusHtml + "</td>"
                 + "<td>" + esc(from) + "</td>"
                 + "<td>" + esc(destination) + "</td>"
                 + "<td><a href='javascript:void(0);' class='registration-hie-transfer-view-link' "

@@ -13,21 +13,36 @@
  */
 package org.openmrs.module.transferapp.page.controller;
 
+import org.apache.commons.lang.StringUtils;
 import org.openmrs.module.appui.UiSessionContext;
 import org.openmrs.module.transferapp.TransferAppActivator;
 import org.openmrs.module.transferapp.TransferPrivilegeHelper;
+import org.openmrs.module.transferapp.api.CounterReferralStatistics;
 import org.openmrs.module.transferapp.api.TransferDashboardService;
 import org.openmrs.module.transferapp.api.TransferReceivedStatistics;
 import org.openmrs.ui.framework.annotation.SpringBean;
 import org.openmrs.ui.framework.page.PageModel;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
 
 /**
  * Controller for the transfer dashboard page.
  */
 public class DashboardPageController {
 
+	private static final int MAX_DATE_RANGE_MONTHS = 6;
+
+	private static final String DATE_PARAM_PATTERN = "yyyy-MM-dd";
+
 	public void get(UiSessionContext sessionContext, PageModel model,
-			@SpringBean("transferDashboardService") TransferDashboardService transferDashboardService) {
+			@SpringBean("transferDashboardService") TransferDashboardService transferDashboardService,
+			@RequestParam(value = "startDate", required = false) String startDateParam,
+			@RequestParam(value = "endDate", required = false) String endDateParam,
+			@RequestParam(value = "app", required = false) String app) {
 		sessionContext.requireAuthentication();
 
 		boolean canAccessDashboard = TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_DASHBOARD);
@@ -35,6 +50,18 @@ public class DashboardPageController {
 		model.addAttribute("requiredDashboardPrivilege", TransferAppActivator.PRIVILEGE_DASHBOARD);
 		model.addAttribute("dashboardAccessDeniedMessage",
 				TransferPrivilegeHelper.requiredPrivilegeMessage(TransferAppActivator.PRIVILEGE_DASHBOARD));
+		model.addAttribute("appId", StringUtils.isNotBlank(app) ? app.trim() : "transferapp.dashboard");
+		model.addAttribute("maxDateRangeMonths", MAX_DATE_RANGE_MONTHS);
+
+		Date defaultEndDate = endOfDay(new Date());
+		Date defaultStartDate = startOfDay(startOfMonth(defaultEndDate));
+		Date startDate = parseDateParam(startDateParam, defaultStartDate);
+		Date endDate = parseDateParam(endDateParam, defaultEndDate);
+		Date[] normalizedRange = normalizeDateRange(startDate, endDate, MAX_DATE_RANGE_MONTHS);
+		startDate = normalizedRange[0];
+		endDate = normalizedRange[1];
+		model.addAttribute("filterStartDate", formatDateParam(startDate));
+		model.addAttribute("filterEndDate", formatDateParam(endDate));
 
 		if (!canAccessDashboard) {
 			setZeroStats(model);
@@ -42,21 +69,30 @@ public class DashboardPageController {
 		}
 
 		try {
-			TransferReceivedStatistics received = transferDashboardService.getReceivedTransferStatistics();
+			TransferReceivedStatistics received = transferDashboardService.getReceivedTransferStatistics(startDate,
+					endDate);
 			model.addAttribute("transfersReceivedToday", received.getToday());
 			model.addAttribute("transfersReceivedThisWeek", received.getThisWeek());
-			model.addAttribute("transfersReceivedTotal", received.getTotal());
+			model.addAttribute("transfersReceivedPeriod", received.getTotal());
+			model.addAttribute("transfersReceivedMissingCounterReferral", received.getMissingCounterReferral());
 
-			TransferReceivedStatistics sent = transferDashboardService.getSentTransferStatistics();
+			TransferReceivedStatistics sent = transferDashboardService.getSentTransferStatistics(startDate, endDate);
 			model.addAttribute("transfersSentToday", sent.getToday());
 			model.addAttribute("transfersSentThisWeek", sent.getThisWeek());
-			model.addAttribute("transfersSentTotal", sent.getTotal());
+			model.addAttribute("transfersSentPeriod", sent.getTotal());
 			model.addAttribute("transfersSentPending", sent.getPending());
+			model.addAttribute("transfersSentMissingCounterReferral", sent.getMissingCounterReferral());
 
-			TransferReceivedStatistics vouchers = transferDashboardService.getAmbulanceVoucherStatistics();
+			TransferReceivedStatistics vouchers = transferDashboardService.getAmbulanceVoucherStatistics(startDate,
+					endDate);
 			model.addAttribute("ambulanceVouchersToday", vouchers.getToday());
 			model.addAttribute("ambulanceVouchersThisWeek", vouchers.getThisWeek());
-			model.addAttribute("ambulanceVouchersTotal", vouchers.getTotal());
+			model.addAttribute("ambulanceVouchersPeriod", vouchers.getTotal());
+
+			CounterReferralStatistics counterReferrals = transferDashboardService
+					.getCounterReferralStatistics(startDate, endDate);
+			model.addAttribute("counterReferralsReceived", counterReferrals.getReceived());
+			model.addAttribute("counterReferralsSent", counterReferrals.getSent());
 		}
 		catch (Exception ex) {
 			setZeroStats(model);
@@ -71,14 +107,88 @@ public class DashboardPageController {
 	private void setZeroStats(PageModel model) {
 		model.addAttribute("transfersReceivedToday", 0);
 		model.addAttribute("transfersReceivedThisWeek", 0);
-		model.addAttribute("transfersReceivedTotal", 0);
+		model.addAttribute("transfersReceivedPeriod", 0);
+		model.addAttribute("transfersReceivedMissingCounterReferral", 0);
 		model.addAttribute("transfersSentToday", 0);
 		model.addAttribute("transfersSentThisWeek", 0);
-		model.addAttribute("transfersSentTotal", 0);
+		model.addAttribute("transfersSentPeriod", 0);
 		model.addAttribute("transfersSentPending", 0);
+		model.addAttribute("transfersSentMissingCounterReferral", 0);
 		model.addAttribute("ambulanceVouchersToday", 0);
 		model.addAttribute("ambulanceVouchersThisWeek", 0);
-		model.addAttribute("ambulanceVouchersTotal", 0);
+		model.addAttribute("ambulanceVouchersPeriod", 0);
+		model.addAttribute("counterReferralsReceived", 0);
+		model.addAttribute("counterReferralsSent", 0);
+	}
+
+	static Date[] normalizeDateRange(Date startDate, Date endDate, int maxMonths) {
+		Date normalizedStart = startOfDay(startDate != null ? startDate : new Date());
+		Date normalizedEnd = endOfDay(endDate != null ? endDate : new Date());
+		if (normalizedStart.after(normalizedEnd)) {
+			Date swap = normalizedStart;
+			normalizedStart = startOfDay(normalizedEnd);
+			normalizedEnd = endOfDay(swap);
+		}
+		Date earliestAllowedStart = startOfDay(addMonths(normalizedEnd, -maxMonths));
+		if (normalizedStart.before(earliestAllowedStart)) {
+			normalizedStart = earliestAllowedStart;
+		}
+		return new Date[] { normalizedStart, normalizedEnd };
+	}
+
+	private static Date parseDateParam(String value, Date defaultValue) {
+		if (StringUtils.isBlank(value)) {
+			return defaultValue;
+		}
+		try {
+			SimpleDateFormat formatter = new SimpleDateFormat(DATE_PARAM_PATTERN);
+			formatter.setLenient(false);
+			return formatter.parse(value.trim());
+		}
+		catch (ParseException ex) {
+			return defaultValue;
+		}
+	}
+
+	private static String formatDateParam(Date date) {
+		if (date == null) {
+			return "";
+		}
+		return new SimpleDateFormat(DATE_PARAM_PATTERN).format(date);
+	}
+
+	private static Date startOfDay(Date date) {
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(date);
+		calendar.set(Calendar.HOUR_OF_DAY, 0);
+		calendar.set(Calendar.MINUTE, 0);
+		calendar.set(Calendar.SECOND, 0);
+		calendar.set(Calendar.MILLISECOND, 0);
+		return calendar.getTime();
+	}
+
+	private static Date endOfDay(Date date) {
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(date);
+		calendar.set(Calendar.HOUR_OF_DAY, 23);
+		calendar.set(Calendar.MINUTE, 59);
+		calendar.set(Calendar.SECOND, 59);
+		calendar.set(Calendar.MILLISECOND, 999);
+		return calendar.getTime();
+	}
+
+	private static Date addMonths(Date date, int months) {
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(date);
+		calendar.add(Calendar.MONTH, months);
+		return calendar.getTime();
+	}
+
+	private static Date startOfMonth(Date date) {
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(date);
+		calendar.set(Calendar.DAY_OF_MONTH, 1);
+		return calendar.getTime();
 	}
 
 }

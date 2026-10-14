@@ -21,6 +21,7 @@ import org.openmrs.module.transferapp.TransferAppConstants;
 import org.openmrs.module.transferapp.TransferAppMode;
 import org.openmrs.module.transferapp.TransferPrivilegeHelper;
 import org.openmrs.module.transferapp.PatientTransferIdentifierDetector;
+import org.openmrs.module.transferapp.api.OutboundFacilityPreviewLocation;
 import org.openmrs.module.transferapp.api.PendingTransferPatientStatusResolver;
 import org.openmrs.module.transferapp.api.ClientRegistryRegistrationService;
 import org.openmrs.module.transferapp.api.TransferAdminService;
@@ -255,6 +256,7 @@ public class TransferSaveController {
 			data.put("uuid", transfer.getUuid());
 			data.put("hieSent", transfer.isSentToHie());
 			data.put("hieSentAt", formatDateTime(transfer.getHieSentAt()));
+			data.put("insuranceApprovalKept", transfer.isInsuranceApprovalKept());
 		}
 		catch (Exception e) {
 			putError(data, e, TransferAppActivator.PRIVILEGE_CREATE_TRANSFER, "Unable to submit transfer to HIE");
@@ -603,6 +605,7 @@ public class TransferSaveController {
 				// PDF should still download without the QR code.
 			}
 
+			OutboundFacilityPreviewLocation.applyProvinceDistrictFallback(transfer);
 			byte[] pdf = new TransferFormPdfRenderer().render(transfer, feedback, qrPng);
 			String fileName = "External-Transfer-Form-" + transferId + ".pdf";
 			response.setStatus(HttpServletResponse.SC_OK);
@@ -1664,6 +1667,7 @@ public class TransferSaveController {
 			preview.put("verifyRemoteUrl", verificationUrlService.buildRemoteVerifyUrl(transfer));
 			preview.put("verifyQrUrl", verificationUrlService.buildVerifyQrFormUrl(verificationTransferId));
 		}
+		OutboundFacilityPreviewLocation.applyProvinceDistrictFallback(preview);
 		return preview;
 	}
 
@@ -1801,6 +1805,7 @@ public class TransferSaveController {
 		preview.put("referringProviderPhone", nullToEmpty(transfer.getReferringProviderPhone()));
 		preview.put("dateCreated", formatDateTime(transfer.getDateCreated()));
 
+		OutboundFacilityPreviewLocation.applyProvinceDistrictFallback(preview);
 		return preview;
 	}
 
@@ -1959,6 +1964,7 @@ public class TransferSaveController {
 		preview.put("referringProviderPhone", nullToEmpty(transfer.getReferringProviderPhone()));
 		preview.put("dateCreated", formatDateTime(transfer.getDateCreated()));
 
+		OutboundFacilityPreviewLocation.applyProvinceDistrictFallback(preview);
 		return preview;
 	}
 

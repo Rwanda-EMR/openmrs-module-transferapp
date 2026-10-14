@@ -13,31 +13,25 @@
  */
 package org.openmrs.module.transferapp.api.impl;
 
-import org.apache.commons.lang.StringUtils;
 import org.openmrs.User;
 import org.openmrs.api.APIException;
 import org.openmrs.api.context.Context;
+import org.openmrs.module.transferapp.api.ProviderProfileAttributes;
 import org.openmrs.module.transferapp.api.TransferProfileService;
-import org.openmrs.module.transferapp.api.dao.TransferProfileDao;
 import org.openmrs.module.transferapp.model.TransferProfile;
 
-import java.util.Date;
-import java.util.UUID;
-
+/**
+ * My Profile and transfer provider details are stored on OpenMRS provider attributes
+ * ({@code Provider License}, {@code Phone Number}, {@code Qualification}, {@code Speciality}).
+ */
 public class TransferProfileServiceImpl implements TransferProfileService {
-
-	private TransferProfileDao transferProfileDao;
-
-	public void setTransferProfileDao(TransferProfileDao transferProfileDao) {
-		this.transferProfileDao = transferProfileDao;
-	}
 
 	@Override
 	public TransferProfile getProfileForUser(User user) {
 		if (user == null || user.getUserId() == null) {
 			return null;
 		}
-		return transferProfileDao.getTransferProfileByUserId(user.getUserId());
+		return ProviderProfileAttributes.readProfileForUser(user);
 	}
 
 	@Override
@@ -47,40 +41,7 @@ public class TransferProfileServiceImpl implements TransferProfileService {
 		if (user == null || user.getUserId() == null) {
 			throw new APIException("You must be logged in to save your profile");
 		}
-
-		String license = StringUtils.trimToNull(licenseNumber);
-		String phone = StringUtils.trimToNull(phoneNumber);
-		String qualificationValue = StringUtils.trimToNull(qualification);
-		String specialityValue = StringUtils.trimToNull(speciality);
-		if (license == null) {
-			throw new APIException("License number is required");
-		}
-		if (phone == null) {
-			throw new APIException("Phone number is required");
-		}
-		if (qualificationValue == null) {
-			throw new APIException("Qualification is required");
-		}
-
-		TransferProfile profile = transferProfileDao.getTransferProfileByUserId(user.getUserId());
-		if (profile == null) {
-			profile = new TransferProfile();
-			profile.setUuid(UUID.randomUUID().toString());
-			profile.setUserId(user.getUserId());
-			profile.setCreator(user);
-			profile.setDateCreated(new Date());
-			profile.setVoided(false);
-		}
-		else {
-			profile.setChangedBy(user);
-			profile.setDateChanged(new Date());
-		}
-
-		profile.setLicenseNumber(license);
-		profile.setPhoneNumber(phone);
-		profile.setQualification(qualificationValue);
-		profile.setSpeciality(specialityValue);
-		return transferProfileDao.saveTransferProfile(profile);
+		return ProviderProfileAttributes.saveProfileForUser(user, licenseNumber, phoneNumber, qualification, speciality);
 	}
 
 }

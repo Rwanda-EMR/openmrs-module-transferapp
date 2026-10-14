@@ -11,14 +11,30 @@
  *
  * Copyright (C) OpenMRS, LLC.  All Rights Reserved.
  */
-package org.openmrs.module.transferapp.api.dao;
+package org.openmrs.module.transferapp.api;
 
-import org.openmrs.module.transferapp.model.TransferProfile;
+/**
+ * Lifetime counter-referral totals for the transfer dashboard.
+ */
+public class CounterReferralStatistics {
 
-public interface TransferProfileDao {
+	private int received;
 
-	TransferProfile getTransferProfileByUserId(Integer userId);
+	private int sent;
 
-	TransferProfile saveTransferProfile(TransferProfile profile);
+	public int getReceived() {
+		return received;
+	}
 
+	public void setReceived(int received) {
+		this.received = received;
+	}
+
+	public int getSent() {
+		return sent;
+	}
+
+	public void setSent(int sent) {
+		this.sent = sent;
+	}
 }

@@ -16,14 +16,17 @@ package org.openmrs.module.transferapp.api.impl;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.openmrs.Concept;
 import org.openmrs.Patient;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.transferapp.TransferAppConstants;
+import org.openmrs.module.transferapp.api.OutboundFacilityPreviewLocation;
 import org.openmrs.module.transferapp.api.PendingTransferPatientStatusResolver;
 import org.openmrs.module.transferapp.api.TransferHieSearchService;
 import org.openmrs.module.transferapp.api.TransferRegistrationObsService;
 import org.openmrs.module.transferapp.api.TransferVerificationUrlService;
 import org.openmrs.module.transferapp.api.TransferSendingLocationResolver;
+import org.openmrs.module.transferapp.api.dao.PastTransfersDao;
 import org.openmrs.module.transferapp.api.dao.TransferDao;
 import org.openmrs.module.transferapp.hie.HieApiException;
 import org.openmrs.module.transferapp.hie.HieBasicConnection;
@@ -57,6 +60,9 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 
 	static final int HIE_MAX_PAGES = 10000;
 
+	/** How many prior calendar months of visits to scan for already-used Transfer Ids. */
+	static final int USED_TRANSFER_LOOKBACK_MONTHS = 3;
+
 	private HieConnectionResolver hieConnectionResolver = new HieConnectionResolver();
 
 	private HieShrClient hieShrClient = new HieShrClient();
@@ -67,8 +73,14 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 
 	private TransferDao transferDao;
 
+	private PastTransfersDao pastTransfersDao;
+
 	public void setTransferDao(TransferDao transferDao) {
 		this.transferDao = transferDao;
+	}
+
+	public void setPastTransfersDao(PastTransfersDao pastTransfersDao) {
+		this.pastTransfersDao = pastTransfersDao;
 	}
 
 	@Override
@@ -125,6 +137,7 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 			}
 			if (mergeScheduledReuse) {
 				transfers = mergeScheduledReuseTransfers(transfers, upid.trim(), fromDate, endDate);
+				transfers = mergePreviouslyUsedTransfers(transfers, upid.trim(), connection);
 			}
 
 			result.put("status", "success");
@@ -403,7 +416,243 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 		if (verificationUrlService != null) {
 			verificationUrlService.enrichPreviewVerificationFields(map);
 		}
+		OutboundFacilityPreviewLocation.applyProvinceDistrictFallback(map);
 		return map;
+	}
+
+	/**
+	 * When listing active transfers, also include Transfer Ids that were recorded on visits in
+	 * previous calendar months (lookback {@link #USED_TRANSFER_LOOKBACK_MONTHS}), marked
+	 * {@code used=true} so the UI can show a Used badge for cross-month reuse without a scheduled
+	 * rendez-vous.
+	 */
+	private List<Map<String, Object>> mergePreviouslyUsedTransfers(List<Map<String, Object>> hieTransfers,
+			String upid, HieBasicConnection connection) {
+		List<Map<String, Object>> merged = new ArrayList<Map<String, Object>>();
+		Set<String> seenIds = new HashSet<String>();
+		if (hieTransfers != null) {
+			for (Map<String, Object> item : hieTransfers) {
+				if (item == null) {
+					continue;
+				}
+				String id = firstNonBlank(asString(item.get("id")), asString(item.get("uuid")),
+						asString(item.get("hieTransferId")));
+				if (StringUtils.isNotBlank(id)) {
+					seenIds.add(id.toLowerCase(Locale.ENGLISH));
+				}
+				merged.add(item);
+			}
+		}
+		LinkedHashMap<String, String> usedTransferIdsByLower = findTransferIdsUsedOnPastMonthVisits(upid);
+		if (usedTransferIdsByLower.isEmpty()) {
+			return merged;
+		}
+
+		for (Map<String, Object> item : merged) {
+			String id = firstNonBlank(asString(item.get("id")), asString(item.get("uuid")),
+					asString(item.get("hieTransferId")));
+			if (StringUtils.isNotBlank(id) && usedTransferIdsByLower.containsKey(id.toLowerCase(Locale.ENGLISH))) {
+				markTransferUsed(item);
+			}
+		}
+
+		LinkedHashMap<String, String> missingIdsByLower = new LinkedHashMap<String, String>();
+		for (Map.Entry<String, String> entry : usedTransferIdsByLower.entrySet()) {
+			if (!seenIds.contains(entry.getKey())) {
+				missingIdsByLower.put(entry.getKey(), entry.getValue());
+			}
+		}
+		if (missingIdsByLower.isEmpty()) {
+			return merged;
+		}
+
+		Map<String, Map<String, Object>> fetchedById = fetchTransfersByIdsFromHie(
+				upid, missingIdsByLower.keySet(), connection);
+		Patient patient = resolvePatientByUpid(upid);
+		SimpleDateFormat dayFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH);
+		for (Map.Entry<String, String> missing : missingIdsByLower.entrySet()) {
+			String missingLower = missing.getKey();
+			String missingId = missing.getValue();
+			Map<String, Object> fromHie = fetchedById.get(missingLower);
+			if (fromHie != null) {
+				markTransferUsed(fromHie);
+				merged.add(fromHie);
+				seenIds.add(missingLower);
+				continue;
+			}
+			Transfer local = null;
+			if (patient != null && patient.getPatientId() != null && transferDao != null) {
+				local = transferDao.getTransferByHieTransferId(patient.getPatientId(), missingId);
+			}
+			if (local != null) {
+				Map<String, Object> stub = toUsedTransferPreviewMap(local, upid, dayFormat);
+				merged.add(stub);
+				seenIds.add(missingLower);
+				continue;
+			}
+			Map<String, Object> minimal = new LinkedHashMap<String, Object>();
+			minimal.put("id", missingId);
+			minimal.put("uuid", missingId);
+			minimal.put("hieTransferId", missingId);
+			minimal.put("subject", upid);
+			minimal.put("upid", upid);
+			minimal.put("receivedFromHie", Boolean.TRUE);
+			minimal.put("targetsCurrentFacility", Boolean.TRUE);
+			markTransferUsed(minimal);
+			TransferVerificationUrlService verificationUrlService = Context.getService(
+					TransferVerificationUrlService.class);
+			if (verificationUrlService != null) {
+				verificationUrlService.enrichPreviewVerificationFields(minimal);
+			}
+			merged.add(minimal);
+		}
+		return merged;
+	}
+
+	/**
+	 * @return map of lower-cased transfer id → original transfer id casing
+	 */
+	private LinkedHashMap<String, String> findTransferIdsUsedOnPastMonthVisits(String upid) {
+		LinkedHashMap<String, String> result = new LinkedHashMap<String, String>();
+		if (pastTransfersDao == null || StringUtils.isBlank(upid)) {
+			return result;
+		}
+		Integer patientId = pastTransfersDao.findPatientIdByUpid(upid);
+		if (patientId == null) {
+			Patient patient = resolvePatientByUpid(upid);
+			patientId = patient != null ? patient.getPatientId() : null;
+		}
+		if (patientId == null) {
+			return result;
+		}
+		Integer conceptId = resolveTransferIdConceptId();
+		if (conceptId == null) {
+			return result;
+		}
+		LocalDate today = LocalDate.now();
+		LocalDate currentMonthStart = today.withDayOfMonth(1);
+		LocalDate rangeStart = currentMonthStart.minusMonths(USED_TRANSFER_LOOKBACK_MONTHS);
+		Date rangeStartDate = java.sql.Date.valueOf(rangeStart);
+		Date beforeExclusive = java.sql.Date.valueOf(currentMonthStart);
+		List<String> transferIds = pastTransfersDao.findTransferIdsOnVisitsStartedBetween(
+				patientId, conceptId, rangeStartDate, beforeExclusive);
+		if (transferIds == null) {
+			return result;
+		}
+		for (String transferId : transferIds) {
+			String normalized = StringUtils.trimToNull(transferId);
+			if (normalized != null) {
+				String lower = normalized.toLowerCase(Locale.ENGLISH);
+				if (!result.containsKey(lower)) {
+					result.put(lower, normalized);
+				}
+			}
+		}
+		return result;
+	}
+
+	private Map<String, Map<String, Object>> fetchTransfersByIdsFromHie(String upid, Set<String> transferIdsLower,
+			HieBasicConnection connection) {
+		Map<String, Map<String, Object>> byId = new LinkedHashMap<String, Map<String, Object>>();
+		if (connection == null || StringUtils.isBlank(upid) || transferIdsLower == null || transferIdsLower.isEmpty()) {
+			return byId;
+		}
+		try {
+			LocalDate today = LocalDate.now();
+			LocalDate from = today.withDayOfMonth(1).minusMonths(USED_TRANSFER_LOOKBACK_MONTHS);
+			String fromDate = from.format(DateTimeFormatter.ISO_LOCAL_DATE);
+			String endDate = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE);
+			String pathWithQuery = buildPatientListTransfersPath(upid.trim(), fromDate, endDate);
+			List<Map<String, Object>> fetched = enrichTransfers(fetchAllTransferPages(connection, pathWithQuery));
+			if (fetched == null) {
+				return byId;
+			}
+			for (Map<String, Object> item : fetched) {
+				if (item == null) {
+					continue;
+				}
+				String id = firstNonBlank(asString(item.get("id")), asString(item.get("uuid")),
+						asString(item.get("hieTransferId")));
+				if (StringUtils.isBlank(id)) {
+					continue;
+				}
+				String key = id.toLowerCase(Locale.ENGLISH);
+				if (transferIdsLower.contains(key) && !byId.containsKey(key)) {
+					byId.put(key, item);
+				}
+			}
+		}
+		catch (Exception ex) {
+			log.warn("Unable to fetch previously used transfers from HIE for UPID: " + upid, ex);
+		}
+		return byId;
+	}
+
+	private Map<String, Object> toUsedTransferPreviewMap(Transfer transfer, String upid,
+			SimpleDateFormat dayFormat) {
+		Map<String, Object> map = new LinkedHashMap<String, Object>();
+		String hieId = transfer.getHieTransferId().trim();
+		String date = "";
+		if (transfer.getDecisionToTransferAt() != null) {
+			date = dayFormat.format(transfer.getDecisionToTransferAt());
+		}
+		else if (transfer.getDateCreated() != null) {
+			date = dayFormat.format(transfer.getDateCreated());
+		}
+		map.put("id", hieId);
+		map.put("uuid", hieId);
+		map.put("hieTransferId", hieId);
+		map.put("subject", upid);
+		map.put("upid", upid);
+		map.put("date", date);
+		map.put("origin", StringUtils.defaultString(transfer.getSendingFacility()));
+		map.put("referringFacilityName", StringUtils.defaultString(transfer.getSendingFacility()));
+		map.put("destination", StringUtils.defaultString(transfer.getReceivingFacilityCode()));
+		map.put("receivingFacility", StringUtils.defaultString(transfer.getReceivingFacilityCode()));
+		map.put("hospitalName", StringUtils.defaultString(transfer.getReceivingFacilityCode()));
+		map.put("receivedFromHie", Boolean.TRUE);
+		map.put("targetsCurrentFacility", Boolean.TRUE);
+		markTransferUsed(map);
+		TransferVerificationUrlService verificationUrlService = Context.getService(TransferVerificationUrlService.class);
+		if (verificationUrlService != null) {
+			verificationUrlService.enrichPreviewVerificationFields(map);
+		}
+		OutboundFacilityPreviewLocation.applyProvinceDistrictFallback(map);
+		return map;
+	}
+
+	private static void markTransferUsed(Map<String, Object> transfer) {
+		if (transfer == null) {
+			return;
+		}
+		transfer.put("used", Boolean.TRUE);
+		transfer.put("usedBadge", "Used");
+	}
+
+	private Patient resolvePatientByUpid(String upid) {
+		try {
+			return PendingTransferPatientStatusResolver.findLocalPatientByUpid(
+					Context.getPatientService(), upid);
+		}
+		catch (Exception ex) {
+			log.warn("Unable to resolve patient for previously used transfers: " + upid, ex);
+			return null;
+		}
+	}
+
+	private Integer resolveTransferIdConceptId() {
+		String conceptUuid = StringUtils.trimToNull(Context.getAdministrationService().getGlobalProperty(
+				TransferAppConstants.GP_RECEIVED_TRANSFER_CONCEPT_UUID,
+				TransferAppConstants.DEFAULT_RECEIVED_TRANSFER_CONCEPT_UUID));
+		if (conceptUuid == null) {
+			conceptUuid = StringUtils.trimToNull(Context.getAdministrationService().getGlobalProperty(
+					TransferAppConstants.GP_RWANDAEMR_TRANSFER_ID_CONCEPT_UUID));
+		}
+		if (conceptUuid == null) {
+			return null;
+		}
+		Concept concept = Context.getConceptService().getConceptByUuid(conceptUuid);
+		return concept != null ? concept.getConceptId() : null;
 	}
 
 	private static Date parseIsoDateStart(String isoDate) {
@@ -471,6 +720,7 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 			if (verificationUrlService != null) {
 				verificationUrlService.enrichPreviewVerificationFields(transfer);
 			}
+			OutboundFacilityPreviewLocation.applyProvinceDistrictFallback(transfer);
 		}
 		return transfers;
 	}

@@ -586,14 +586,24 @@
 #transfer-history-table_wrapper .dataTables_length,
 #transfer-history-table_wrapper .dataTables_filter,
 #transfer-history-table_wrapper .dataTables_info,
-#transfer-history-table_wrapper .dataTables_paginate {
+#transfer-history-table_wrapper .dataTables_paginate,
+#missing-counter-referrals-table_wrapper .dataTables_length,
+#missing-counter-referrals-table_wrapper .dataTables_filter,
+#missing-counter-referrals-table_wrapper .dataTables_info,
+#missing-counter-referrals-table_wrapper .dataTables_paginate,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_length,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_filter,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_info,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate {
   margin: 10px 0;
 }
 
 #transfer-records-table_wrapper .dataTables_filter,
 #transfer-pending-table_wrapper .dataTables_filter,
 #transfer-history-table_wrapper .dataTables_filter,
-#transfer-ambulance-voucher-table_wrapper .dataTables_filter {
+#transfer-ambulance-voucher-table_wrapper .dataTables_filter,
+#missing-counter-referrals-table_wrapper .dataTables_filter,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_filter {
   float: left;
   width: auto;
   text-align: left;
@@ -602,7 +612,9 @@
 #transfer-records-table_wrapper .dataTables_length,
 #transfer-pending-table_wrapper .dataTables_length,
 #transfer-history-table_wrapper .dataTables_length,
-#transfer-ambulance-voucher-table_wrapper .dataTables_length {
+#transfer-ambulance-voucher-table_wrapper .dataTables_length,
+#missing-counter-referrals-table_wrapper .dataTables_length,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_length {
   float: right;
   width: auto;
   text-align: right;
@@ -615,13 +627,19 @@
 #transfer-history-table_wrapper > table,
 #transfer-history-table_wrapper .dataTables_scroll,
 #transfer-ambulance-voucher-table_wrapper > table,
-#transfer-ambulance-voucher-table_wrapper .dataTables_scroll {
+#transfer-ambulance-voucher-table_wrapper .dataTables_scroll,
+#missing-counter-referrals-table_wrapper > table,
+#missing-counter-referrals-table_wrapper .dataTables_scroll,
+#missing-outbound-counter-referrals-table_wrapper > table,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_scroll {
   clear: both;
 }
 
 #transfer-records-table_wrapper .dataTables_info,
 #transfer-pending-table_wrapper .dataTables_info,
-#transfer-history-table_wrapper .dataTables_info {
+#transfer-history-table_wrapper .dataTables_info,
+#missing-counter-referrals-table_wrapper .dataTables_info,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_info {
   float: left;
   width: auto;
   padding-top: 2px;
@@ -629,7 +647,9 @@
 
 #transfer-records-table_wrapper .dataTables_paginate,
 #transfer-pending-table_wrapper .dataTables_paginate,
-#transfer-history-table_wrapper .dataTables_paginate {
+#transfer-history-table_wrapper .dataTables_paginate,
+#missing-counter-referrals-table_wrapper .dataTables_paginate,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate {
   float: right;
   width: auto !important;
   clear: none;
@@ -641,7 +661,11 @@
 #transfer-pending-table_wrapper .paging_two_button,
 #transfer-pending-table_wrapper .paging_full_numbers,
 #transfer-history-table_wrapper .paging_two_button,
-#transfer-history-table_wrapper .paging_full_numbers {
+#transfer-history-table_wrapper .paging_full_numbers,
+#missing-counter-referrals-table_wrapper .paging_two_button,
+#missing-counter-referrals-table_wrapper .paging_full_numbers,
+#missing-outbound-counter-referrals-table_wrapper .paging_two_button,
+#missing-outbound-counter-referrals-table_wrapper .paging_full_numbers {
   width: auto !important;
 }
 
@@ -660,7 +684,19 @@
 #transfer-history-table_wrapper .dataTables_paginate .paginate_enabled,
 #transfer-history-table_wrapper .dataTables_paginate .paginate_disabled,
 #transfer-history-table_wrapper .dataTables_paginate .fg-button,
-#transfer-history-table_wrapper .dataTables_paginate a {
+#transfer-history-table_wrapper .dataTables_paginate a,
+#missing-counter-referrals-table_wrapper .dataTables_paginate .paginate_button,
+#missing-counter-referrals-table_wrapper .dataTables_paginate .paginate_active,
+#missing-counter-referrals-table_wrapper .dataTables_paginate .paginate_enabled,
+#missing-counter-referrals-table_wrapper .dataTables_paginate .paginate_disabled,
+#missing-counter-referrals-table_wrapper .dataTables_paginate .fg-button,
+#missing-counter-referrals-table_wrapper .dataTables_paginate a,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate .paginate_button,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate .paginate_active,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate .paginate_enabled,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate .paginate_disabled,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate .fg-button,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate a {
   display: inline-block !important;
   float: none !important;
   position: static !important;
@@ -687,7 +723,11 @@
 #transfer-pending-table_wrapper .dataTables_paginate .paginate_button.current,
 #transfer-pending-table_wrapper .dataTables_paginate .paginate_active,
 #transfer-history-table_wrapper .dataTables_paginate .paginate_button.current,
-#transfer-history-table_wrapper .dataTables_paginate .paginate_active {
+#transfer-history-table_wrapper .dataTables_paginate .paginate_active,
+#missing-counter-referrals-table_wrapper .dataTables_paginate .paginate_button.current,
+#missing-counter-referrals-table_wrapper .dataTables_paginate .paginate_active,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate .paginate_button.current,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate .paginate_active {
   background: #0f766e;
   color: #fff !important;
   border-color: #0a5c52;
@@ -703,7 +743,15 @@
 #transfer-history-table_wrapper .dataTables_paginate .paginate_button.disabled,
 #transfer-history-table_wrapper .dataTables_paginate .paginate_disabled,
 #transfer-history-table_wrapper .dataTables_paginate .paginate_button.paginate_button_disabled,
-#transfer-history-table_wrapper .dataTables_paginate .ui-state-disabled {
+#transfer-history-table_wrapper .dataTables_paginate .ui-state-disabled,
+#missing-counter-referrals-table_wrapper .dataTables_paginate .paginate_button.disabled,
+#missing-counter-referrals-table_wrapper .dataTables_paginate .paginate_disabled,
+#missing-counter-referrals-table_wrapper .dataTables_paginate .paginate_button.paginate_button_disabled,
+#missing-counter-referrals-table_wrapper .dataTables_paginate .ui-state-disabled,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate .paginate_button.disabled,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate .paginate_disabled,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate .paginate_button.paginate_button_disabled,
+#missing-outbound-counter-referrals-table_wrapper .dataTables_paginate .ui-state-disabled {
   opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
@@ -711,14 +759,18 @@
 
 #transfer-records-table_wrapper .fg-buttonset,
 #transfer-pending-table_wrapper .fg-buttonset,
-#transfer-history-table_wrapper .fg-buttonset {
+#transfer-history-table_wrapper .fg-buttonset,
+#missing-counter-referrals-table_wrapper .fg-buttonset,
+#missing-outbound-counter-referrals-table_wrapper .fg-buttonset {
   display: inline-block;
   white-space: nowrap;
 }
 
 #transfer-records-table_wrapper::after,
 #transfer-pending-table_wrapper::after,
-#transfer-history-table_wrapper::after {
+#transfer-history-table_wrapper::after,
+#missing-counter-referrals-table_wrapper::after,
+#missing-outbound-counter-referrals-table_wrapper::after {
   content: "";
   display: table;
   clear: both;

@@ -1,1 +1,4 @@
-${ ui.includeFragment("transferapp", "patient/newTransferOutForm") }
+${ ui.includeFragment("transferapp", "patient/newTransferOutForm", [
+	patientId: patientId,
+	transferUuid: transferUuid
+]) }

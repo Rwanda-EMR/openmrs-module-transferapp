@@ -727,16 +727,22 @@
             });
     }
 
+    var transferWizardLoadSeq = 0;
+
     function closeNewTransferOutDialog() {
+        transferWizardLoadSeq += 1;
         try {
             if (newTransferOutDialog && typeof newTransferOutDialog.close === "function") {
                 newTransferOutDialog.close();
             }
         } catch (ignoreClose) {}
-        jq("#new-transfer-out-dialog").removeClass("transfer-wizard-open").hide();
+        jq("#new-transfer-out-dialog")
+            .removeClass("transfer-wizard-open")
+            .removeAttr("data-expected-transfer-uuid")
+            .hide();
     }
 
-    function showNewTransferOutDialog(loadUrl) {
+    function showNewTransferOutDialog(loadUrl, expectedTransferUuid) {
         if (newTransferOutDialog == null && typeof emr !== "undefined" && typeof emr.setupConfirmationDialog === "function") {
             newTransferOutDialog = emr.setupConfirmationDialog({
                 selector: "#new-transfer-out-dialog",
@@ -748,6 +754,9 @@
             newTransferOutDialog.close();
         }
 
+        var loadSeq = ++transferWizardLoadSeq;
+        var expectedUuid = jq.trim(expectedTransferUuid || "");
+        jq("#new-transfer-out-dialog").attr("data-expected-transfer-uuid", expectedUuid);
         jq("#new-transfer-out-data").html("<div style='padding: 10px;'><i class='icon-spinner icon-spin'></i> ${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.wizard.loading')) }</div>");
 
         if (!loadUrl) {
@@ -761,16 +770,33 @@
                 url: fullUrl,
                 type: "GET",
                 dataType: "html",
+                cache: false,
                 timeout: 30000
             }).done(function(html) {
+                if (loadSeq !== transferWizardLoadSeq) {
+                    return;
+                }
                 jq("#new-transfer-out-data").html(html);
+                var loadedUuid = jq.trim(
+                    jq("#new-transfer-out-dialog #moh-transfer-wizard-form input[name='transferUuid']").val() || "");
+                if (expectedUuid && loadedUuid && expectedUuid !== loadedUuid) {
+                    jq("#new-transfer-out-data").html(
+                        "<p style='color:red;'>Loaded transfer does not match the row you selected. Close and edit again.</p>");
+                    return;
+                }
                 ensureTransferWizardAssets(function() {
+                    if (loadSeq !== transferWizardLoadSeq) {
+                        return;
+                    }
                     if (typeof initTransferWizardModal === "function") {
                         initTransferWizardModal();
                     }
                     jq("#new-transfer-out-dialog .dialog-content").scrollTop(0);
                 });
             }).fail(function() {
+                if (loadSeq !== transferWizardLoadSeq) {
+                    return;
+                }
                 jq("#new-transfer-out-data").html("<p style='color:red;'>${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.wizard.loadError')) }</p>");
             });
         }
@@ -1060,7 +1086,7 @@
                 return;
             }
             var loadUrl = jq(this).attr("data-load-url");
-            showNewTransferOutDialog(loadUrl);
+            showNewTransferOutDialog(loadUrl, "");
         });
 
         jq(document).on("click", ".transfer-edit-link", function(e) {
@@ -1068,6 +1094,7 @@
             var editLink = jq(this);
             var formType = editLink.attr("data-form-type") || "External";
             var loadUrl = editLink.attr("data-load-url");
+            var expectedTransferUuid = jq.trim(editLink.attr("data-transfer-id") || "");
 
             if (formType === "Neonatal") {
                 showNewNeonatalTransferOutDialog(loadUrl);
@@ -1085,7 +1112,7 @@
                 showProfileIncompleteDialog(incompleteMessage);
                 return;
             }
-            showNewTransferOutDialog(loadUrl);
+            showNewTransferOutDialog(loadUrl, expectedTransferUuid);
         });
 
         jq(document).on("click", "#open-new-transfer-out-maternity", function(e) {
@@ -1119,9 +1146,24 @@
 
         jq(document).on("click", "#transfer-wizard-submit-btn", function(e) {
             e.preventDefault();
-            var wizardForm = jq("#moh-transfer-wizard-form");
-            if (wizardForm.length && !wizardForm[0].checkValidity()) {
+            var wizardForm = jq("#new-transfer-out-dialog #moh-transfer-wizard-form");
+            if (!wizardForm.length) {
+                if (typeof emr !== "undefined" && typeof emr.errorMessage === "function") {
+                    emr.errorMessage("${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.submitError')) }");
+                }
+                return;
+            }
+            if (!wizardForm[0].checkValidity()) {
                 wizardForm[0].reportValidity();
+                return;
+            }
+
+            var expectedUuid = jq.trim(jq("#new-transfer-out-dialog").attr("data-expected-transfer-uuid") || "");
+            var formUuid = jq.trim(wizardForm.find("input[name='transferUuid']").val() || "");
+            if (expectedUuid && formUuid && expectedUuid !== formUuid) {
+                if (typeof emr !== "undefined" && typeof emr.errorMessage === "function") {
+                    emr.errorMessage("Transfer form UUID mismatch. Close the dialog and edit the correct row again.");
+                }
                 return;
             }
 
@@ -1139,6 +1181,12 @@
                 dataType: "json"
             }).done(function(response) {
                 if (response && response.status === "success") {
+                    if (expectedUuid && response.uuid && expectedUuid !== response.uuid) {
+                        if (typeof emr !== "undefined" && typeof emr.errorMessage === "function") {
+                            emr.errorMessage("Saved transfer UUID does not match the row you edited. Refresh and try again.");
+                        }
+                        return;
+                    }
                     if (typeof emr !== "undefined" && typeof emr.successMessage === "function") {
                         emr.successMessage(successMessage);
                     }
@@ -1356,9 +1404,16 @@
                     syncTransferPreviewSubmitButton();
                     markTransferRowHieStatus(currentPreviewTransferUuid, true);
                     if (typeof emr !== "undefined" && typeof emr.successMessage === "function") {
-                        emr.successMessage(wasUpdate
-                            ? "${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.updateOnHieSuccess')) }"
-                            : "${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.submitToHieSuccess')) }");
+                        var successMessage;
+                        if (wasUpdate) {
+                            successMessage = (response.insuranceApprovalKept === true
+                                || response.insuranceApprovalKept === "true")
+                                ? "${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.updateOnHieSuccessWithApproval')) }"
+                                : "${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.updateOnHieSuccess')) }";
+                        } else {
+                            successMessage = "${ ui.encodeJavaScript(ui.message('transferapp.patient.transfers.submitToHieSuccess')) }";
+                        }
+                        emr.successMessage(successMessage);
                     }
                     window.location.reload();
                     return;

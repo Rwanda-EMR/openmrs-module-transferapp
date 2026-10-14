@@ -220,7 +220,7 @@ public class TransferReferralFeedbackServiceImpl implements TransferReferralFeed
 
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		result.put("status", "success");
-		result.put("message", "Referral feedback and counter-referral saved. Review the HIE payload, then send.");
+		result.put("message", "Please review before send back");
 		result.put("completed", Boolean.TRUE);
 		result.put("hieSent", Boolean.FALSE);
 		result.put("feedback", toMap(feedback));
@@ -232,6 +232,128 @@ public class TransferReferralFeedbackServiceImpl implements TransferReferralFeed
 	public Map<String, Object> previewFeedbackHiePayload(Integer patientId, String hieTransferId) {
 		TransferReferralFeedback feedback = requireSavedFeedback(patientId, hieTransferId);
 		return buildPreviewResult(feedback, true);
+	}
+
+	@Override
+	public Map<String, Object> importFeedbackFromHie(Integer patientId, String hieTransferId,
+			Map<String, Object> summary) {
+		Patient patient = requirePatient(patientId);
+		String transferId = requireHieTransferId(hieTransferId);
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+
+		TransferReferralFeedback existing = transferReferralFeedbackDao.getByPatientAndHieTransferId(
+				patient, transferId);
+		if (existing != null) {
+			result.put("status", "success");
+			result.put("imported", Boolean.FALSE);
+			result.put("alreadyExists", Boolean.TRUE);
+			result.put("message", "Counter referral already exists locally.");
+			result.put("feedback", toMap(existing));
+			return result;
+		}
+
+		if (summary == null || summary.isEmpty()) {
+			result.put("status", "skipped");
+			result.put("imported", Boolean.FALSE);
+			result.put("message", "No counter-referral data found on HIE.");
+			return result;
+		}
+
+		String finalDiagnosis = textValue(summary.get("finalDiagnosis"));
+		String treatmentGiven = textValue(summary.get("treatmentGiven"));
+		String outcomeRaw = textValue(summary.get("outcome"));
+		String recommendations = textValue(summary.get("recommendations"));
+		String referBackToFacility = textValue(summary.get("referBackToFacility"));
+		String dateOfDischarge = textValue(summary.get("dateOfDischarge"));
+		String dateOfAdmission = textValue(summary.get("dateOfAdmissionOrSeen"));
+		boolean hasContent = StringUtils.isNotBlank(finalDiagnosis)
+				|| StringUtils.isNotBlank(treatmentGiven)
+				|| StringUtils.isNotBlank(outcomeRaw)
+				|| StringUtils.isNotBlank(recommendations)
+				|| StringUtils.isNotBlank(referBackToFacility)
+				|| StringUtils.isNotBlank(dateOfDischarge)
+				|| StringUtils.isNotBlank(dateOfAdmission);
+		if (!hasContent) {
+			result.put("status", "skipped");
+			result.put("imported", Boolean.FALSE);
+			result.put("message", "HIE counter-referral payload did not contain usable fields.");
+			return result;
+		}
+
+		User user = Context.getAuthenticatedUser();
+		Date now = new Date();
+		Date admissionDate = parseOptionalDate(dateOfAdmission);
+		if (admissionDate == null) {
+			admissionDate = resolveAdmissionDate(patient, transferId);
+		}
+		if (admissionDate == null) {
+			admissionDate = toDateOnly(now);
+		}
+		Date dischargeDate = parseOptionalDate(dateOfDischarge);
+		if (dischargeDate == null) {
+			dischargeDate = admissionDate;
+		}
+		ReferralFeedbackOutcome parsedOutcome = ReferralFeedbackOutcome.fromStoredValue(outcomeRaw);
+		Date signedDate = parseOptionalDate(textValue(summary.get("signedDate")));
+		if (signedDate == null) {
+			signedDate = dischargeDate;
+		}
+		String signedTime = normalizeOptionalTime(textValue(summary.get("signedTime")));
+		if (signedTime == null) {
+			signedTime = "00:00";
+		}
+
+		TransferReferralFeedback feedback = new TransferReferralFeedback();
+		feedback.setUuid(UUID.randomUUID().toString());
+		feedback.setPatient(patient);
+		feedback.setHieTransferId(transferId);
+		feedback.setCreator(user);
+		feedback.setDateCreated(now);
+		feedback.setVoided(false);
+		feedback.setDateOfAdmissionOrSeen(admissionDate);
+		feedback.setDateOfDischarge(dischargeDate);
+		feedback.setFinalDiagnosis(defaultText(finalDiagnosis, "Imported from HIE"));
+		feedback.setTreatmentGiven(defaultText(treatmentGiven, "Imported from HIE"));
+		feedback.setOutcome(parsedOutcome != null ? parsedOutcome.name()
+				: defaultText(outcomeRaw, ReferralFeedbackOutcome.STABILIZED_CURED.name()));
+		feedback.setRecommendations(defaultText(recommendations, "Imported from HIE"));
+		feedback.setReferBackToFacility(defaultText(referBackToFacility, "Imported from HIE"));
+		feedback.setReferBackToFacilityFosaId(StringUtils.trimToNull(textValue(summary.get("referBackToFacilityFosaId"))));
+		feedback.setContactPerson(defaultText(textValue(summary.get("contactPerson")), "Imported from HIE"));
+		feedback.setProviderName(defaultText(textValue(summary.get("providerName")), "Imported from HIE"));
+		feedback.setQualification(defaultText(textValue(summary.get("qualification")), "Imported from HIE"));
+		feedback.setSignedDate(signedDate);
+		feedback.setSignedTime(signedTime);
+		feedback.setPhone(defaultText(textValue(summary.get("phone")), "N/A"));
+		feedback.setCompleted(Boolean.TRUE);
+		feedback.setCompletedAt(now);
+		if (user != null) {
+			feedback.setCompletedBy(user.getUserId());
+		}
+		feedback.setHieSent(Boolean.TRUE);
+		feedback.setHieSentAt(now);
+		feedback.setHieSendErr(null);
+
+		try {
+			Transfer localTransfer = transferDao != null
+					? transferDao.getTransferByHieTransferId(patient.getPatientId(), transferId)
+					: null;
+			if (localTransfer != null) {
+				feedback.setLocalTransferId(localTransfer.getTransferId());
+			}
+		}
+		catch (RuntimeException ignored) {
+			// Outbound maternity/neonatal rows are separate tables.
+		}
+
+		transferReferralFeedbackDao.save(feedback);
+
+		result.put("status", "success");
+		result.put("imported", Boolean.TRUE);
+		result.put("alreadyExists", Boolean.FALSE);
+		result.put("message", "Counter referral imported from HIE and saved locally.");
+		result.put("feedback", toMap(feedback));
+		return result;
 	}
 
 	@Override
@@ -493,6 +615,42 @@ public class TransferReferralFeedbackServiceImpl implements TransferReferralFeed
 			throw new APIException("hieTransferId is required");
 		}
 		return transferId;
+	}
+
+	private String textValue(Object value) {
+		if (value == null) {
+			return null;
+		}
+		return StringUtils.trimToNull(String.valueOf(value));
+	}
+
+	private String defaultText(String value, String fallback) {
+		return StringUtils.isNotBlank(value) ? value.trim() : fallback;
+	}
+
+	private Date parseOptionalDate(String value) {
+		if (StringUtils.isBlank(value)) {
+			return null;
+		}
+		try {
+			SimpleDateFormat format = new SimpleDateFormat(DATE_PATTERN);
+			format.setLenient(false);
+			return format.parse(value.trim());
+		}
+		catch (ParseException ex) {
+			return null;
+		}
+	}
+
+	private String normalizeOptionalTime(String value) {
+		if (StringUtils.isBlank(value)) {
+			return null;
+		}
+		String trimmed = value.trim();
+		if (trimmed.length() >= 5 && trimmed.charAt(2) == ':') {
+			return trimmed.substring(0, 5);
+		}
+		return null;
 	}
 
 	private String firstNonBlank(String first, String second) {

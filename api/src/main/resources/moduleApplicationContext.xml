@@ -14,6 +14,7 @@
 				<property name="maternityTransferDao" ref="maternityTransferDao" />
 				<property name="neonatalTransferDao" ref="neonatalTransferDao" />
 				<property name="transferAdminService" ref="transferAdminService" />
+				<property name="transferReferralFeedbackDao" ref="transferReferralFeedbackDao" />
 			</bean>
 		</property>
 		<property name="preInterceptors">
@@ -107,10 +108,6 @@
 		<property name="sessionFactory" ref="dbSessionFactory" />
 	</bean>
 
-	<bean id="transferProfileDao" class="org.openmrs.module.transferapp.api.dao.hibernate.HibernateTransferProfileDao">
-		<property name="sessionFactory" ref="dbSessionFactory" />
-	</bean>
-
 	<bean id="approverDao" class="org.openmrs.module.transferapp.api.dao.hibernate.HibernateApproverDao">
 		<property name="sessionFactory" ref="dbSessionFactory" />
 	</bean>
@@ -170,9 +167,7 @@
 		</property>
 	</bean>
 
-	<bean id="transferProfileServiceTarget" class="org.openmrs.module.transferapp.api.impl.TransferProfileServiceImpl">
-		<property name="transferProfileDao" ref="transferProfileDao" />
-	</bean>
+	<bean id="transferProfileServiceTarget" class="org.openmrs.module.transferapp.api.impl.TransferProfileServiceImpl"/>
 
 	<bean id="transferProfileService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
 		<property name="transactionManager">
@@ -418,6 +413,7 @@
 		<property name="target">
 			<bean class="org.openmrs.module.transferapp.api.impl.TransferHieSearchServiceImpl">
 				<property name="transferDao" ref="transferDao" />
+				<property name="pastTransfersDao" ref="pastTransfersDao" />
 			</bean>
 		</property>
 		<property name="preInterceptors">

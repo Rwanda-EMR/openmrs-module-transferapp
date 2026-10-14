@@ -13,10 +13,13 @@
  */
 package org.openmrs.module.transferapp.web;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.openmrs.User;
 import org.openmrs.api.context.Context;
+import org.openmrs.module.transferapp.api.ProviderProfileAttributes;
 import org.openmrs.module.transferapp.api.TransferProfileService;
 import org.openmrs.module.transferapp.model.TransferProfile;
 import org.springframework.stereotype.Controller;
@@ -59,6 +62,84 @@ public class TransferProfileController {
 			log.error("Unable to save transfer profile", e);
 			data.put("status", "error");
 			data.put("message", resolveErrorMessage(e, "Unable to save profile"));
+		}
+		writeJson(response, data);
+	}
+
+	/**
+	 * Stub: will call the external license API. For now always asks the UI for OTP.
+	 */
+	@RequestMapping(value = "/module/transferapp/profile/license/startValidation.form", method = RequestMethod.POST)
+	public void startLicenseValidation(HttpServletResponse response,
+			@RequestParam("licenseNumber") String licenseNumber) throws Exception {
+
+		Map<String, Object> data = new HashMap<String, Object>();
+		try {
+			String license = StringUtils.trimToNull(licenseNumber);
+			if (license == null) {
+				data.put("status", "error");
+				data.put("message", "License number is required");
+				writeJson(response, data);
+				return;
+			}
+			// Placeholder until the external start-validation API is wired.
+			data.put("status", "success");
+			data.put("needsOtp", true);
+			data.put("message", "OTP required to continue license validation");
+			data.put("licenseNumber", license);
+		}
+		catch (Exception e) {
+			log.error("Unable to start license validation", e);
+			data.put("status", "error");
+			data.put("message", resolveErrorMessage(e, "Unable to start license validation"));
+		}
+		writeJson(response, data);
+	}
+
+	/**
+	 * Stub: will submit OTP to the external license API. Returns the mapped fields the UI expects.
+	 */
+	@RequestMapping(value = "/module/transferapp/profile/license/verifyOtp.form", method = RequestMethod.POST)
+	public void verifyLicenseOtp(HttpServletResponse response,
+			@RequestParam("licenseNumber") String licenseNumber,
+			@RequestParam("otp") String otp) throws Exception {
+
+		Map<String, Object> data = new HashMap<String, Object>();
+		try {
+			String license = StringUtils.trimToNull(licenseNumber);
+			String otpCode = StringUtils.trimToNull(otp);
+			if (license == null) {
+				data.put("status", "error");
+				data.put("message", "License number is required");
+				writeJson(response, data);
+				return;
+			}
+			if (otpCode == null) {
+				data.put("status", "error");
+				data.put("message", "OTP is required");
+				writeJson(response, data);
+				return;
+			}
+
+			// Stub response shaped like the future external API mapping.
+			boolean active = true;
+			String expiryDate = "2026-12-31";
+			String licenseStatus = active ? "active" : "inactive";
+
+			User user = Context.getAuthenticatedUser();
+			ProviderProfileAttributes.saveValidationResult(user, true, expiryDate, licenseStatus);
+
+			data.put("status", "success");
+			data.put("message", "License verified successfully");
+			data.put("licenseNumber", license);
+			data.put("licenseValidated", true);
+			data.put("licenseExpiryDate", expiryDate);
+			data.put("licenseStatus", licenseStatus);
+		}
+		catch (Exception e) {
+			log.error("Unable to verify license OTP", e);
+			data.put("status", "error");
+			data.put("message", resolveErrorMessage(e, "Unable to verify OTP"));
 		}
 		writeJson(response, data);
 	}

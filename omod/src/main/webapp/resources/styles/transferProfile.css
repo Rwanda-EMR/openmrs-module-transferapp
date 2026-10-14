@@ -47,6 +47,53 @@
     border-radius: 4px;
 }
 
+.transfer-profile-license-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.transfer-profile-license-row #licenseNumber {
+    width: auto;
+    flex: 0 1 280px;
+    max-width: 100%;
+    min-width: 180px;
+}
+
+.transfer-license-validate-btn {
+    white-space: nowrap;
+    margin: 0 !important;
+}
+
+.transfer-license-validated-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    background: #e8f5e9;
+    color: #1b5e20;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.transfer-license-validated-badge i {
+    color: #2e7d32;
+}
+
+.transfer-profile-license-result-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.transfer-profile-license-result-row input[readonly] {
+    background: #f8fafc;
+    color: #334155;
+    border-color: #cbd5e1;
+}
+
 .transfer-profile-hint {
     margin: 6px 0 0;
     font-size: 13px;
@@ -56,4 +103,84 @@
 
 .transfer-profile-actions {
     margin-top: 8px;
+}
+
+.transfer-license-otp-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 10010;
+}
+
+.transfer-license-otp-dialog.dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10011;
+    background: #fff;
+    border: 1px solid #00473f;
+    border-radius: 4px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    width: 440px;
+    max-width: 92%;
+    margin: 0;
+    display: none;
+    flex-direction: column;
+}
+
+.transfer-license-otp-dialog.dialog.is-open {
+    display: flex !important;
+}
+
+.transfer-license-otp-dialog .dialog-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid #00473f;
+    background: #00473f;
+    border-radius: 4px 4px 0 0;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.transfer-license-otp-dialog .dialog-header i,
+.transfer-license-otp-dialog .dialog-header h3 {
+    margin: 0;
+    color: #fff;
+    font-size: 17px;
+    font-weight: bold;
+}
+
+.transfer-license-otp-dialog .dialog-content {
+    padding: 20px 18px 16px;
+}
+
+.transfer-license-otp-message {
+    margin: 0 0 14px;
+    color: #334155;
+    line-height: 1.45;
+}
+
+.transfer-license-otp-error {
+    margin: 8px 0 0;
+    color: #b91c1c;
+    font-size: 13px;
+}
+
+.transfer-license-otp-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+    .transfer-profile-license-row #licenseNumber {
+        flex: 1 1 100%;
+    }
+
+    .transfer-profile-license-result-row {
+        grid-template-columns: 1fr;
+    }
 }

@@ -560,6 +560,10 @@
                 + esc(messages().previewTitle || "Preview transfer") + "'>"
                 + "<i class='icon-eye-open'></i></a>";
         }
+        // HIE download requires UPID — without it no transfer can be found.
+        if (jq.trim(row.upid || "") === "") {
+            return "";
+        }
         return "<a href='javascript:void(0);' class='button past-transfers-download-link' title='"
             + esc(messages().downloadTitle || "Find transfers in HIE") + "'>"
             + "<i class='icon-download-alt'></i></a>";

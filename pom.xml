@@ -27,7 +27,7 @@
 	</modules>
 
 	<properties>
-		<openMRSVersion>1.9.9</openMRSVersion>
+		<openMRSVersion>2.5.5</openMRSVersion>
 		<uiframeworkVersion>3.9</uiframeworkVersion>
 		<appframeworkVersion>2.15.0</appframeworkVersion>
 		<uicommonsVersion>2.4.0</uicommonsVersion>
