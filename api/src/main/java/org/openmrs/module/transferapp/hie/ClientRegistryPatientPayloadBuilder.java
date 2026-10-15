@@ -65,7 +65,21 @@ public class ClientRegistryPatientPayloadBuilder {
 				transfer != null ? transfer.getEmrId() : null,
 				transfer != null ? transfer.getClientTelephone() : null,
 				transfer != null ? transfer.getCaregiverTelephone() : null,
-				transfer);
+				transfer,
+				false);
+	}
+
+	/**
+	 * Builds CR Patient JSON using domicile on the transfer form only (no OpenMRS person_address).
+	 * Used when PersonAddress accessors are incompatible with the runtime OpenMRS version.
+	 */
+	public String buildPatientJsonUsingTransferDomicileOnly(Patient patient, Transfer transfer) {
+		return buildPatientJson(patient,
+				transfer != null ? transfer.getEmrId() : null,
+				transfer != null ? transfer.getClientTelephone() : null,
+				transfer != null ? transfer.getCaregiverTelephone() : null,
+				transfer,
+				true);
 	}
 
 	/**
@@ -74,11 +88,11 @@ public class ClientRegistryPatientPayloadBuilder {
 	 * fallbacks are only used when the patient's own OpenMRS UPID / phone can't be resolved.
 	 */
 	public String buildPatientJson(Patient patient, String upiFallback, String phoneFallback1, String phoneFallback2) {
-		return buildPatientJson(patient, upiFallback, phoneFallback1, phoneFallback2, null);
+		return buildPatientJson(patient, upiFallback, phoneFallback1, phoneFallback2, null, false);
 	}
 
 	private String buildPatientJson(Patient patient, String upiFallback, String phoneFallback1, String phoneFallback2,
-			Transfer transfer) {
+			Transfer transfer, boolean transferDomicileOnly) {
 		if (patient == null) {
 			throw new HieApiException("Cannot build Client Registry patient: OpenMRS patient is required");
 		}
@@ -130,7 +144,9 @@ public class ClientRegistryPatientPayloadBuilder {
 				root.put("birthDate", birthDate);
 			}
 
-			PersonAddress personAddress = patientSnapshotResolver.resolveActivePersonAddress(patient);
+			PersonAddress personAddress = transferDomicileOnly
+					? null
+					: patientSnapshotResolver.resolveActivePersonAddress(patient);
 			ObjectNode addressNode = buildAddress(personAddress, transfer);
 			if (addressNode != null) {
 				root.putArray("address").add(addressNode);
@@ -174,7 +190,7 @@ public class ClientRegistryPatientPayloadBuilder {
 				transfer != null ? trim(transfer.getClientDistrict()) : null);
 		String sector = firstNonBlank(addressValue(address, "sector"),
 				transfer != null ? trim(transfer.getSector()) : null);
-		String cell = firstNonBlank(addressValue(address, "cell"),
+		String cell = firstNonBlank(readPersonAddressCell(address),
 				transfer != null ? trim(transfer.getCell()) : null);
 		String village = firstNonBlank(addressValue(address, "village"),
 				transfer != null ? trim(transfer.getVillage()) : null);
@@ -219,14 +235,20 @@ public class ClientRegistryPatientPayloadBuilder {
 			return trim(address.getCityVillage());
 		}
 		if ("cell".equals(level)) {
-			// Use address3 only — getNeighborhoodCell() was removed in OpenMRS 2.x
-			// (it was a 1.9 deprecated alias for address3) and blows up CR push at runtime.
-			return trim(address.getAddress3());
+			return readPersonAddressCell(address);
 		}
 		if ("village".equals(level)) {
 			return trim(address.getAddress1());
 		}
 		return null;
+	}
+
+	/** Cell (OpenMRS address3). Never call removed 1.9 aliases such as getNeighborhoodCell(). */
+	private static String readPersonAddressCell(PersonAddress address) {
+		if (address == null) {
+			return null;
+		}
+		return trim(address.getAddress3());
 	}
 
 	private void addOptionalExtensions(ObjectNode root, Patient patient) {

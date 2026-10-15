@@ -227,6 +227,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "pastT
                     visitEndIso = new java.text.SimpleDateFormat("yyyy-MM-dd").format(item.visitStopDatetime)
                 }
                 def hasTransferRecord = item.primaryTransferId != null && item.primaryTransferId.trim().length() > 0
+                def hasUpid = item.upid != null && item.upid.trim().length() > 0
             %>
             <tr class="past-transfers-row"
                 data-patient-id="${ item.patientId != null ? item.patientId : '' }"
@@ -272,7 +273,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "pastT
                        title="${ ui.encodeHtmlAttribute(ui.message('transferapp.pastTransfers.action.preview')) }">
                         <i class="icon-eye-open"></i>
                     </a>
-                    <% } else { %>
+                    <% } else if (hasUpid) { %>
                     <a href="javascript:void(0);"
                        class="button past-transfers-download-link"
                        title="${ ui.encodeHtmlAttribute(ui.message('transferapp.pastTransfers.action.download')) }">

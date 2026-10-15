@@ -106,5 +106,18 @@ a.hie-transfer-view-link:hover {
 .hie-transfer-status {
   margin: 0;
 }
+.transfer-used-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #9a3412;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+  vertical-align: middle;
+}
 </style>
 <% } %>

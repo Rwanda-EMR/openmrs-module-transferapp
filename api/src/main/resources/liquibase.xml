@@ -1718,4 +1718,432 @@
         </addColumn>
     </changeSet>
 
+    <changeSet id="transferapp-20261012-provider-attribute-type-provider-license" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="provider_attribute_type"/>
+                <sqlCheck expectedResult="0">
+                    SELECT COUNT(*) FROM provider_attribute_type WHERE name = 'Provider License'
+                </sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Create Provider License provider attribute type (Free Text) when missing</comment>
+        <insert tableName="provider_attribute_type">
+            <column name="name" value="Provider License"/>
+            <column name="description" value="Provider professional license number used on transfer forms"/>
+            <column name="datatype" value="org.openmrs.customdatatype.datatype.FreeTextDatatype"/>
+            <column name="min_occurs" valueNumeric="0"/>
+            <column name="creator" valueNumeric="1"/>
+            <column name="date_created" valueComputed="NOW()"/>
+            <column name="retired" valueBoolean="false"/>
+            <column name="uuid" valueComputed="uuid()"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="transferapp-20261012-provider-attribute-type-phone-number" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="provider_attribute_type"/>
+                <sqlCheck expectedResult="0">
+                    SELECT COUNT(*) FROM provider_attribute_type WHERE name = 'Phone Number'
+                </sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Create Phone Number provider attribute type (Free Text) when missing</comment>
+        <insert tableName="provider_attribute_type">
+            <column name="name" value="Phone Number"/>
+            <column name="description" value="Provider phone number used on transfer forms"/>
+            <column name="datatype" value="org.openmrs.customdatatype.datatype.FreeTextDatatype"/>
+            <column name="min_occurs" valueNumeric="0"/>
+            <column name="creator" valueNumeric="1"/>
+            <column name="date_created" valueComputed="NOW()"/>
+            <column name="retired" valueBoolean="false"/>
+            <column name="uuid" valueComputed="uuid()"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="transferapp-20261012-provider-attribute-type-qualification" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="provider_attribute_type"/>
+                <sqlCheck expectedResult="0">
+                    SELECT COUNT(*) FROM provider_attribute_type WHERE name = 'Qualification'
+                </sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Create Qualification provider attribute type (Free Text) when missing</comment>
+        <insert tableName="provider_attribute_type">
+            <column name="name" value="Qualification"/>
+            <column name="description" value="Provider qualification used on transfer forms"/>
+            <column name="datatype" value="org.openmrs.customdatatype.datatype.FreeTextDatatype"/>
+            <column name="min_occurs" valueNumeric="0"/>
+            <column name="creator" valueNumeric="1"/>
+            <column name="date_created" valueComputed="NOW()"/>
+            <column name="retired" valueBoolean="false"/>
+            <column name="uuid" valueComputed="uuid()"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="transferapp-20261012-provider-attribute-type-speciality" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="provider_attribute_type"/>
+                <sqlCheck expectedResult="0">
+                    SELECT COUNT(*) FROM provider_attribute_type WHERE name = 'Speciality'
+                </sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Create Speciality provider attribute type (Free Text) when missing</comment>
+        <insert tableName="provider_attribute_type">
+            <column name="name" value="Speciality"/>
+            <column name="description" value="Provider speciality used on transfer forms"/>
+            <column name="datatype" value="org.openmrs.customdatatype.datatype.FreeTextDatatype"/>
+            <column name="min_occurs" valueNumeric="0"/>
+            <column name="creator" valueNumeric="1"/>
+            <column name="date_created" valueComputed="NOW()"/>
+            <column name="retired" valueBoolean="false"/>
+            <column name="uuid" valueComputed="uuid()"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="transferapp-20261012-pat-license-validated" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="provider_attribute_type"/>
+                <sqlCheck expectedResult="0">
+                    SELECT COUNT(*) FROM provider_attribute_type WHERE name = 'License Validated'
+                </sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Create License Validated provider attribute type (Boolean) for external license API checks</comment>
+        <insert tableName="provider_attribute_type">
+            <column name="name" value="License Validated"/>
+            <column name="description" value="Whether the provider license number was validated against the external license registry"/>
+            <column name="datatype" value="org.openmrs.customdatatype.datatype.BooleanDatatype"/>
+            <column name="min_occurs" valueNumeric="0"/>
+            <column name="creator" valueNumeric="1"/>
+            <column name="date_created" valueComputed="NOW()"/>
+            <column name="retired" valueBoolean="false"/>
+            <column name="uuid" valueComputed="uuid()"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="transferapp-20261012-pat-license-expiry" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="provider_attribute_type"/>
+                <sqlCheck expectedResult="0">
+                    SELECT COUNT(*) FROM provider_attribute_type WHERE name = 'License Expiry Date'
+                </sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Create License Expiry Date provider attribute type (Date) for external license API checks</comment>
+        <insert tableName="provider_attribute_type">
+            <column name="name" value="License Expiry Date"/>
+            <column name="description" value="Expiry date of the provider license returned by the external license registry"/>
+            <column name="datatype" value="org.openmrs.customdatatype.datatype.DateDatatype"/>
+            <column name="min_occurs" valueNumeric="0"/>
+            <column name="creator" valueNumeric="1"/>
+            <column name="date_created" valueComputed="NOW()"/>
+            <column name="retired" valueBoolean="false"/>
+            <column name="uuid" valueComputed="uuid()"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="transferapp-20261012-pat-license-status" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="provider_attribute_type"/>
+                <sqlCheck expectedResult="0">
+                    SELECT COUNT(*) FROM provider_attribute_type WHERE name = 'License Status'
+                </sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Create License Status provider attribute type (Free Text) for external license API checks</comment>
+        <insert tableName="provider_attribute_type">
+            <column name="name" value="License Status"/>
+            <column name="description" value="License status from the external license registry (e.g. Active, Expired, Suspended)"/>
+            <column name="datatype" value="org.openmrs.customdatatype.datatype.FreeTextDatatype"/>
+            <column name="min_occurs" valueNumeric="0"/>
+            <column name="creator" valueNumeric="1"/>
+            <column name="date_created" valueComputed="NOW()"/>
+            <column name="retired" valueBoolean="false"/>
+            <column name="uuid" valueComputed="uuid()"/>
+        </insert>
+    </changeSet>
+
+    <!--
+        Migrate completed My Profile rows from transfer_profile into OpenMRS provider_attribute.
+        Path: transfer_profile.user_id → users.person_id → provider → provider_attribute.
+        Users with a profile but no provider yet get a provider row first so attributes can attach.
+    -->
+    <changeSet id="transferapp-20261012-ensure-providers-for-transfer-profiles" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="transfer_profile"/>
+                <tableExists tableName="users"/>
+                <tableExists tableName="provider"/>
+            </and>
+        </preConditions>
+        <comment>
+            Create a non-retired provider for each user who has a non-voided transfer_profile
+            but no active provider linked to their person (required before attribute migration).
+        </comment>
+        <sql>
+            INSERT INTO provider (person_id, identifier, creator, date_created, retired, uuid)
+            SELECT u.person_id,
+                   CONCAT('TP-', u.user_id),
+                   COALESCE(tp.creator, 1),
+                   NOW(),
+                   0,
+                   uuid()
+            FROM transfer_profile tp
+                     INNER JOIN users u ON u.user_id = tp.user_id
+            WHERE tp.voided = 0
+              AND u.person_id IS NOT NULL
+              AND (u.retired = 0 OR u.retired IS NULL)
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM provider p
+                    WHERE p.person_id = u.person_id
+                      AND p.retired = 0
+                )
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM provider p2
+                    WHERE p2.identifier = CONCAT('TP-', u.user_id)
+                );
+        </sql>
+    </changeSet>
+
+    <changeSet id="transferapp-20261012-migrate-tp-license-attr" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="transfer_profile"/>
+                <tableExists tableName="provider"/>
+                <tableExists tableName="provider_attribute"/>
+                <tableExists tableName="provider_attribute_type"/>
+                <sqlCheck expectedResult="1">
+                    SELECT EXISTS(
+                        SELECT 1 FROM provider_attribute_type
+                        WHERE name = 'Provider License' AND retired = 0
+                    )
+                </sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Copy transfer_profile.license_number into Provider License provider_attribute when missing</comment>
+        <sql><![CDATA[
+            INSERT INTO provider_attribute (provider_id, attribute_type_id, value_reference, uuid, creator, date_created, voided)
+            SELECT p.provider_id,
+                   pat.provider_attribute_type_id,
+                   TRIM(tp.license_number),
+                   uuid(),
+                   COALESCE(tp.creator, 1),
+                   COALESCE(tp.date_created, NOW()),
+                   0
+            FROM transfer_profile tp
+                     INNER JOIN users u ON u.user_id = tp.user_id
+                     INNER JOIN provider p ON p.person_id = u.person_id AND p.retired = 0
+                     INNER JOIN provider_attribute_type pat
+                                ON pat.name = 'Provider License' AND pat.retired = 0
+            WHERE tp.voided = 0
+              AND tp.license_number IS NOT NULL
+              AND TRIM(tp.license_number) != ''
+              AND p.provider_id = (
+                    SELECT MIN(p2.provider_id)
+                    FROM provider p2
+                    WHERE p2.person_id = u.person_id
+                      AND p2.retired = 0
+                )
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM provider_attribute pa
+                    WHERE pa.provider_id = p.provider_id
+                      AND pa.attribute_type_id = pat.provider_attribute_type_id
+                      AND pa.voided = 0
+                );
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="transferapp-20261012-migrate-tp-phone-attr" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="transfer_profile"/>
+                <tableExists tableName="provider"/>
+                <tableExists tableName="provider_attribute"/>
+                <tableExists tableName="provider_attribute_type"/>
+                <sqlCheck expectedResult="1">
+                    SELECT EXISTS(
+                        SELECT 1 FROM provider_attribute_type
+                        WHERE name = 'Phone Number' AND retired = 0
+                    )
+                </sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Copy transfer_profile.phone_number into Phone Number provider_attribute when missing</comment>
+        <sql><![CDATA[
+            INSERT INTO provider_attribute (provider_id, attribute_type_id, value_reference, uuid, creator, date_created, voided)
+            SELECT p.provider_id,
+                   pat.provider_attribute_type_id,
+                   TRIM(tp.phone_number),
+                   uuid(),
+                   COALESCE(tp.creator, 1),
+                   COALESCE(tp.date_created, NOW()),
+                   0
+            FROM transfer_profile tp
+                     INNER JOIN users u ON u.user_id = tp.user_id
+                     INNER JOIN provider p ON p.person_id = u.person_id AND p.retired = 0
+                     INNER JOIN provider_attribute_type pat
+                                ON pat.name = 'Phone Number' AND pat.retired = 0
+            WHERE tp.voided = 0
+              AND tp.phone_number IS NOT NULL
+              AND TRIM(tp.phone_number) != ''
+              AND p.provider_id = (
+                    SELECT MIN(p2.provider_id)
+                    FROM provider p2
+                    WHERE p2.person_id = u.person_id
+                      AND p2.retired = 0
+                )
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM provider_attribute pa
+                    WHERE pa.provider_id = p.provider_id
+                      AND pa.attribute_type_id = pat.provider_attribute_type_id
+                      AND pa.voided = 0
+                );
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="transferapp-20261012-migrate-tp-qual-attr" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="transfer_profile"/>
+                <tableExists tableName="provider"/>
+                <tableExists tableName="provider_attribute"/>
+                <tableExists tableName="provider_attribute_type"/>
+                <sqlCheck expectedResult="1">
+                    SELECT EXISTS(
+                        SELECT 1 FROM provider_attribute_type
+                        WHERE name = 'Qualification' AND retired = 0
+                    )
+                </sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Copy transfer_profile.qualification into Qualification provider_attribute when missing</comment>
+        <sql><![CDATA[
+            INSERT INTO provider_attribute (provider_id, attribute_type_id, value_reference, uuid, creator, date_created, voided)
+            SELECT p.provider_id,
+                   pat.provider_attribute_type_id,
+                   TRIM(tp.qualification),
+                   uuid(),
+                   COALESCE(tp.creator, 1),
+                   COALESCE(tp.date_created, NOW()),
+                   0
+            FROM transfer_profile tp
+                     INNER JOIN users u ON u.user_id = tp.user_id
+                     INNER JOIN provider p ON p.person_id = u.person_id AND p.retired = 0
+                     INNER JOIN provider_attribute_type pat
+                                ON pat.name = 'Qualification' AND pat.retired = 0
+            WHERE tp.voided = 0
+              AND tp.qualification IS NOT NULL
+              AND TRIM(tp.qualification) != ''
+              AND p.provider_id = (
+                    SELECT MIN(p2.provider_id)
+                    FROM provider p2
+                    WHERE p2.person_id = u.person_id
+                      AND p2.retired = 0
+                )
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM provider_attribute pa
+                    WHERE pa.provider_id = p.provider_id
+                      AND pa.attribute_type_id = pat.provider_attribute_type_id
+                      AND pa.voided = 0
+                );
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="transferapp-20261012-migrate-tp-speciality-attr" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="transfer_profile"/>
+                <tableExists tableName="provider"/>
+                <tableExists tableName="provider_attribute"/>
+                <tableExists tableName="provider_attribute_type"/>
+                <columnExists tableName="transfer_profile" columnName="speciality"/>
+                <sqlCheck expectedResult="1">
+                    SELECT EXISTS(
+                        SELECT 1 FROM provider_attribute_type
+                        WHERE name = 'Speciality' AND retired = 0
+                    )
+                </sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Copy transfer_profile.speciality into Speciality provider_attribute when missing</comment>
+        <sql><![CDATA[
+            INSERT INTO provider_attribute (provider_id, attribute_type_id, value_reference, uuid, creator, date_created, voided)
+            SELECT p.provider_id,
+                   pat.provider_attribute_type_id,
+                   TRIM(tp.speciality),
+                   uuid(),
+                   COALESCE(tp.creator, 1),
+                   COALESCE(tp.date_created, NOW()),
+                   0
+            FROM transfer_profile tp
+                     INNER JOIN users u ON u.user_id = tp.user_id
+                     INNER JOIN provider p ON p.person_id = u.person_id AND p.retired = 0
+                     INNER JOIN provider_attribute_type pat
+                                ON pat.name = 'Speciality' AND pat.retired = 0
+            WHERE tp.voided = 0
+              AND tp.speciality IS NOT NULL
+              AND TRIM(tp.speciality) != ''
+              AND p.provider_id = (
+                    SELECT MIN(p2.provider_id)
+                    FROM provider p2
+                    WHERE p2.person_id = u.person_id
+                      AND p2.retired = 0
+                )
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM provider_attribute pa
+                    WHERE pa.provider_id = p.provider_id
+                      AND pa.attribute_type_id = pat.provider_attribute_type_id
+                      AND pa.voided = 0
+                );
+        ]]></sql>
+    </changeSet>
+
+    <!-- After migration to provider_attribute, drop legacy transfer_profile table -->
+    <changeSet id="transferapp-20261014-drop-tp-user-fk" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="transfer_profile"/>
+                <foreignKeyConstraintExists foreignKeyName="transfer_profile_user_fk"/>
+            </and>
+        </preConditions>
+        <comment>Drop transfer_profile.user_id foreign key before dropping the table</comment>
+        <dropForeignKeyConstraint baseTableName="transfer_profile"
+                                  constraintName="transfer_profile_user_fk"/>
+    </changeSet>
+
+    <changeSet id="transferapp-20261014-drop-tp-creator-fk" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="transfer_profile"/>
+                <foreignKeyConstraintExists foreignKeyName="transfer_profile_creator_fk"/>
+            </and>
+        </preConditions>
+        <comment>Drop transfer_profile.creator foreign key before dropping the table</comment>
+        <dropForeignKeyConstraint baseTableName="transfer_profile"
+                                  constraintName="transfer_profile_creator_fk"/>
+    </changeSet>
+
+    <changeSet id="transferapp-20261014-drop-transfer-profile" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="transfer_profile"/>
+        </preConditions>
+        <comment>Drop transfer_profile; profile data now lives on provider_attribute</comment>
+        <dropTable tableName="transfer_profile"/>
+    </changeSet>
+
 </databaseChangeLog>

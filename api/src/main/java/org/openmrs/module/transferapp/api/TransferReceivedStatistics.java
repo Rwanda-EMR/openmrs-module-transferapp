@@ -26,6 +26,8 @@ public class TransferReceivedStatistics {
 
 	private int pending;
 
+	private int missingCounterReferral;
+
 	public int getToday() {
 		return today;
 	}
@@ -56,6 +58,14 @@ public class TransferReceivedStatistics {
 
 	public void setPending(int pending) {
 		this.pending = pending;
+	}
+
+	public int getMissingCounterReferral() {
+		return missingCounterReferral;
+	}
+
+	public void setMissingCounterReferral(int missingCounterReferral) {
+		this.missingCounterReferral = missingCounterReferral;
 	}
 
 }

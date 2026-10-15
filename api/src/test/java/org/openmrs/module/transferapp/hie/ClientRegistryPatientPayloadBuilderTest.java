@@ -77,6 +77,43 @@ public class ClientRegistryPatientPayloadBuilderTest {
 	}
 
 	@Test
+	public void buildsPatientJsonUsingTransferDomicileOnlySkipsPersonAddress() throws Exception {
+		Patient patient = new Patient();
+		PersonName name = new PersonName();
+		name.setGivenName("Test");
+		name.setFamilyName("Patient");
+		name.setPreferred(true);
+		patient.addName(name);
+		patient.setGender("M");
+
+		PersonAddress address = samplePersonAddress();
+		address.setPreferred(true);
+		patient.addAddress(address);
+
+		PatientIdentifierType upidType = new PatientIdentifierType();
+		upidType.setName("UPID");
+		PatientIdentifier upid = new PatientIdentifier("260929-0049-8704", upidType, null);
+		upid.setPreferred(true);
+		patient.addIdentifier(upid);
+
+		Transfer transfer = new Transfer();
+		transfer.setEmrId("260929-0049-8704");
+		transfer.setClientDistrict("Huye");
+		transfer.setSector("Gati");
+		transfer.setCell("Kinyoni");
+		transfer.setVillage("Umudugudu");
+
+		String json = new ClientRegistryPatientPayloadBuilder()
+				.buildPatientJsonUsingTransferDomicileOnly(patient, transfer);
+		String addressBlock = new ObjectMapper().readTree(json).get("address").get(0).get("line").toString();
+		assertTrue(addressBlock.contains("district: Huye"));
+		assertTrue(addressBlock.contains("sector: Gati"));
+		assertTrue(addressBlock.contains("cell: Kinyoni"));
+		assertTrue(addressBlock.contains("village: Umudugudu"));
+		assertTrue(!addressBlock.contains("Burera"));
+	}
+
+	@Test
 	public void buildsPatientJsonWithUpiAndDemographics() throws Exception {
 		Patient patient = new Patient();
 		PersonName name = new PersonName();

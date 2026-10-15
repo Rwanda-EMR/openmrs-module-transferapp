@@ -184,6 +184,11 @@ public class HibernateTransferDao implements TransferDao {
 
 	@Override
 	public int countOutboundTransfers(String sendingFacility, Date fromDate, Boolean hieSent) {
+		return countOutboundTransfers(sendingFacility, fromDate, null, hieSent);
+	}
+
+	@Override
+	public int countOutboundTransfers(String sendingFacility, Date fromDate, Date toDate, Boolean hieSent) {
 		if (StringUtils.isBlank(sendingFacility)) {
 			return 0;
 		}
@@ -192,13 +197,16 @@ public class HibernateTransferDao implements TransferDao {
 		criteria.add(Restrictions.eq("voided", false));
 		criteria.add(Restrictions.eq("sendingFacility", sendingFacility.trim()));
 		if (fromDate != null) {
-			criteria.add(Restrictions.or(
-					Restrictions.and(
-							Restrictions.isNotNull("decisionToTransferAt"),
-							Restrictions.ge("decisionToTransferAt", fromDate)),
-					Restrictions.and(
-							Restrictions.isNull("decisionToTransferAt"),
-							Restrictions.ge("dateCreated", fromDate))));
+			criteria.add(Restrictions.sqlRestriction(
+					"COALESCE({alias}.decision_to_transfer_at, {alias}.date_created) >= ?",
+					fromDate,
+					StandardBasicTypes.TIMESTAMP));
+		}
+		if (toDate != null) {
+			criteria.add(Restrictions.sqlRestriction(
+					"COALESCE({alias}.decision_to_transfer_at, {alias}.date_created) <= ?",
+					toDate,
+					StandardBasicTypes.TIMESTAMP));
 		}
 		if (hieSent != null) {
 			if (Boolean.TRUE.equals(hieSent)) {
@@ -212,6 +220,26 @@ public class HibernateTransferDao implements TransferDao {
 		criteria.setProjection(Projections.rowCount());
 		Number count = (Number) criteria.uniqueResult();
 		return count == null ? 0 : count.intValue();
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public List<String> listOutboundHieTransferIds(String sendingFacility) {
+		if (StringUtils.isBlank(sendingFacility)) {
+			return java.util.Collections.emptyList();
+		}
+		Criteria criteria = getSession().createCriteria(Transfer.class);
+		criteria.add(Restrictions.eq("voided", false));
+		criteria.add(Restrictions.eq("sendingFacility", sendingFacility.trim()));
+		criteria.add(Restrictions.eq("hieSent", true));
+		criteria.add(Restrictions.isNotNull("hieTransferId"));
+		criteria.add(Restrictions.ne("hieTransferId", ""));
+		criteria.add(Restrictions.or(
+				Restrictions.isNull("receivedFromHie"),
+				Restrictions.eq("receivedFromHie", false)));
+		criteria.setProjection(Projections.distinct(Projections.property("hieTransferId")));
+		List<String> ids = criteria.list();
+		return ids != null ? ids : java.util.Collections.<String>emptyList();
 	}
 
 	@Override

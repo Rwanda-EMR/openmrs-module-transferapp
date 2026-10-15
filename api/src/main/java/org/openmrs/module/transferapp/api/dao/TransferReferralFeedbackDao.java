@@ -15,6 +15,9 @@ package org.openmrs.module.transferapp.api.dao;
 
 import org.openmrs.module.transferapp.model.TransferReferralFeedback;
 
+import java.util.Date;
+import java.util.Set;
+
 public interface TransferReferralFeedbackDao {
 
 	TransferReferralFeedback save(TransferReferralFeedback feedback);
@@ -22,4 +25,26 @@ public interface TransferReferralFeedbackDao {
 	TransferReferralFeedback getByPatientAndHieTransferId(org.openmrs.Patient patient, String hieTransferId);
 
 	TransferReferralFeedback getByPatientAndHieTransferId(Integer patientId, String hieTransferId);
+
+	/**
+	 * Non-voided counter-referral feedback rows. When {@code hieSentOnly} is true, only rows
+	 * already submitted to HIE are counted.
+	 */
+	int countFeedback(boolean hieSentOnly);
+
+	/**
+	 * Same as {@link #countFeedback(boolean)} limited to {@code dateCreated} in
+	 * {@code [fromDate, toDate]} (null bounds are unbounded).
+	 */
+	int countFeedback(boolean hieSentOnly, Date fromDate, Date toDate);
+
+	/**
+	 * Keys of feedback already submitted to HIE, formatted as {@code patientId|hieTransferId}.
+	 */
+	Set<String> listHieSentFeedbackKeys();
+
+	/**
+	 * Keys of all non-voided feedback rows, formatted as {@code patientId|hieTransferId}.
+	 */
+	Set<String> listFeedbackKeys();
 }

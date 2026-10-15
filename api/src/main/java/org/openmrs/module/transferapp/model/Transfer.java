@@ -28,6 +28,7 @@ import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
+import javax.persistence.Transient;
 import java.util.Date;
 
 /**
@@ -199,6 +200,13 @@ public class Transfer extends BaseOpenmrsData {
 
 	@Column(name = "hie_transfer_id", length = 64)
 	private String hieTransferId;
+
+	/**
+	 * Set only for the current HIE submit response: true when the outbound Encounter payload
+	 * included insurance-agent approval extensions (not persisted).
+	 */
+	@Transient
+	private boolean insuranceApprovalKept;
 
 	/** mohbilling Consommation id created for ambulance transport billing. */
 	@Column(name = "ambulance_consommation_id")
@@ -701,6 +709,14 @@ public class Transfer extends BaseOpenmrsData {
 
 	public void setHieTransferId(String hieTransferId) {
 		this.hieTransferId = hieTransferId;
+	}
+
+	public boolean isInsuranceApprovalKept() {
+		return insuranceApprovalKept;
+	}
+
+	public void setInsuranceApprovalKept(boolean insuranceApprovalKept) {
+		this.insuranceApprovalKept = insuranceApprovalKept;
 	}
 
 	public Integer getAmbulanceConsommationId() {

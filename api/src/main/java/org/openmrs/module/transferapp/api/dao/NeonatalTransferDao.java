@@ -39,6 +39,8 @@ public interface NeonatalTransferDao {
 
 	int countOutboundNeonatalTransfers(String sendingFacility, Date fromDate, Boolean hieSent);
 
+	int countOutboundNeonatalTransfers(String sendingFacility, Date fromDate, Date toDate, Boolean hieSent);
+
 	NeonatalTransfer getNeonatalTransferByUuid(String uuid);
 
 }

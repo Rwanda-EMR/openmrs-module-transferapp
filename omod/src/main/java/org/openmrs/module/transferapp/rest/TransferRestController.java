@@ -37,6 +37,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -442,6 +443,47 @@ public class TransferRestController {
 		}
 	}
 
+	@RequestMapping(value = "/rest/v1/transferapp/transfer/feedback/import", method = RequestMethod.POST)
+	@ResponseBody
+	public Object importReferralFeedbackFromHie(HttpServletRequest request, HttpServletResponse response,
+			@RequestParam("patientId") Integer patientId,
+			@RequestParam("hieTransferId") String hieTransferId) throws ResponseException {
+
+		SimpleObject result = new SimpleObject();
+		if (!TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)) {
+			result.put("status", "error");
+			result.put("message", TransferPrivilegeHelper.requiredPrivilegeMessage(
+					TransferAppActivator.PRIVILEGE_LIST_TRANSFERS));
+			result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
+			response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+			return result;
+		}
+		if (patientId == null) {
+			throw new IllegalRequestException("patientId parameter is required");
+		}
+		if (hieTransferId == null || hieTransferId.trim().isEmpty()) {
+			throw new IllegalRequestException("hieTransferId parameter is required");
+		}
+		try {
+			Map<String, Object> summary = extractFeedbackSummary(request);
+			return toSimpleObject(getTransferReferralFeedbackService()
+					.importFeedbackFromHie(patientId, hieTransferId.trim(), summary));
+		}
+		catch (Exception ex) {
+			log.error("Unable to import referral feedback from HIE", ex);
+			result.put("status", "error");
+			result.put("message", TransferPrivilegeHelper.resolveUserFacingMessage(
+					ex,
+					TransferAppActivator.PRIVILEGE_LIST_TRANSFERS,
+					"Unable to import counter referral from HIE"));
+			if (TransferPrivilegeHelper.isPrivilegeException(ex)) {
+				result.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
+				response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+			}
+			return result;
+		}
+	}
+
 	@RequestMapping(value = "/rest/v1/transferapp/transfer/feedback/submit", method = RequestMethod.POST)
 	@ResponseBody
 	public Object submitReferralFeedback(HttpServletResponse response,
@@ -563,6 +605,23 @@ public class TransferRestController {
 			converted.add(row);
 		}
 		return converted;
+	}
+
+	private Map<String, Object> extractFeedbackSummary(HttpServletRequest request) {
+		Map<String, Object> summary = new LinkedHashMap<String, Object>();
+		String[] keys = new String[] {
+				"finalDiagnosis", "treatmentGiven", "outcome", "outcomeLabel", "recommendations",
+				"referBackToFacility", "referBackToFacilityFosaId", "dateOfAdmissionOrSeen",
+				"dateOfDischarge", "contactPerson", "providerName", "qualification",
+				"signedDate", "signedTime", "phone"
+		};
+		for (int i = 0; i < keys.length; i++) {
+			String value = request.getParameter(keys[i]);
+			if (value != null && value.trim().length() > 0) {
+				summary.put(keys[i], value.trim());
+			}
+		}
+		return summary;
 	}
 
 }

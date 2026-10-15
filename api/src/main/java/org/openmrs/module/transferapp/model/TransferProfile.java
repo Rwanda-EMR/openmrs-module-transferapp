@@ -16,40 +16,24 @@ package org.openmrs.module.transferapp.model;
 import org.apache.commons.lang.StringUtils;
 import org.openmrs.BaseOpenmrsData;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.Table;
-import javax.persistence.UniqueConstraint;
-
-@Entity(name = "TransferappTransferProfile")
-@Table(name = "transfer_profile", uniqueConstraints = {
-		@UniqueConstraint(name = "transfer_profile_user_id_uk", columnNames = { "user_id" })
-})
+/**
+ * In-memory view of a provider's transfer profile fields.
+ * Persisted on OpenMRS {@code provider_attribute} (not a custom table).
+ */
 public class TransferProfile extends BaseOpenmrsData {
 
 	private static final long serialVersionUID = 1L;
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.AUTO)
-	@Column(name = "transfer_profile_id")
 	private Integer transferProfileId;
 
-	@Column(name = "user_id", nullable = false)
 	private Integer userId;
 
-	@Column(name = "license_number", length = 64)
 	private String licenseNumber;
 
-	@Column(name = "phone_number", length = 64)
 	private String phoneNumber;
 
-	@Column(name = "qualification", length = 255)
 	private String qualification;
 
-	@Column(name = "speciality", length = 255)
 	private String speciality;
 
 	@Override

@@ -381,9 +381,16 @@
                     syncTransferPreviewSubmitButton();
                     markTransferRowHieStatus(currentPreviewTransferUuid, true);
                     if (typeof emr !== "undefined" && typeof emr.successMessage === "function") {
-                        emr.successMessage(wasUpdate
-                            ? "Transfer updated on HIE successfully. Insurance approval was preserved when present."
-                            : "Transfer sent to HIE successfully.");
+                        var successMessage;
+                        if (wasUpdate) {
+                            successMessage = (response.insuranceApprovalKept === true
+                                || response.insuranceApprovalKept === "true")
+                                ? "Transfer updated on HIE successfully, Insurance approval are kept"
+                                : "Transfer updated on HIE successfully";
+                        } else {
+                            successMessage = "Transfer sent to HIE successfully.";
+                        }
+                        emr.successMessage(successMessage);
                     }
                     window.location.reload();
                     return;

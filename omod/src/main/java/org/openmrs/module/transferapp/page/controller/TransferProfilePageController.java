@@ -17,10 +17,13 @@ import org.openmrs.PersonName;
 import org.openmrs.User;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.appui.UiSessionContext;
+import org.openmrs.module.transferapp.api.ProviderProfileAttributes;
 import org.openmrs.module.transferapp.api.TransferProfileService;
 import org.openmrs.module.transferapp.model.TransferProfile;
 import org.openmrs.ui.framework.annotation.SpringBean;
 import org.openmrs.ui.framework.page.PageModel;
+
+import java.util.Map;
 
 public class TransferProfilePageController {
 
@@ -37,6 +40,8 @@ public class TransferProfilePageController {
 			displayName = personName.getFullName();
 		}
 
+		Map<String, String> licenseAttrs = ProviderProfileAttributes.readLicenseValidationForUser(user);
+
 		model.addAttribute("providerDisplayName", displayName);
 		model.addAttribute("username", user != null ? user.getUsername() : "");
 		model.addAttribute("licenseNumber", profile != null ? profile.getLicenseNumber() : "");
@@ -44,6 +49,9 @@ public class TransferProfilePageController {
 		model.addAttribute("qualification", profile != null ? profile.getQualification() : "");
 		model.addAttribute("speciality", profile != null ? profile.getSpeciality() : "");
 		model.addAttribute("qualificationDisplay", profile != null ? profile.getQualificationWithSpeciality() : "");
+		model.addAttribute("licenseValidated", "true".equals(licenseAttrs.get("licenseValidated")));
+		model.addAttribute("licenseExpiryDate", licenseAttrs.get("licenseExpiryDate"));
+		model.addAttribute("licenseStatus", licenseAttrs.get("licenseStatus"));
 	}
 
 }

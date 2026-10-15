@@ -1,5 +1,4 @@
 <%
-    import org.openmrs.api.context.Context
     def activeTab = config.activeTab ?: "dashboard"
     def appParam = config.app ?: "transferapp.dashboard"
     def dashboardUrl = ui.pageLink("transferapp", "dashboard") + "?app=" + appParam
@@ -12,16 +11,7 @@
     def approvalsUrl = ui.pageLink("transferapp", "approvals") + "?app=" + appParam
     def pastTransfersUrl = ui.pageLink("transferapp", "pastTransfers") + "?app=" + appParam
     def profileUrl = ui.pageLink("transferapp", "transferProfile") + "?app=" + appParam
-    def authUser = Context.getAuthenticatedUser()
-    def canPastTransfers = authUser != null && authUser.hasPrivilege("View: transferapp.pasttransfers")
-    def canConfigure = authUser != null && authUser.hasPrivilege("Task: transferapp.configuration")
-    def canApprovals = false
-    try {
-        def approverService = Context.getService(org.openmrs.module.transferapp.api.ApproverService.class)
-        canApprovals = approverService != null && approverService.isCurrentUserApprover()
-    } catch (Exception ignore) {
-        canApprovals = false
-    }
+    // canPastTransfers / canConfigure / canApprovals come from TransferNavFragmentController
 %>
 <nav class="transfer-app-nav" aria-label="Transfer app navigation">
     <a href="${ dashboardUrl }"
@@ -37,7 +27,7 @@
     <span class="transfer-app-nav-separator">|</span>
     <a href="${ recordsUrl }"
        class="transfer-app-nav-link ${ activeTab == 'records' ? 'active' : '' }">${ ui.message("transferapp.nav.records") }</a>
-    <% if (canApprovals || activeTab == 'approvals') { %>
+    <% if (canApprovals) { %>
     <span class="transfer-app-nav-separator">|</span>
     <a href="${ approvalsUrl }"
        class="transfer-app-nav-link ${ activeTab == 'approvals' ? 'active' : '' }">${ ui.message("transferapp.nav.approvals") }</a>

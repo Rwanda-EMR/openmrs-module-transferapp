@@ -169,6 +169,8 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 						connection, encounterJson, encounterId, requiresInsuranceAgentVerification);
 			}
 
+			boolean insuranceApprovalKept = agentDecisionPreserver.hasAgentDecision(encounterJson);
+
 			postEncounterRegisteringPatientInCrIfNeeded(connection, transfer, encounterJson);
 
 			transfer.setHieTransferId(encounterId);
@@ -183,7 +185,9 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 				patientSmsNotificationService.notifyPatientAfterHieAccepted(transfer, receivingFacilityLabel);
 			}
 
-			return transferDao.saveTransfer(transfer);
+			Transfer saved = transferDao.saveTransfer(transfer);
+			saved.setInsuranceApprovalKept(insuranceApprovalKept);
+			return saved;
 		}
 		catch (HieConfigurationException ex) {
 			recordSubmissionFailure(transfer, ex.getMessage());
@@ -226,8 +230,21 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 					"Cannot register patient in Client Registry: transfer has no linked OpenMRS patient");
 		}
 		clientRegistryPatientPayloadBuilder.setPatientSnapshotResolver(patientSnapshotResolver);
-		String patientJson = clientRegistryPatientPayloadBuilder.buildPatientJson(patient, transfer);
+		String patientJson = buildClientRegistryPatientJson(patient, transfer);
 		hieClientRegistryClient.postPatientAllowingAlreadyExists(connection, patientJson);
+	}
+
+	private String buildClientRegistryPatientJson(Patient patient, Transfer transfer) {
+		try {
+			return clientRegistryPatientPayloadBuilder.buildPatientJson(patient, transfer);
+		}
+		catch (LinkageError linkageError) {
+			log.warn(
+					"Client Registry patient build failed reading OpenMRS person_address; "
+							+ "retrying with transfer form domicile only",
+					linkageError);
+			return clientRegistryPatientPayloadBuilder.buildPatientJsonUsingTransferDomicileOnly(patient, transfer);
+		}
 	}
 
 	/**

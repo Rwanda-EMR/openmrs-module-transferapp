@@ -52,6 +52,13 @@ public interface PastTransfersDao {
 			Integer transferIdConceptId);
 
 	/**
+	 * Distinct Transfer Id observation values recorded on this patient's visits whose
+	 * {@code date_started} falls in {@code [rangeStart, beforeExclusive)}.
+	 */
+	List<String> findTransferIdsOnVisitsStartedBetween(Integer patientId, Integer transferIdConceptId,
+			Date rangeStart, Date beforeExclusive);
+
+	/**
 	 * Registration-encounter insurance type / id for the given visits, keyed by visit id.
 	 * Values are {@code [insuranceTypeDisplay, insuranceId]} (either may be blank).
 	 * One batched query; does not load full Patient/Encounter graphs.

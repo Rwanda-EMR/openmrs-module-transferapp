@@ -152,6 +152,18 @@ public final class TransferAppConstants {
 	/** Normalized facility display name used on outbound HIE payloads (sendingFacility). */
 	public static final String GP_OUTBOUND_FACILITY_NAME = "transferapp.outboundFacilityName";
 
+	/**
+	 * Province of the current (outbound) facility. Preview-only fallback when a transfer targeting
+	 * {@link #GP_OUTBOUND_FACILITY_NAME} has no province in the HIE payload. Not used on outbound HIE submit.
+	 */
+	public static final String GP_OUTBOUND_PROVINCE = "transferapp.outboundProvince";
+
+	/**
+	 * District of the current (outbound) facility. Preview-only fallback when a transfer targeting
+	 * {@link #GP_OUTBOUND_FACILITY_NAME} has no district in the HIE payload. Not used on outbound HIE submit.
+	 */
+	public static final String GP_OUTBOUND_DISTRICT = "transferapp.outboundDistrict";
+
 	/** When true and credentials are set, send patient SMS after HIE accepts the transfer. */
 	public static final String GP_SMS_INTOUCH_ENABLED = "transferapp.sms.intouch.enabled";
 
@@ -198,6 +210,14 @@ public final class TransferAppConstants {
 	public static final String HIE_CLIENT_REGISTRY_PATIENT_PATH = "/clientregistry/Patient";
 
 	public static final String HIE_FACILITY_REGISTRY_PATH = "/facility-registry/fhir";
+
+	/** Provider Registry license validate (starts OTP flow). */
+	public static final String HIE_PROVIDER_REGISTRY_LICENSE_VALIDATE_PATH =
+			"/provider-registry/api/v1/pr/licenses/validate";
+
+	/** Provider Registry OTP verify (completes license validation). */
+	public static final String HIE_PROVIDER_REGISTRY_LICENSE_VALIDATE_OTP_PATH =
+			"/provider-registry/api/v1/pr/licenses/validate-otp";
 
 	public static final String HIE_AUTH_TOKEN_HEADER = "X-Auth-Token";
 

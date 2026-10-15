@@ -137,6 +137,44 @@ public class HibernatePastTransfersDao implements PastTransfersDao {
 
 	@Override
 	@SuppressWarnings("unchecked")
+	public List<String> findTransferIdsOnVisitsStartedBetween(Integer patientId, Integer transferIdConceptId,
+			Date rangeStart, Date beforeExclusive) {
+		if (patientId == null || transferIdConceptId == null || rangeStart == null || beforeExclusive == null) {
+			return Collections.emptyList();
+		}
+		SQLQuery query = getSession().createSQLQuery(
+				"SELECT DISTINCT o.value_text AS transferId "
+						+ "FROM obs o "
+						+ "INNER JOIN encounter e ON e.encounter_id = o.encounter_id AND e.voided = 0 "
+						+ "INNER JOIN visit v ON v.visit_id = e.visit_id AND v.voided = 0 "
+						+ "WHERE o.voided = 0 "
+						+ "AND o.concept_id = :conceptId "
+						+ "AND v.patient_id = :patientId "
+						+ "AND v.date_started >= :rangeStart "
+						+ "AND v.date_started < :beforeExclusive "
+						+ "AND o.value_text IS NOT NULL "
+						+ "AND o.value_text <> ''");
+		query.setInteger("conceptId", transferIdConceptId);
+		query.setInteger("patientId", patientId);
+		query.setTimestamp("rangeStart", rangeStart);
+		query.setTimestamp("beforeExclusive", beforeExclusive);
+		query.addScalar("transferId", StandardBasicTypes.STRING);
+		List<String> rows = query.list();
+		if (rows == null || rows.isEmpty()) {
+			return Collections.emptyList();
+		}
+		LinkedHashSet<String> unique = new LinkedHashSet<String>();
+		for (String row : rows) {
+			String transferId = StringUtils.trimToNull(row);
+			if (transferId != null) {
+				unique.add(transferId);
+			}
+		}
+		return new ArrayList<String>(unique);
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
 	public Map<Integer, List<String>> findTransferIdValuesByVisitIds(Collection<Integer> visitIds,
 			Integer transferIdConceptId) {
 		if (visitIds == null || visitIds.isEmpty() || transferIdConceptId == null) {

@@ -245,7 +245,9 @@
 		if (normalized.charAt(0) === "{" && normalized.charAt(normalized.length - 1) === "}") {
 			normalized = normalized.substring(1, normalized.length - 1).trim();
 		}
-		return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(normalized);
+		// Standard UUID, or business id EBANGUKA-TR-YYYYMMDD-{sequence} (any digit length).
+		return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(normalized)
+			|| /^EBANGUKA-TR-\d{8}-\d+$/.test(normalized);
 	}
 
 	function resolveVerificationTransferId(normalized) {

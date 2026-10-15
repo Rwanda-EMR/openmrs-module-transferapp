@@ -45,4 +45,11 @@ public interface TransferReferralFeedbackService {
 	 */
 	@Authorized(TransferAppActivator.PRIVILEGE_FEEDBACK)
 	Map<String, Object> submitFeedbackToHie(Integer patientId, String hieTransferId);
+
+	/**
+	 * Persists counter-referral / referral-feedback already present on HIE into the local
+	 * {@code transfer_referral_feedback} table (idempotent when a row already exists).
+	 */
+	@Authorized(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
+	Map<String, Object> importFeedbackFromHie(Integer patientId, String hieTransferId, Map<String, Object> summary);
 }

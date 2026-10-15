@@ -50,6 +50,13 @@ public interface TransferDao {
 
 	int countOutboundTransfers(String sendingFacility, Date fromDate, Boolean hieSent);
 
+	int countOutboundTransfers(String sendingFacility, Date fromDate, Date toDate, Boolean hieSent);
+
+	/**
+	 * HIE transfer ids for outbound transfers this facility already sent (non-blank {@code hieTransferId}).
+	 */
+	List<String> listOutboundHieTransferIds(String sendingFacility);
+
 	Transfer getTransferByUuid(String uuid);
 
 	Transfer getTransferByHieTransferId(Integer patientId, String hieTransferId);

@@ -26,6 +26,7 @@ import org.openmrs.module.transferapp.api.TransferProfileService;
 import org.openmrs.module.transferapp.model.NewTransferOutFormData;
 import org.openmrs.module.transferapp.model.TransferProfile;
 import org.openmrs.ui.framework.UiUtils;
+import org.openmrs.ui.framework.annotation.FragmentParam;
 import org.openmrs.ui.framework.annotation.SpringBean;
 import org.openmrs.ui.framework.fragment.FragmentModel;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -37,11 +38,16 @@ public class NewTransferOutFormFragmentController {
 
 	public void controller(FragmentModel model,
 			UiUtils ui,
-			@RequestParam(value = "patientId", required = false) Integer patientId,
-			@RequestParam(value = "transferUuid", required = false) String transferUuid,
+			@RequestParam(value = "patientId", required = false) Integer requestPatientId,
+			@RequestParam(value = "transferUuid", required = false) String requestTransferUuid,
+			@FragmentParam(value = "patientId", required = false) Integer fragmentPatientId,
+			@FragmentParam(value = "transferUuid", required = false) String fragmentTransferUuid,
 			@SpringBean("newTransferOutService") NewTransferOutService newTransferOutService,
 			@SpringBean("transferProfileService") TransferProfileService transferProfileService,
 			@SpringBean("transferAdminService") TransferAdminService transferAdminService) {
+
+		Integer patientId = fragmentPatientId != null ? fragmentPatientId : requestPatientId;
+		String transferUuid = fragmentTransferUuid != null ? fragmentTransferUuid : requestTransferUuid;
 
 		model.addAttribute("error", "");
 		model.addAttribute("formData", null);

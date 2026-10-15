@@ -30,6 +30,10 @@ public class TransferVerificationUrlServiceImpl implements TransferVerificationU
 	private static final Pattern UUID_PATTERN = Pattern.compile(
 			"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
+	/** Business transfer id: EBANGUKA-TR-YYYYMMDD-{sequence} (sequence is one or more digits). */
+	private static final Pattern EBANGUKA_TRANSFER_ID_PATTERN = Pattern.compile(
+			"^EBANGUKA-TR-\\d{8}-\\d+$");
+
 	private static final String VERIFY_QR_FORM_PATH = "/module/transferapp/transfer/verifyQr.form";
 
 	@Override
@@ -65,7 +69,8 @@ public class TransferVerificationUrlServiceImpl implements TransferVerificationU
 		if (normalized.startsWith("{") && normalized.endsWith("}") && normalized.length() > 2) {
 			normalized = normalized.substring(1, normalized.length() - 1).trim();
 		}
-		return UUID_PATTERN.matcher(normalized).matches();
+		return UUID_PATTERN.matcher(normalized).matches()
+				|| EBANGUKA_TRANSFER_ID_PATTERN.matcher(normalized).matches();
 	}
 
 	@Override

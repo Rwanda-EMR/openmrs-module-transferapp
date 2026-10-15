@@ -253,7 +253,7 @@ public class TransferServiceImpl implements TransferService {
 		transfer.setReceivingFacilityCode(StringUtils.trimToNull(receivingFacilityCode));
 		ReceivingFacility receivingFacility = resolveReceivingFacility(receivingFacilityCode, receivingFacilityId);
 		applyReceivingFacilitySnapshot(transfer, receivingFacility);
-		applyLocalApprovalForDestination(transfer, receivingFacility);
+		applyLocalApprovalForDestination(transfer, receivingFacility, previousReceivingFacilityCode, isUpdate);
 		transfer.setReceivingService(StringUtils.trimToNull(receivingService));
 		transfer.setStaffContactedName(StringUtils.trimToNull(staffContactedName));
 		transfer.setStaffContactedPhone(StringUtils.trimToNull(staffContactedPhone));
@@ -617,9 +617,30 @@ public class TransferServiceImpl implements TransferService {
 	/**
 	 * External destinations require approver sign-off before HIE submit.
 	 * Non-external destinations clear any prior approval hold.
+	 * <p>
+	 * Clinical edits of an already-approved / previously HIE-sent transfer keep approval
+	 * when the destination is unchanged, so resubmit updates that encounter instead of
+	 * dropping the row back into the pending queue (which looked identical to other
+	 * awaiting transfers and made the wrong UUID easy to send).
 	 */
-	private void applyLocalApprovalForDestination(Transfer transfer, ReceivingFacility facility) {
+	private void applyLocalApprovalForDestination(Transfer transfer, ReceivingFacility facility,
+			String previousReceivingFacilityCode, boolean isUpdate) {
 		if (facility != null && facility.isExternal()) {
+			String newCode = StringUtils.trimToEmpty(facility.getFacilityCode());
+			String previousCode = StringUtils.trimToEmpty(previousReceivingFacilityCode);
+			boolean destinationChanged = isUpdate && !StringUtils.equals(previousCode, newCode);
+			boolean alreadyApproved = TransferApprovalStatus.APPROVED.equals(transfer.getLocalApprovalStatus());
+			boolean previouslySentToHie = StringUtils.isNotBlank(transfer.getHieTransferId());
+			boolean wasRejected = TransferApprovalStatus.REJECTED.equals(transfer.getLocalApprovalStatus());
+
+			if (isUpdate && !destinationChanged && !wasRejected && (alreadyApproved || previouslySentToHie)) {
+				// Keep approval snapshot; ensure status is APPROVED after a prior HIE send.
+				if (!alreadyApproved) {
+					transfer.setLocalApprovalStatus(TransferApprovalStatus.APPROVED);
+				}
+				return;
+			}
+
 			transfer.setLocalApprovalStatus(TransferApprovalStatus.PENDING);
 			transfer.setApproverUserId(null);
 			transfer.setApprovedAt(null);

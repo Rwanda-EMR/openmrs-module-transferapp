@@ -146,6 +146,11 @@ public class HibernateNeonatalTransferDao implements NeonatalTransferDao {
 
 	@Override
 	public int countOutboundNeonatalTransfers(String sendingFacility, Date fromDate, Boolean hieSent) {
+		return countOutboundNeonatalTransfers(sendingFacility, fromDate, null, hieSent);
+	}
+
+	@Override
+	public int countOutboundNeonatalTransfers(String sendingFacility, Date fromDate, Date toDate, Boolean hieSent) {
 		if (StringUtils.isBlank(sendingFacility)) {
 			return 0;
 		}
@@ -154,13 +159,16 @@ public class HibernateNeonatalTransferDao implements NeonatalTransferDao {
 		criteria.add(Restrictions.eq("voided", false));
 		criteria.add(Restrictions.eq("sendingFacility", sendingFacility.trim()));
 		if (fromDate != null) {
-			criteria.add(Restrictions.or(
-					Restrictions.and(
-							Restrictions.isNotNull("decisionToTransferAt"),
-							Restrictions.ge("decisionToTransferAt", fromDate)),
-					Restrictions.and(
-							Restrictions.isNull("decisionToTransferAt"),
-							Restrictions.ge("dateCreated", fromDate))));
+			criteria.add(Restrictions.sqlRestriction(
+					"COALESCE({alias}.decision_to_transfer_at, {alias}.date_created) >= ?",
+					fromDate,
+					StandardBasicTypes.TIMESTAMP));
+		}
+		if (toDate != null) {
+			criteria.add(Restrictions.sqlRestriction(
+					"COALESCE({alias}.decision_to_transfer_at, {alias}.date_created) <= ?",
+					toDate,
+					StandardBasicTypes.TIMESTAMP));
 		}
 		if (hieSent != null) {
 			if (Boolean.TRUE.equals(hieSent)) {

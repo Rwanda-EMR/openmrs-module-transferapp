@@ -37,6 +37,47 @@
     margin-bottom: 24px;
 }
 
+.transfer-dashboard-filters {
+    margin: 0 0 24px;
+    padding: 14px 16px;
+    background: #f4faf9;
+    border: 1px solid #c7e7e2;
+    border-radius: 6px;
+}
+
+.transfer-dashboard-filters-grid {
+    display: grid;
+    grid-template-columns: minmax(160px, 220px) minmax(160px, 220px) auto;
+    gap: 14px 16px;
+    align-items: end;
+    justify-content: start;
+}
+
+.transfer-dashboard-filter-field label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #00473f;
+}
+
+.transfer-dashboard-date-input,
+.transfer-dashboard-filters-grid .flatpickr-input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 7px 10px;
+    border: 1px solid #c7e7e2;
+    border-radius: 4px;
+    font-size: 13px;
+    background: #fff;
+}
+
+.transfer-dashboard-filter-actions .confirm {
+    min-height: 34px;
+    padding: 7px 16px;
+}
+
 .transfer-dashboard-section {
     margin-bottom: 32px;
     width: 100%;
@@ -60,6 +101,29 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.transfer-stat-grid-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.transfer-stat-grid-5 .transfer-stat-card {
+    min-height: 88px;
+    padding: 14px 12px;
+}
+
+.transfer-stat-grid-5 .transfer-stat-label {
+    font-size: 11px;
+    line-height: 1.25;
+}
+
+.transfer-stat-grid-5 .transfer-stat-value {
+    font-size: 30px;
+}
+
+.transfer-stat-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .transfer-stat-card {
     display: flex;
     flex-direction: column;
@@ -73,14 +137,29 @@
     box-sizing: border-box;
 }
 
+@media (max-width: 1100px) {
+    .transfer-stat-grid-5 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
 @media (max-width: 992px) {
     .transfer-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .transfer-stat-grid-5 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 576px) {
-    .transfer-stat-grid {
+    .transfer-stat-grid,
+    .transfer-stat-grid-5 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .transfer-dashboard-filters-grid {
         grid-template-columns: minmax(0, 1fr);
     }
 }
@@ -89,12 +168,51 @@
     border-top: 4px solid #2a7ae2;
 }
 
+.transfer-stat-card-missing {
+    border-top-color: #d9534f;
+}
+
+a.transfer-stat-card-link {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+a.transfer-stat-card-link:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    border-color: #d9534f;
+    text-decoration: none;
+    color: inherit;
+}
+
+.missing-outbound-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.missing-outbound-actions .missing-outbound-copy-id {
+    margin: 0;
+    padding: 4px 10px;
+    white-space: nowrap;
+}
+
 .transfer-stat-card-sent {
     border-top: 4px solid #5cb85c;
 }
 
 .transfer-stat-card-voucher {
     border-top: 4px solid #5bc0de;
+}
+
+.transfer-stat-card-counter-received {
+    border-top: 4px solid #9b59b6;
+}
+
+.transfer-stat-card-counter-sent {
+    border-top: 4px solid #8e44ad;
 }
 
 .transfer-stat-card-pending {
