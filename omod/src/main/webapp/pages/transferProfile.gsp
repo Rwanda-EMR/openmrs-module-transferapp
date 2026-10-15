@@ -77,7 +77,10 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "profi
         </div>
 
         <div class="transfer-profile-actions">
-            <button type="submit" class="btn btn-primary">${ ui.message("transferapp.profile.save") }</button>
+            <button type="submit" class="btn btn-primary"
+                    ${ licenseValidatedFlag ? '' : 'disabled="disabled"' }>
+                ${ ui.message("transferapp.profile.save") }
+            </button>
         </div>
     </form>
 </div>
@@ -91,7 +94,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "profi
         <h3 id="transfer-license-otp-title">${ ui.message("transferapp.profile.license.otpTitle") }</h3>
     </div>
     <div class="dialog-content">
-        <p class="transfer-license-otp-message">${ ui.message("transferapp.profile.license.otpMessage") }</p>
+        <p id="transfer-license-otp-info" class="transfer-license-otp-message">${ ui.message("transferapp.profile.license.otpMessage") }</p>
         <div class="transfer-profile-field">
             <label for="transfer-license-otp-input">${ ui.message("transferapp.profile.license.otpLabel") }</label>
             <input type="text" id="transfer-license-otp-input" maxlength="12" autocomplete="one-time-code"
@@ -122,10 +125,12 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "profi
             saveSuccess: "${ ui.encodeJavaScript(ui.message('transferapp.profile.saveSuccess')) }",
             saveError: "${ ui.encodeJavaScript(ui.message('transferapp.profile.saveError')) }",
             licenseRequired: "${ ui.encodeJavaScript(ui.message('transferapp.profile.license.required')) }",
+            licenseNotValidated: "${ ui.encodeJavaScript(ui.message('transferapp.profile.license.notValidated')) }",
             startError: "${ ui.encodeJavaScript(ui.message('transferapp.profile.license.startError')) }",
             otpRequired: "${ ui.encodeJavaScript(ui.message('transferapp.profile.license.otpRequired')) }",
             otpError: "${ ui.encodeJavaScript(ui.message('transferapp.profile.license.otpError')) }",
             otpSuccess: "${ ui.encodeJavaScript(ui.message('transferapp.profile.license.otpSuccess')) }",
+            otpMessage: "${ ui.encodeJavaScript(ui.message('transferapp.profile.license.otpMessage')) }",
             validated: "${ ui.encodeJavaScript(ui.message('transferapp.profile.license.validated')) }"
         }
     };

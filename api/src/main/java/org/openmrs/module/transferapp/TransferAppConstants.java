@@ -211,6 +211,14 @@ public final class TransferAppConstants {
 
 	public static final String HIE_FACILITY_REGISTRY_PATH = "/facility-registry/fhir";
 
+	/** Provider Registry license validate (starts OTP flow). */
+	public static final String HIE_PROVIDER_REGISTRY_LICENSE_VALIDATE_PATH =
+			"/provider-registry/api/v1/pr/licenses/validate";
+
+	/** Provider Registry OTP verify (completes license validation). */
+	public static final String HIE_PROVIDER_REGISTRY_LICENSE_VALIDATE_OTP_PATH =
+			"/provider-registry/api/v1/pr/licenses/validate-otp";
+
 	public static final String HIE_AUTH_TOKEN_HEADER = "X-Auth-Token";
 
 	public static final int PATIENT_DASHBOARD_TRANSFER_LIMIT = 3;

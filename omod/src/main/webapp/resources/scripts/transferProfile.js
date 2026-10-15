@@ -36,21 +36,39 @@ jQuery(function($) {
         $("#transfer-license-validated-badge").toggle(validated);
         $("#transfer-license-result-row").toggle(validated);
         $("#transfer-license-validate-hint").toggle(!validated);
+        $("#transfer-profile-form button[type='submit']").prop("disabled", !validated);
+        if (!validated) {
+            $("#licenseStatusDisplay").val("");
+            $("#licenseExpiryDisplay").val("");
+        }
     }
 
     function applyValidatedLicense(result) {
         var licenseNumber = trimValue((result && result.licenseNumber) || $("#licenseNumber").val());
         var status = trimValue(result && result.licenseStatus);
         var expiry = trimValue(result && result.licenseExpiryDate);
+        var qualification = trimValue(result && result.qualification);
+        var speciality = trimValue((result && (result.speciality || result.specialty)) || "");
         $("#licenseNumber").val(licenseNumber).attr("data-validated-license", licenseNumber);
         $("#licenseStatusDisplay").val(status);
         $("#licenseExpiryDisplay").val(expiry);
+        if (qualification) {
+            $("#qualification").val(qualification);
+        }
+        if (speciality) {
+            $("#speciality").val(speciality);
+        }
         syncLicenseValidationUi();
     }
 
-    function openOtpDialog() {
+    function openOtpDialog(infoMessage) {
         $("#transfer-license-otp-error").hide().text("");
         $("#transfer-license-otp-input").val("");
+        if (infoMessage) {
+            $("#transfer-license-otp-info").text(infoMessage);
+        } else {
+            $("#transfer-license-otp-info").text(messages.otpMessage || "Enter the OTP sent for this license number.");
+        }
         $("#transfer-license-otp-overlay").show();
         $("#transfer-license-otp-dialog").addClass("is-open").css("display", "flex").show();
         setTimeout(function() {
@@ -73,8 +91,28 @@ jQuery(function($) {
     }
 
     $("#licenseNumber").on("input change", function() {
+        var current = trimValue($(this).val());
+        var validatedLicense = trimValue($(this).attr("data-validated-license"));
+        if (!current || current !== validatedLicense) {
+            $(this).attr("data-validated-license", "");
+        }
         syncLicenseValidationUi();
     });
+
+    function resolveAjaxErrorMessage(xhr, fallback) {
+        if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+            return xhr.responseJSON.message;
+        }
+        if (xhr && xhr.responseText) {
+            try {
+                var parsed = $.parseJSON(xhr.responseText);
+                if (parsed && parsed.message) {
+                    return parsed.message;
+                }
+            } catch (ignore) {}
+        }
+        return fallback;
+    }
 
     $("#transfer-license-validate-btn").on("click", function() {
         var licenseNumber = trimValue($("#licenseNumber").val());
@@ -87,15 +125,21 @@ jQuery(function($) {
         var $btn = $(this);
         $btn.prop("disabled", true);
         $.post(startValidationUrl, { licenseNumber: licenseNumber }, function(response) {
+            var message = response && response.message
+                ? response.message
+                : (messages.startError || "Unable to start license validation");
             if (response && response.status === "success" && (response.needsOtp === true || response.needsOtp === "true")) {
                 pendingLicenseNumber = licenseNumber;
-                openOtpDialog();
+                showProfileMessage(message, false);
+                openOtpDialog(message);
                 return;
             }
-            var message = response && response.message ? response.message : messages.startError;
             showProfileMessage(message, true);
-        }, "json").fail(function() {
-            showProfileMessage(messages.startError || "Unable to start license validation", true);
+        }, "json").fail(function(xhr) {
+            showProfileMessage(
+                resolveAjaxErrorMessage(xhr, messages.startError || "Unable to start license validation"),
+                true
+            );
         }).always(function() {
             $btn.prop("disabled", false);
         });
@@ -123,16 +167,20 @@ jQuery(function($) {
             licenseNumber: pendingLicenseNumber,
             otp: otp
         }, function(response) {
+            var message = response && response.message
+                ? response.message
+                : (messages.otpError || "Unable to verify OTP");
             if (response && response.status === "success") {
                 applyValidatedLicense(response);
                 closeOtpDialog();
-                showProfileMessage(messages.otpSuccess || "License verified successfully", false);
+                showProfileMessage(message || messages.otpSuccess || "License verified successfully", false);
                 return;
             }
-            var message = response && response.message ? response.message : messages.otpError;
             $("#transfer-license-otp-error").text(message).show();
-        }, "json").fail(function() {
-            $("#transfer-license-otp-error").text(messages.otpError || "Unable to verify OTP").show();
+        }, "json").fail(function(xhr) {
+            $("#transfer-license-otp-error").text(
+                resolveAjaxErrorMessage(xhr, messages.otpError || "Unable to verify OTP")
+            ).show();
         }).always(function() {
             setOtpBusy(false);
         });
@@ -147,6 +195,16 @@ jQuery(function($) {
 
     $("#transfer-profile-form").on("submit", function(event) {
         event.preventDefault();
+        if (!isLicenseValidatedForCurrentValue()) {
+            showProfileMessage(
+                messages.licenseNotValidated || "License number must be validated before the profile can be saved",
+                true
+            );
+            $("#licenseNumber").focus();
+            syncLicenseValidationUi();
+            return;
+        }
+
         var $form = $(this);
         var $submit = $form.find("button[type='submit']");
         $submit.prop("disabled", true);
@@ -158,10 +216,10 @@ jQuery(function($) {
                 var message = response && response.message ? response.message : messages.saveError;
                 showProfileMessage(message, true);
             }
-        }, "json").fail(function() {
-            showProfileMessage(messages.saveError, true);
+        }, "json").fail(function(xhr) {
+            showProfileMessage(resolveAjaxErrorMessage(xhr, messages.saveError), true);
         }).always(function() {
-            $submit.prop("disabled", false);
+            syncLicenseValidationUi();
         });
     });
 

@@ -105,12 +105,34 @@ public final class ProviderProfileAttributes {
 		return values;
 	}
 
+	/**
+	 * True when this user has {@code License Validated=true} for the given license number.
+	 */
+	public static boolean isLicenseValidatedForUser(User user, String licenseNumber) {
+		String license = StringUtils.trimToNull(licenseNumber);
+		if (user == null || license == null) {
+			return false;
+		}
+		Provider provider = findProviderForUser(user);
+		if (provider == null) {
+			return false;
+		}
+		if (!Boolean.TRUE.equals(readBoolean(provider, TYPE_LICENSE_VALIDATED))) {
+			return false;
+		}
+		String storedLicense = readText(provider, TYPE_PROVIDER_LICENSE);
+		return license.equals(StringUtils.trimToNull(storedLicense));
+	}
+
 	public static TransferProfile saveProfileForUser(User user, String licenseNumber, String phoneNumber,
 			String qualification, String speciality) {
 		if (user == null || user.getUserId() == null) {
 			throw new APIException("You must be logged in to save your profile");
 		}
 		String license = requireText(licenseNumber, "License number is required");
+		if (!isLicenseValidatedForUser(user, license)) {
+			throw new APIException("License number must be validated before the profile can be saved");
+		}
 		String phone = requireText(phoneNumber, "Phone number is required");
 		String qualificationValue = requireText(qualification, "Qualification is required");
 		String specialityValue = StringUtils.trimToNull(speciality);
@@ -142,6 +164,35 @@ public final class ProviderProfileAttributes {
 		upsertBoolean(provider, TYPE_LICENSE_VALIDATED, validated);
 		upsertDate(provider, TYPE_LICENSE_EXPIRY, parseDate(expiryDate));
 		upsertText(provider, TYPE_LICENSE_STATUS, status);
+		Context.getProviderService().saveProvider(provider);
+	}
+
+	/**
+	 * Persists OTP verification fields from Provider Registry onto the user's provider attributes.
+	 * Call only after Provider Registry reports a successful active license.
+	 */
+	public static void applyOtpVerificationResult(User user, String licenseNumber, String expiryDate, String status,
+			String qualification, String speciality) {
+		String license = StringUtils.trimToNull(licenseNumber);
+		if (license == null) {
+			throw new APIException("License number is required");
+		}
+		Provider provider = ensureProviderForUser(user);
+		upsertText(provider, TYPE_PROVIDER_LICENSE, license);
+		upsertBoolean(provider, TYPE_LICENSE_VALIDATED, true);
+		upsertDate(provider, TYPE_LICENSE_EXPIRY, parseDate(expiryDate));
+		String statusValue = StringUtils.trimToNull(status);
+		if (statusValue != null) {
+			upsertText(provider, TYPE_LICENSE_STATUS, statusValue);
+		}
+		String qualificationValue = StringUtils.trimToNull(qualification);
+		if (qualificationValue != null) {
+			upsertText(provider, TYPE_QUALIFICATION, qualificationValue);
+		}
+		String specialityValue = StringUtils.trimToNull(speciality);
+		if (specialityValue != null) {
+			upsertText(provider, TYPE_SPECIALITY, specialityValue);
+		}
 		Context.getProviderService().saveProvider(provider);
 	}
 
