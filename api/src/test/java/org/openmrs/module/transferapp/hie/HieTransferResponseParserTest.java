@@ -43,6 +43,28 @@ public class HieTransferResponseParserTest {
 	}
 
 	@Test
+	public void parseEncounterMapsBareFhirEncounterWithoutPatientUpid() throws Exception {
+		String json = "{"
+				+ "\"resourceType\":\"Encounter\","
+				+ "\"id\":\"cae9f9af-b23d-4b0c-813d-16431a31a526\","
+				+ "\"status\":\"in-progress\","
+				+ "\"period\":{\"start\":\"2026-08-11T15:50:23+02:00\"},"
+				+ "\"hospitalization\":{"
+				+ "\"origin\":{\"display\":\"Kiziguro District Hospital\"},"
+				+ "\"destination\":{\"display\":\"CHUK\"}"
+				+ "}"
+				+ "}";
+
+		Map<String, Object> transfer = new HieTransferResponseParser().parseEncounter(json);
+
+		assertEquals("cae9f9af-b23d-4b0c-813d-16431a31a526", transfer.get("id"));
+		assertEquals("in-progress", transfer.get("status"));
+		assertEquals("Kiziguro District Hospital", transfer.get("origin"));
+		assertEquals("CHUK", transfer.get("destination"));
+		assertEquals("", transfer.get("subject"));
+	}
+
+	@Test
 	public void mapsResponseTwoPreviewFallbacks() throws Exception {
 		java.io.File jsonFile = resolveDevsFile("response_two.json");
 		assertTrue("response_two.json should exist for preview fallback mapping", jsonFile.exists());

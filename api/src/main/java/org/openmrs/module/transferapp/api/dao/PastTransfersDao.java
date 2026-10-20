@@ -36,14 +36,19 @@ public interface PastTransfersDao {
 	 * Visits whose {@code date_started} falls in {@code [start, end]} and that have at least one
 	 * non-voided registration encounter. Newest start first.
 	 * When {@code patientId} is non-null, results are limited to that patient (fast UPID filter).
+	 * Optional insurance filter: registration insurance-type obs matching {@code insuranceValueCodedIds}
+	 * and/or concept-name {@code insuranceNamePatterns}; when {@code includeMissingInsurance} is true,
+	 * visits with no insurance-type obs are included (used for NONE).
 	 *
 	 * @return rows as {@code [visitId, patientId, startDatetime, stopDatetime]}
 	 */
 	List<Object[]> findVisitsWithRegistrationInRange(Date start, Date end, Integer registrationEncounterTypeId,
-			Integer patientId, int offset, int maxResults);
+			Integer patientId, Integer insuranceTypeConceptId, Collection<Integer> insuranceValueCodedIds,
+			Collection<String> insuranceNamePatterns, boolean includeMissingInsurance, int offset, int maxResults);
 
 	int countVisitsWithRegistrationInRange(Date start, Date end, Integer registrationEncounterTypeId,
-			Integer patientId);
+			Integer patientId, Integer insuranceTypeConceptId, Collection<Integer> insuranceValueCodedIds,
+			Collection<String> insuranceNamePatterns, boolean includeMissingInsurance);
 
 	/**
 	 * Transfer Id observation value_text values keyed by visit id for the given concept.

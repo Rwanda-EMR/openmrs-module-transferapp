@@ -30,6 +30,7 @@
         filterStartDate: "${ ui.encodeJavaScript(filterStartDate ?: '') }",
         filterEndDate: "${ ui.encodeJavaScript(filterEndDate ?: '') }",
         filterUpid: "${ ui.encodeJavaScript(filterUpid ?: '') }",
+        filterInsuranceType: "${ ui.encodeJavaScript(filterInsuranceType ?: '') }",
         pageSize: ${ pastTransfersPageSize ?: 100 },
         nextOffset: ${ pastTransfersNextOffset ?: 0 },
         totalCount: ${ pastTransfersTotalCount ?: 0 },
@@ -146,6 +147,18 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "pastT
                    value="${ ui.encodeHtmlAttribute(filterUpid ?: '') }"
                    placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.pastTransfers.filter.upid.placeholder')) }"
                    autocomplete="off" />
+        </div>
+        <div class="transfer-records-filter-field transfer-records-filter-field-insurance">
+            <label for="past-transfers-filter-insurance-type">${ ui.message("transferapp.pastTransfers.filter.insuranceType") }</label>
+            <select id="past-transfers-filter-insurance-type" name="insuranceType">
+                <option value="">${ ui.message("transferapp.pastTransfers.filter.insuranceType.all") }</option>
+                <% (insuranceTypeOptions ?: []).each { option -> %>
+                <option value="${ ui.encodeHtmlAttribute(option) }"
+                        ${ (filterInsuranceType ?: '') == option ? 'selected="selected"' : '' }>
+                    ${ ui.encodeHtmlContent(option) }
+                </option>
+                <% } %>
+            </select>
         </div>
         <div class="transfer-records-filter-actions">
             <button type="submit" class="confirm">${ ui.message("transferapp.pastTransfers.filter.apply") }</button>

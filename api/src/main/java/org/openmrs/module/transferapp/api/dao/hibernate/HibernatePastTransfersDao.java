@@ -71,7 +71,9 @@ public class HibernatePastTransfersDao implements PastTransfersDao {
 	@Override
 	@SuppressWarnings("unchecked")
 	public List<Object[]> findVisitsWithRegistrationInRange(Date start, Date end,
-			Integer registrationEncounterTypeId, Integer patientId, int offset, int maxResults) {
+			Integer registrationEncounterTypeId, Integer patientId, Integer insuranceTypeConceptId,
+			Collection<Integer> insuranceValueCodedIds, Collection<String> insuranceNamePatterns,
+			boolean includeMissingInsurance, int offset, int maxResults) {
 		if (start == null || end == null || registrationEncounterTypeId == null || maxResults <= 0) {
 			return Collections.emptyList();
 		}
@@ -88,14 +90,13 @@ public class HibernatePastTransfersDao implements PastTransfersDao {
 		if (patientId != null) {
 			sql.append("AND v.patient_id = :patientId ");
 		}
+		appendInsuranceTypeFilter(sql, insuranceTypeConceptId, insuranceValueCodedIds, insuranceNamePatterns,
+				includeMissingInsurance);
 		sql.append("ORDER BY v.date_started DESC");
 		SQLQuery query = getSession().createSQLQuery(sql.toString());
-		query.setTimestamp("start", start);
-		query.setTimestamp("end", end);
-		query.setInteger("regType", registrationEncounterTypeId);
-		if (patientId != null) {
-			query.setInteger("patientId", patientId);
-		}
+		bindVisitRangeParams(query, start, end, registrationEncounterTypeId, patientId);
+		bindInsuranceTypeParams(query, insuranceTypeConceptId, insuranceValueCodedIds, insuranceNamePatterns,
+				includeMissingInsurance);
 		query.setFirstResult(safeOffset);
 		query.setMaxResults(maxResults);
 		query.addScalar("visitId", StandardBasicTypes.INTEGER);
@@ -108,7 +109,8 @@ public class HibernatePastTransfersDao implements PastTransfersDao {
 
 	@Override
 	public int countVisitsWithRegistrationInRange(Date start, Date end, Integer registrationEncounterTypeId,
-			Integer patientId) {
+			Integer patientId, Integer insuranceTypeConceptId, Collection<Integer> insuranceValueCodedIds,
+			Collection<String> insuranceNamePatterns, boolean includeMissingInsurance) {
 		if (start == null || end == null || registrationEncounterTypeId == null) {
 			return 0;
 		}
@@ -123,16 +125,109 @@ public class HibernatePastTransfersDao implements PastTransfersDao {
 		if (patientId != null) {
 			sql.append("AND v.patient_id = :patientId ");
 		}
+		appendInsuranceTypeFilter(sql, insuranceTypeConceptId, insuranceValueCodedIds, insuranceNamePatterns,
+				includeMissingInsurance);
 		SQLQuery query = getSession().createSQLQuery(sql.toString());
+		bindVisitRangeParams(query, start, end, registrationEncounterTypeId, patientId);
+		bindInsuranceTypeParams(query, insuranceTypeConceptId, insuranceValueCodedIds, insuranceNamePatterns,
+				includeMissingInsurance);
+		query.addScalar("totalCount", StandardBasicTypes.LONG);
+		Number count = (Number) query.uniqueResult();
+		return count == null ? 0 : count.intValue();
+	}
+
+	private static void bindVisitRangeParams(SQLQuery query, Date start, Date end, Integer registrationEncounterTypeId,
+			Integer patientId) {
 		query.setTimestamp("start", start);
 		query.setTimestamp("end", end);
 		query.setInteger("regType", registrationEncounterTypeId);
 		if (patientId != null) {
 			query.setInteger("patientId", patientId);
 		}
-		query.addScalar("totalCount", StandardBasicTypes.LONG);
-		Number count = (Number) query.uniqueResult();
-		return count == null ? 0 : count.intValue();
+	}
+
+	private static boolean hasInsuranceFilter(Integer insuranceTypeConceptId,
+			Collection<Integer> insuranceValueCodedIds, Collection<String> insuranceNamePatterns,
+			boolean includeMissingInsurance) {
+		if (insuranceTypeConceptId == null) {
+			return false;
+		}
+		boolean hasCoded = insuranceValueCodedIds != null && !insuranceValueCodedIds.isEmpty();
+		boolean hasPatterns = insuranceNamePatterns != null && !insuranceNamePatterns.isEmpty();
+		return hasCoded || hasPatterns || includeMissingInsurance;
+	}
+
+	private static void appendInsuranceTypeFilter(StringBuilder sql, Integer insuranceTypeConceptId,
+			Collection<Integer> insuranceValueCodedIds, Collection<String> insuranceNamePatterns,
+			boolean includeMissingInsurance) {
+		if (!hasInsuranceFilter(insuranceTypeConceptId, insuranceValueCodedIds, insuranceNamePatterns,
+				includeMissingInsurance)) {
+			return;
+		}
+		boolean hasCoded = insuranceValueCodedIds != null && !insuranceValueCodedIds.isEmpty();
+		boolean hasPatterns = insuranceNamePatterns != null && !insuranceNamePatterns.isEmpty();
+		sql.append("AND (");
+		if (hasCoded || hasPatterns) {
+			sql.append("EXISTS (")
+					.append("SELECT 1 FROM encounter ie ")
+					.append("INNER JOIN obs io ON io.encounter_id = ie.encounter_id AND io.voided = 0 ")
+					.append("LEFT JOIN concept_name icn ON icn.concept_id = io.value_coded ")
+					.append("AND icn.voided = 0 ")
+					.append("WHERE ie.visit_id = v.visit_id AND ie.voided = 0 ")
+					.append("AND ie.encounter_type = :regType ")
+					.append("AND io.concept_id = :insuranceTypeConceptId ")
+					.append("AND (");
+			boolean firstMatch = true;
+			if (hasCoded) {
+				sql.append("io.value_coded IN (:insuranceValueCodedIds)");
+				firstMatch = false;
+			}
+			if (hasPatterns) {
+				int index = 0;
+				for (String ignored : insuranceNamePatterns) {
+					if (!firstMatch) {
+						sql.append(" OR ");
+					}
+					sql.append("LOWER(icn.name) LIKE :insuranceNamePattern").append(index);
+					firstMatch = false;
+					index++;
+				}
+			}
+			sql.append(")) ");
+		}
+		if (includeMissingInsurance) {
+			if (hasCoded || hasPatterns) {
+				sql.append("OR ");
+			}
+			sql.append("NOT EXISTS (")
+					.append("SELECT 1 FROM encounter me ")
+					.append("INNER JOIN obs mo ON mo.encounter_id = me.encounter_id AND mo.voided = 0 ")
+					.append("WHERE me.visit_id = v.visit_id AND me.voided = 0 ")
+					.append("AND me.encounter_type = :regType ")
+					.append("AND mo.concept_id = :insuranceTypeConceptId")
+					.append(") ");
+		}
+		sql.append(") ");
+	}
+
+	private static void bindInsuranceTypeParams(SQLQuery query, Integer insuranceTypeConceptId,
+			Collection<Integer> insuranceValueCodedIds, Collection<String> insuranceNamePatterns,
+			boolean includeMissingInsurance) {
+		if (!hasInsuranceFilter(insuranceTypeConceptId, insuranceValueCodedIds, insuranceNamePatterns,
+				includeMissingInsurance)) {
+			return;
+		}
+		query.setInteger("insuranceTypeConceptId", insuranceTypeConceptId);
+		if (insuranceValueCodedIds != null && !insuranceValueCodedIds.isEmpty()) {
+			query.setParameterList("insuranceValueCodedIds", insuranceValueCodedIds);
+		}
+		if (insuranceNamePatterns != null && !insuranceNamePatterns.isEmpty()) {
+			int index = 0;
+			for (String pattern : insuranceNamePatterns) {
+				query.setString("insuranceNamePattern" + index, pattern);
+				index++;
+			}
+		}
 	}
 
 	@Override

@@ -31,10 +31,13 @@ import org.openmrs.module.transferapp.model.Transfer;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -82,6 +85,12 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 	@Override
 	public PastTransferPageResult findVisitsInRange(String startDate, String endDate, String upid, int offset,
 			int limit) {
+		return findVisitsInRange(startDate, endDate, upid, null, offset, limit);
+	}
+
+	@Override
+	public PastTransferPageResult findVisitsInRange(String startDate, String endDate, String upid, String insuranceType,
+			int offset, int limit) {
 		if (pastTransfersDao == null) {
 			throw new APIException("Past transfers data access is not configured");
 		}
@@ -111,9 +120,12 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 			}
 		}
 
+		InsuranceTypeFilter insuranceFilter = resolveInsuranceTypeFilter(insuranceType);
 		Date[] range = resolveInclusiveDayRange(startDate, endDate);
 		int totalCount = pastTransfersDao.countVisitsWithRegistrationInRange(
-				range[0], range[1], registrationTypeId, patientIdFilter);
+				range[0], range[1], registrationTypeId, patientIdFilter,
+				insuranceFilter.questionConceptId, insuranceFilter.valueCodedIds,
+				insuranceFilter.namePatterns, insuranceFilter.includeMissing);
 		page.setTotalCount(totalCount);
 		if (totalCount <= 0 || safeOffset >= totalCount) {
 			page.setItems(Collections.<PastTransferItem>emptyList());
@@ -121,7 +133,9 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 		}
 
 		List<Object[]> visitRows = pastTransfersDao.findVisitsWithRegistrationInRange(
-				range[0], range[1], registrationTypeId, patientIdFilter, safeOffset, safeLimit);
+				range[0], range[1], registrationTypeId, patientIdFilter,
+				insuranceFilter.questionConceptId, insuranceFilter.valueCodedIds,
+				insuranceFilter.namePatterns, insuranceFilter.includeMissing, safeOffset, safeLimit);
 		if (visitRows == null || visitRows.isEmpty()) {
 			page.setItems(Collections.<PastTransferItem>emptyList());
 			return page;
@@ -405,10 +419,103 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 		return display;
 	}
 
+	private InsuranceTypeFilter resolveInsuranceTypeFilter(String insuranceType) {
+		String category = StringUtils.trimToNull(insuranceType);
+		if (category == null) {
+			return InsuranceTypeFilter.none();
+		}
+		category = category.toUpperCase(Locale.ENGLISH);
+		String gpName = null;
+		List<String> namePatterns = Collections.emptyList();
+		boolean includeMissing = false;
+		if (TransferAppConstants.HEALTH_INSURANCE_CBHI.equals(category)) {
+			gpName = TransferAppConstants.GP_INSURANCE_CBHI;
+			namePatterns = Arrays.asList("%cbhi%", "%mutuelle%");
+		} else if (TransferAppConstants.HEALTH_INSURANCE_RSSB.equals(category)) {
+			gpName = TransferAppConstants.GP_INSURANCE_RSSB;
+			namePatterns = Collections.singletonList("%rssb%");
+		} else if (TransferAppConstants.HEALTH_INSURANCE_MMI.equals(category)) {
+			gpName = TransferAppConstants.GP_INSURANCE_MMI;
+			namePatterns = Collections.singletonList("%mmi%");
+		} else if (TransferAppConstants.HEALTH_INSURANCE_OTHER.equals(category)) {
+			gpName = TransferAppConstants.GP_INSURANCE_OTHER;
+			namePatterns = Collections.singletonList("%other%");
+		} else if (TransferAppConstants.HEALTH_INSURANCE_NONE.equals(category)) {
+			gpName = TransferAppConstants.GP_INSURANCE_NONE;
+			namePatterns = Arrays.asList("none", "n/a", "na", "no", "%no insurance%", "%without insurance%",
+					"%uninsured%");
+			includeMissing = true;
+		} else {
+			return InsuranceTypeFilter.none();
+		}
+
+		Integer questionConceptId = resolveConceptId(
+				TransferAppConstants.GP_INSURANCE_TYPE_CONCEPT_UUID,
+				TransferAppConstants.DEFAULT_INSURANCE_TYPE_CONCEPT_UUID);
+		if (questionConceptId == null) {
+			return InsuranceTypeFilter.none();
+		}
+		Set<Integer> codedIds = loadConceptIdsFromGlobalProperty(gpName);
+		List<String> sqlPatterns = new ArrayList<String>();
+		for (String pattern : namePatterns) {
+			if (pattern.contains("%")) {
+				sqlPatterns.add(pattern.toLowerCase(Locale.ENGLISH));
+			} else {
+				sqlPatterns.add(pattern.toLowerCase(Locale.ENGLISH));
+			}
+		}
+		// Exact label matches use equality-style LIKE without wildcards when no %.
+		return new InsuranceTypeFilter(questionConceptId, codedIds, sqlPatterns, includeMissing);
+	}
+
+	private Set<Integer> loadConceptIdsFromGlobalProperty(String globalPropertyName) {
+		String rawValue = Context.getAdministrationService().getGlobalProperty(globalPropertyName);
+		if (StringUtils.isBlank(rawValue)) {
+			return Collections.emptySet();
+		}
+		Set<Integer> conceptIds = new HashSet<Integer>();
+		for (String token : rawValue.split(",")) {
+			String trimmed = StringUtils.trimToNull(token);
+			if (trimmed == null) {
+				continue;
+			}
+			try {
+				conceptIds.add(Integer.valueOf(trimmed));
+			}
+			catch (NumberFormatException ignored) {
+				Concept concept = Context.getConceptService().getConceptByUuid(trimmed);
+				if (concept != null && concept.getConceptId() != null) {
+					conceptIds.add(concept.getConceptId());
+				}
+			}
+		}
+		return conceptIds;
+	}
+
 	private void clearTime(Calendar calendar) {
 		calendar.set(Calendar.HOUR_OF_DAY, 0);
 		calendar.set(Calendar.MINUTE, 0);
 		calendar.set(Calendar.SECOND, 0);
 		calendar.set(Calendar.MILLISECOND, 0);
+	}
+
+	private static final class InsuranceTypeFilter {
+		private final Integer questionConceptId;
+		private final Collection<Integer> valueCodedIds;
+		private final Collection<String> namePatterns;
+		private final boolean includeMissing;
+
+		private InsuranceTypeFilter(Integer questionConceptId, Collection<Integer> valueCodedIds,
+				Collection<String> namePatterns, boolean includeMissing) {
+			this.questionConceptId = questionConceptId;
+			this.valueCodedIds = valueCodedIds != null ? valueCodedIds : Collections.<Integer>emptySet();
+			this.namePatterns = namePatterns != null ? namePatterns : Collections.<String>emptyList();
+			this.includeMissing = includeMissing;
+		}
+
+		private static InsuranceTypeFilter none() {
+			return new InsuranceTypeFilter(null, Collections.<Integer>emptySet(),
+					Collections.<String>emptyList(), false);
+		}
 	}
 }

@@ -11,7 +11,7 @@
     def approvalsUrl = ui.pageLink("transferapp", "approvals") + "?app=" + appParam
     def pastTransfersUrl = ui.pageLink("transferapp", "pastTransfers") + "?app=" + appParam
     def profileUrl = ui.pageLink("transferapp", "transferProfile") + "?app=" + appParam
-    // canPastTransfers / canConfigure / canApprovals come from TransferNavFragmentController
+    // canPastTransfers / canConfigure / canApprovals / canProfile come from TransferNavFragmentController
 %>
 <nav class="transfer-app-nav" aria-label="Transfer app navigation">
     <a href="${ dashboardUrl }"
@@ -46,7 +46,9 @@
     <a href="${ approversUrl }"
        class="transfer-app-nav-link ${ activeTab == 'approvers' ? 'active' : '' }">${ ui.message("transferapp.nav.approvers") }</a>
     <% } %>
+    <% if (canProfile) { %>
     <span class="transfer-app-nav-separator">|</span>
     <a href="${ profileUrl }"
        class="transfer-app-nav-link ${ activeTab == 'profile' ? 'active' : '' }">${ ui.message("transferapp.nav.profile") }</a>
+    <% } %>
 </nav>

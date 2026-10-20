@@ -53,11 +53,26 @@ public class TransferRestController {
 	@ResponseBody
 	public Object getTransfer(HttpServletRequest request, HttpServletResponse response) throws ResponseException {
 		String upid = request.getParameter("upid");
+		if (upid != null) {
+			upid = upid.trim();
+			if (upid.isEmpty()) {
+				upid = null;
+			}
+		}
 
-		if (upid == null || upid.trim().isEmpty()) {
-			log.warn("Transfer REST API called without UPID parameter");
+		String transferId = request.getParameter("transferId");
+		if (transferId != null) {
+			transferId = transferId.trim();
+			if (transferId.isEmpty()) {
+				transferId = null;
+			}
+		}
+
+		if (upid == null && transferId == null) {
+			log.warn("Transfer REST API called without UPID or transferId");
 			throw new IllegalRequestException(
-					"UPID parameter is required. Usage: /rest/v1/transferapp/transfer?upid=<patient-upid>[&activeOnly=true]");
+					"UPID or transferId is required. Usage: /rest/v1/transferapp/transfer?upid=<patient-upid>"
+							+ " or /rest/v1/transferapp/transfer?transferId=<hie-encounter-uuid>");
 		}
 
 		boolean canList = TransferPrivilegeHelper.hasPrivilege(TransferAppActivator.PRIVILEGE_LIST_TRANSFERS)
@@ -70,15 +85,6 @@ public class TransferRestController {
 			denied.put("requiredPrivilege", TransferAppActivator.PRIVILEGE_LIST_TRANSFERS);
 			response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 			return denied;
-		}
-
-		upid = upid.trim();
-		String transferId = request.getParameter("transferId");
-		if (transferId != null) {
-			transferId = transferId.trim();
-			if (transferId.isEmpty()) {
-				transferId = null;
-			}
 		}
 
 		String fromDate = request.getParameter("fromDate");
@@ -102,12 +108,12 @@ public class TransferRestController {
 			activeOnly = Boolean.parseBoolean(activeOnlyParam.trim());
 		}
 
-		log.info("Transfer REST API endpoint called for UPID: " + upid + ", activeOnly: " + activeOnly
-				+ ", fromDate: " + fromDate + ", endDate: " + endDate);
+		log.info("Transfer REST API endpoint called for UPID: " + upid + ", transferId: " + transferId
+				+ ", activeOnly: " + activeOnly + ", fromDate: " + fromDate + ", endDate: " + endDate);
 
 		try {
 			Map<String, Object> searchResult;
-			if (fromDate != null && endDate != null) {
+			if (fromDate != null && endDate != null && upid != null) {
 				searchResult = getTransferHieSearchService().searchTransfers(upid, transferId, fromDate, endDate);
 			} else {
 				searchResult = getTransferHieSearchService().searchTransfers(upid, transferId, activeOnly);

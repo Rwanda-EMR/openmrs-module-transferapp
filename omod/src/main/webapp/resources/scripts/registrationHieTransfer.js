@@ -267,8 +267,8 @@
 
         function loadTransferPreview(transferId, patientUpid) {
             ensurePreviewModal();
-            if (!transferId || !patientUpid) {
-                jq("#registration-hie-transfer-preview-body").html("<p style='color:red;'>Missing transfer UUID or UPID.</p>");
+            if (!transferId) {
+                jq("#registration-hie-transfer-preview-body").html("<p style='color:red;'>Missing transfer UUID.</p>");
                 updateValidateButton(null);
                 showPreviewDialog();
                 return;
@@ -280,14 +280,18 @@
             updateValidateButton(null);
             showPreviewDialog();
 
+            var requestData = {
+                transferId: transferId,
+                activeOnly: false
+            };
+            if (patientUpid) {
+                requestData.upid = patientUpid;
+            }
+
             jq.ajax({
                 url: restUrl,
                 type: "GET",
-                data: {
-                    upid: patientUpid,
-                    transferId: transferId,
-                    activeOnly: false
-                },
+                data: requestData,
                 dataType: "json",
                 headers: {
                     "Accept": "application/json"

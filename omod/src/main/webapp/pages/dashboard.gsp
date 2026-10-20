@@ -22,6 +22,7 @@
 </script>
 
 <div class="transfer-dashboard">
+${ ui.includeFragment("transferapp", "home/providerLicenseRequiredBanner") }
 ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "dashboard", app: "transferapp.dashboard" ]) }
 
 <% if (!canAccessDashboard) { %>

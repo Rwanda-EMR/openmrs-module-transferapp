@@ -506,11 +506,8 @@ public class TransferSaveController {
 				}
 				resolvedUpid = new TransferPatientSnapshotResolver().resolveUpid(patient);
 			}
-			if (StringUtils.isBlank(resolvedUpid)) {
-				response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Patient UPID is required to load the transfer");
-				return;
-			}
 
+			// Prefer HIE Encounter lookup by transfer UUID; UPID is optional fallback only.
 			Map<String, Object> searchResult = getTransferHieSearchService()
 					.searchTransfers(resolvedUpid, transferId, false);
 			@SuppressWarnings("unchecked")

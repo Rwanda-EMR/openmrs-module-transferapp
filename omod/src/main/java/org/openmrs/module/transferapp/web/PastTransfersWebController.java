@@ -46,6 +46,7 @@ public class PastTransfersWebController {
 			@RequestParam("startDate") String startDate,
 			@RequestParam("endDate") String endDate,
 			@RequestParam(value = "upid", required = false) String upid,
+			@RequestParam(value = "insuranceType", required = false) String insuranceType,
 			@RequestParam(value = "offset", required = false) Integer offset,
 			@RequestParam(value = "limit", required = false) Integer limit) throws Exception {
 
@@ -77,13 +78,15 @@ public class PastTransfersWebController {
 					? limit.intValue()
 					: PastTransfersService.DEFAULT_PAGE_SIZE;
 			String filterUpid = StringUtils.trimToEmpty(upid);
+			String filterInsuranceType = StringUtils.trimToEmpty(insuranceType);
 			PastTransferPageResult page = service.findVisitsInRange(
-					normalizedStart, normalizedEnd, filterUpid, pageOffset, pageLimit);
+					normalizedStart, normalizedEnd, filterUpid, filterInsuranceType, pageOffset, pageLimit);
 
 			data.put("status", "success");
 			data.put("startDate", normalizedStart);
 			data.put("endDate", normalizedEnd);
 			data.put("upid", filterUpid);
+			data.put("insuranceType", filterInsuranceType);
 			data.put("offset", page.getOffset());
 			data.put("limit", page.getLimit());
 			data.put("totalCount", page.getTotalCount());

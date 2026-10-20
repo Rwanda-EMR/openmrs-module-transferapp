@@ -17,22 +17,33 @@ import org.openmrs.PersonName;
 import org.openmrs.User;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.appui.UiSessionContext;
+import org.openmrs.module.transferapp.api.ProviderLicenseRequirement;
 import org.openmrs.module.transferapp.api.ProviderProfileAttributes;
 import org.openmrs.module.transferapp.api.TransferProfileService;
 import org.openmrs.module.transferapp.model.TransferProfile;
+import org.openmrs.ui.framework.UiUtils;
 import org.openmrs.ui.framework.annotation.SpringBean;
 import org.openmrs.ui.framework.page.PageModel;
+import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class TransferProfilePageController {
 
-	public void get(UiSessionContext sessionContext, PageModel model,
-			@SpringBean("transferProfileService") TransferProfileService transferProfileService) {
+	public String get(UiSessionContext sessionContext, PageModel model, UiUtils ui,
+			@SpringBean("transferProfileService") TransferProfileService transferProfileService,
+			@RequestParam(value = "app", required = false) String app) {
 
 		sessionContext.requireAuthentication();
 
 		User user = Context.getAuthenticatedUser();
+		if (!ProviderLicenseRequirement.currentUserHasConfiguredProviderRole(user)) {
+			Map<String, Object> params = new LinkedHashMap<String, Object>();
+			params.put("app", app != null && app.trim().length() > 0 ? app.trim() : "transferapp.dashboard");
+			return "redirect:" + ui.pageLinkWithoutContextPath("transferapp", "dashboard", params);
+		}
+
 		TransferProfile profile = transferProfileService.getProfileForUser(user);
 		String displayName = "";
 		if (user != null && user.getPerson() != null && user.getPerson().getPersonName() != null) {
@@ -52,6 +63,8 @@ public class TransferProfilePageController {
 		model.addAttribute("licenseValidated", "true".equals(licenseAttrs.get("licenseValidated")));
 		model.addAttribute("licenseExpiryDate", licenseAttrs.get("licenseExpiryDate"));
 		model.addAttribute("licenseStatus", licenseAttrs.get("licenseStatus"));
+		model.addAttribute("licenseValidationEnabled", ProviderLicenseRequirement.isLicenseValidationEnabled());
+		return null;
 	}
 
 }

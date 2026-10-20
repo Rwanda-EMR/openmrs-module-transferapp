@@ -91,6 +91,48 @@ public class HieTransferResponseParser {
         return parsePage(jsonData).getTransfers();
     }
 
+	/**
+	 * Parses a single FHIR Encounter (from {@code GET /shr/Encounter/{id}}) into the same
+	 * transfer preview map used by {@code $list-transfers}.
+	 */
+	public Map<String, Object> parseEncounter(String jsonData) throws Exception {
+		if (jsonData == null || jsonData.trim().isEmpty()) {
+			return null;
+		}
+		ObjectMapper mapper = new ObjectMapper();
+		JsonNode rootNode = mapper.readTree(jsonData);
+		if (rootNode == null || rootNode.isNull()) {
+			return null;
+		}
+		JsonNode resourceType = rootNode.get("resourceType");
+		String type = resourceType != null && !resourceType.isNull() ? resourceType.getTextValue() : null;
+		if ("Encounter".equals(type)) {
+			return mapEncounterResource(rootNode);
+		}
+		if ("Parameters".equals(type)) {
+			List<Map<String, Object>> transfers = parsePage(jsonData).getTransfers();
+			return transfers != null && !transfers.isEmpty() ? transfers.get(0) : null;
+		}
+		if ("Bundle".equals(type)) {
+			JsonNode entries = rootNode.get("entry");
+			if (entries != null && entries.isArray()) {
+				Iterator<JsonNode> entriesIterator = entries.getElements();
+				while (entriesIterator.hasNext()) {
+					JsonNode entry = entriesIterator.next();
+					JsonNode resource = entry != null ? entry.get("resource") : null;
+					if (resource == null || resource.isNull()) {
+						continue;
+					}
+					JsonNode nestedType = resource.get("resourceType");
+					if (nestedType != null && !nestedType.isNull() && "Encounter".equals(nestedType.getTextValue())) {
+						return mapEncounterResource(resource);
+					}
+				}
+			}
+		}
+		return null;
+	}
+
     public HieTransferResponsePage parsePage(String jsonData) throws Exception {
         if (jsonData == null || jsonData.trim().isEmpty()) {
             return emptyPage();
@@ -160,63 +202,76 @@ public class HieTransferResponseParser {
             if (resource == null || resource.isNull()) {
                 continue;
             }
-
-            Map<String, Object> transfer = new LinkedHashMap<String, Object>();
-            initializeTransferFormPlaceholders(transfer);
-
-            transfer.put("id", textOrDefault(resource.get("id"), ""));
-            transfer.put("status", firstNonBlank(textOrDefault(resource.get("status"), ""), "unknown"));
-
-            JsonNode subject = resource.get("subject");
-            if (subject != null && !subject.isNull()) {
-                JsonNode subjectIdentifier = subject.get("identifier");
-                if (subjectIdentifier != null && !subjectIdentifier.isNull()) {
-                    transfer.put("subject", textOrDefault(subjectIdentifier.get("value"), ""));
-                } else {
-                    transfer.put("subject", "");
-                }
-            } else {
-                transfer.put("subject", "");
-            }
-
-            JsonNode period = resource.get("period");
-            String startDateTime = "";
-            if (period != null && !period.isNull()) {
-                // List "date" column uses period.start only — never period.end (+1 month window).
-                startDateTime = textOrDefault(period.get("start"), "");
-            }
-            transfer.put("date", toDateOnly(startDateTime));
-
-            JsonNode hospitalization = resource.get("hospitalization");
-            if (hospitalization != null && !hospitalization.isNull()) {
-                JsonNode origin = hospitalization.get("origin");
-                if (origin != null && !origin.isNull()) {
-                    transfer.put("origin", textOrDefault(origin.get("display"), ""));
-                } else {
-                    transfer.put("origin", "");
-                }
-
-                JsonNode destination = hospitalization.get("destination");
-                if (destination != null && !destination.isNull()) {
-                    transfer.put("destination", textOrDefault(destination.get("display"), ""));
-                } else {
-                    transfer.put("destination", "");
-                }
-
-                JsonNode admitSource = hospitalization.get("admitSource");
-                transfer.put("admitSource", codingDisplay(admitSource));
-            } else {
-                transfer.put("origin", "");
-                transfer.put("destination", "");
-                transfer.put("admitSource", "");
-            }
-
-            mapTransferFormFields(resource, transfer);
-            transferList.add(transfer);
+			Map<String, Object> transfer = mapEncounterResource(resource);
+			if (transfer != null) {
+				transferList.add(transfer);
+			}
         }
 
         return new HieTransferResponsePage(transferList, hasMore, page, size, total);
     }
+
+	/**
+	 * Maps one FHIR Encounter resource into the transfer preview/list row shape.
+	 */
+	Map<String, Object> mapEncounterResource(JsonNode resource) {
+		if (resource == null || resource.isNull()) {
+			return null;
+		}
+
+		Map<String, Object> transfer = new LinkedHashMap<String, Object>();
+		initializeTransferFormPlaceholders(transfer);
+
+		transfer.put("id", textOrDefault(resource.get("id"), ""));
+		transfer.put("status", firstNonBlank(textOrDefault(resource.get("status"), ""), "unknown"));
+
+		JsonNode subject = resource.get("subject");
+		if (subject != null && !subject.isNull()) {
+			JsonNode subjectIdentifier = subject.get("identifier");
+			if (subjectIdentifier != null && !subjectIdentifier.isNull()) {
+				transfer.put("subject", textOrDefault(subjectIdentifier.get("value"), ""));
+			} else {
+				transfer.put("subject", "");
+			}
+		} else {
+			transfer.put("subject", "");
+		}
+
+		JsonNode period = resource.get("period");
+		String startDateTime = "";
+		if (period != null && !period.isNull()) {
+			// List "date" column uses period.start only — never period.end (+1 month window).
+			startDateTime = textOrDefault(period.get("start"), "");
+		}
+		transfer.put("date", toDateOnly(startDateTime));
+
+		JsonNode hospitalization = resource.get("hospitalization");
+		if (hospitalization != null && !hospitalization.isNull()) {
+			JsonNode origin = hospitalization.get("origin");
+			if (origin != null && !origin.isNull()) {
+				transfer.put("origin", textOrDefault(origin.get("display"), ""));
+			} else {
+				transfer.put("origin", "");
+			}
+
+			JsonNode destination = hospitalization.get("destination");
+			if (destination != null && !destination.isNull()) {
+				transfer.put("destination", textOrDefault(destination.get("display"), ""));
+			} else {
+				transfer.put("destination", "");
+			}
+
+			JsonNode admitSource = hospitalization.get("admitSource");
+			transfer.put("admitSource", codingDisplay(admitSource));
+		} else {
+			transfer.put("origin", "");
+			transfer.put("destination", "");
+			transfer.put("admitSource", "");
+		}
+
+		mapTransferFormFields(resource, transfer);
+		return transfer;
+	}
 
     private HieTransferResponsePage emptyPage() {
         return new HieTransferResponsePage(new ArrayList<Map<String, Object>>(), false, null, null, null);

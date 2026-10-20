@@ -19,11 +19,12 @@ import org.openmrs.User;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.transferapp.TransferAppActivator;
 import org.openmrs.module.transferapp.api.ApproverService;
+import org.openmrs.module.transferapp.api.ProviderLicenseRequirement;
 import org.openmrs.ui.framework.annotation.SpringBean;
 import org.openmrs.ui.framework.fragment.FragmentModel;
 
 /**
- * Nav visibility for Past Transfers, Approvals, Destinations, and Approvers.
+ * Nav visibility for Past Transfers, Approvals, Destinations, Approvers, and My Profile.
  * Approvals must use the injected ApproverService — Context.getService from the GSP
  * was failing silently, so the link only appeared when {@code activeTab == approvals}.
  */
@@ -49,8 +50,18 @@ public class TransferNavFragmentController {
 			canApprovals = false;
 		}
 
+		boolean canProfile = false;
+		try {
+			canProfile = ProviderLicenseRequirement.currentUserHasConfiguredProviderRole(user);
+		}
+		catch (Exception ex) {
+			log.warn("Unable to resolve My Profile nav visibility", ex);
+			canProfile = false;
+		}
+
 		model.addAttribute("canPastTransfers", canPastTransfers);
 		model.addAttribute("canConfigure", canConfigure);
 		model.addAttribute("canApprovals", canApprovals);
+		model.addAttribute("canProfile", canProfile);
 	}
 }

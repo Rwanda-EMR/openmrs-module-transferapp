@@ -153,6 +153,23 @@ public final class TransferAppConstants {
 	public static final String GP_OUTBOUND_FACILITY_NAME = "transferapp.outboundFacilityName";
 
 	/**
+	 * Comma-separated OpenMRS role names that require a Provider License on My Profile.
+	 * Default is {@code Provider}.
+	 */
+	public static final String GP_PROVIDER_ROLES = "transferapp.providerRoles";
+
+	public static final String DEFAULT_PROVIDER_ROLES = "Provider";
+
+	/**
+	 * When {@code true}, My Profile requires HIE Provider Registry license validation (OTP)
+	 * before save. When {@code false} (default), providers must still enter license details but
+	 * HIE validation is skipped.
+	 */
+	public static final String GP_LICENSE_VALIDATION_ENABLED = "transferapp.licenseValidationEnabled";
+
+	public static final String DEFAULT_LICENSE_VALIDATION_ENABLED = "false";
+
+	/**
 	 * Province of the current (outbound) facility. Preview-only fallback when a transfer targeting
 	 * {@link #GP_OUTBOUND_FACILITY_NAME} has no province in the HIE payload. Not used on outbound HIE submit.
 	 */

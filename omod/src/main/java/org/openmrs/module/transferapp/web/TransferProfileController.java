@@ -19,6 +19,7 @@ import org.apache.commons.logging.LogFactory;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.openmrs.User;
 import org.openmrs.api.context.Context;
+import org.openmrs.module.transferapp.api.ProviderLicenseRequirement;
 import org.openmrs.module.transferapp.api.ProviderProfileAttributes;
 import org.openmrs.module.transferapp.api.TransferProfileService;
 import org.openmrs.module.transferapp.hie.HieConnectionResolver;
@@ -54,6 +55,9 @@ public class TransferProfileController {
 		Map<String, Object> data = new HashMap<String, Object>();
 		try {
 			User user = Context.getAuthenticatedUser();
+			if (!requireProviderRole(response, data, user)) {
+				return;
+			}
 			String license = StringUtils.trimToNull(licenseNumber);
 			if (license == null) {
 				data.put("status", "error");
@@ -61,7 +65,8 @@ public class TransferProfileController {
 				writeJson(response, data);
 				return;
 			}
-			if (!ProviderProfileAttributes.isLicenseValidatedForUser(user, license)) {
+			if (ProviderLicenseRequirement.isLicenseValidationEnabled()
+					&& !ProviderProfileAttributes.isLicenseValidatedForUser(user, license)) {
 				data.put("status", "error");
 				data.put("message", "License number must be validated before the profile can be saved");
 				writeJson(response, data);
@@ -94,6 +99,15 @@ public class TransferProfileController {
 
 		Map<String, Object> data = new HashMap<String, Object>();
 		try {
+			if (!requireProviderRole(response, data, Context.getAuthenticatedUser())) {
+				return;
+			}
+			if (!ProviderLicenseRequirement.isLicenseValidationEnabled()) {
+				data.put("status", "error");
+				data.put("message", "License validation with HIE is disabled. Set transferapp.licenseValidationEnabled=true to enable it.");
+				writeJson(response, data);
+				return;
+			}
 			String license = StringUtils.trimToNull(licenseNumber);
 			if (license == null) {
 				data.put("status", "error");
@@ -145,6 +159,16 @@ public class TransferProfileController {
 
 		Map<String, Object> data = new HashMap<String, Object>();
 		try {
+			User user = Context.getAuthenticatedUser();
+			if (!requireProviderRole(response, data, user)) {
+				return;
+			}
+			if (!ProviderLicenseRequirement.isLicenseValidationEnabled()) {
+				data.put("status", "error");
+				data.put("message", "License validation with HIE is disabled. Set transferapp.licenseValidationEnabled=true to enable it.");
+				writeJson(response, data);
+				return;
+			}
 			String license = StringUtils.trimToNull(licenseNumber);
 			String otpCode = StringUtils.trimToNull(otp);
 			if (license == null) {
@@ -194,7 +218,6 @@ public class TransferProfileController {
 				return;
 			}
 
-			User user = Context.getAuthenticatedUser();
 			String verifiedLicense = StringUtils.isNotBlank(result.getLicenseNumber())
 					? result.getLicenseNumber()
 					: license;
@@ -235,6 +258,18 @@ public class TransferProfileController {
 			phone = phone.substring(1);
 		}
 		return StringUtils.trimToNull(phone);
+	}
+
+	private boolean requireProviderRole(HttpServletResponse response, Map<String, Object> data, User user)
+			throws Exception {
+		if (ProviderLicenseRequirement.currentUserHasConfiguredProviderRole(user)) {
+			return true;
+		}
+		response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+		data.put("status", "error");
+		data.put("message", "My Profile is only available to users with a configured provider role");
+		writeJson(response, data);
+		return false;
 	}
 
 	private String resolveErrorMessage(Exception exception, String fallback) {

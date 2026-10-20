@@ -1067,8 +1067,8 @@
             if (!ensurePreviewDialog()) {
                 return;
             }
-            if (!transferId || !effectiveUpid) {
-                jq("#hie-transfer-preview-body").html("<p style='color:red;'>Missing transfer UUID or UPID.</p>");
+            if (!transferId) {
+                jq("#hie-transfer-preview-body").html("<p style='color:red;'>Missing transfer UUID.</p>");
                 updateValidateButton(null);
                 hideReferralFeedback();
                 showPreviewDialog();
@@ -1082,14 +1082,18 @@
             hideReferralFeedback();
             showPreviewDialog();
 
+            var requestData = {
+                transferId: transferId,
+                activeOnly: false
+            };
+            if (effectiveUpid) {
+                requestData.upid = effectiveUpid;
+            }
+
             jq.ajax({
                 url: restUrl,
                 type: "GET",
-                data: {
-                    upid: effectiveUpid,
-                    transferId: transferId,
-                    activeOnly: false
-                },
+                data: requestData,
                 dataType: "json",
                 headers: {
                     "Accept": "application/json"

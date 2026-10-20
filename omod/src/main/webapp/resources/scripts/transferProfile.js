@@ -4,6 +4,8 @@ jQuery(function($) {
     var startValidationUrl = config.startValidationUrl;
     var verifyOtpUrl = config.verifyOtpUrl;
     var messages = config.messages || {};
+    var licenseValidationEnabled = config.licenseValidationEnabled === true
+        || config.licenseValidationEnabled === "true";
     var pendingLicenseNumber = "";
 
     function showProfileMessage(message, isError) {
@@ -25,12 +27,19 @@ jQuery(function($) {
     }
 
     function isLicenseValidatedForCurrentValue() {
+        if (!licenseValidationEnabled) {
+            return true;
+        }
         var current = trimValue($("#licenseNumber").val());
         var validatedLicense = trimValue($("#licenseNumber").attr("data-validated-license"));
         return !!current && !!validatedLicense && current === validatedLicense;
     }
 
     function syncLicenseValidationUi() {
+        if (!licenseValidationEnabled) {
+            $("#transfer-profile-form button[type='submit']").prop("disabled", false);
+            return;
+        }
         var validated = isLicenseValidatedForCurrentValue();
         $("#transfer-license-validate-btn").toggle(!validated);
         $("#transfer-license-validated-badge").toggle(validated);
@@ -115,6 +124,9 @@ jQuery(function($) {
     }
 
     $("#transfer-license-validate-btn").on("click", function() {
+        if (!licenseValidationEnabled) {
+            return;
+        }
         var licenseNumber = trimValue($("#licenseNumber").val());
         if (!licenseNumber) {
             showProfileMessage(messages.licenseRequired || "License number is required", true);
