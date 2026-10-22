@@ -210,6 +210,42 @@ public class TransferPatientSnapshotResolver {
 	}
 
 	/**
+	 * Active Primary Care ID (facility registration ID), preferring exact type name matches.
+	 */
+	public String resolvePrimaryCareId(Patient patient) {
+		if (patient == null) {
+			return null;
+		}
+		String[] exactNames = new String[] {
+				"Primary Care ID",
+				"Primary Care",
+				"Primary Care ID Type",
+				"IMB Primary Care Registration ID"
+		};
+		for (String exactName : exactNames) {
+			for (PatientIdentifier identifier : patient.getActiveIdentifiers()) {
+				if (identifier == null || identifier.getIdentifierType() == null) {
+					continue;
+				}
+				String typeName = StringUtils.trimToNull(identifier.getIdentifierType().getName());
+				if (typeName != null && exactName.equalsIgnoreCase(typeName)) {
+					return StringUtils.trimToNull(identifier.getIdentifier());
+				}
+			}
+		}
+		for (PatientIdentifier identifier : patient.getActiveIdentifiers()) {
+			if (identifier == null || identifier.getIdentifierType() == null) {
+				continue;
+			}
+			String typeName = identifier.getIdentifierType().getName();
+			if (typeName != null && typeName.toUpperCase().contains("PRIMARY CARE")) {
+				return StringUtils.trimToNull(identifier.getIdentifier());
+			}
+		}
+		return null;
+	}
+
+	/**
 	 * Name of the person helping the patient (not the referring clinician).
 	 * Prefers explicit caregiver attributes, then mother/father/next-of-kin.
 	 */

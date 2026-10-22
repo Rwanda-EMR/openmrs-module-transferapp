@@ -206,6 +206,19 @@
 	margin-top: 10px;
 }
 
+/* Approver snapshot: ~30% smaller than .tf-row (19px → ~13px), single line when possible */
+.tf-approver-row {
+	font-size: 13px;
+	line-height: 1.2;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.tf-approver-row strong {
+	font-weight: 700;
+}
+
 .tf-moh-logo {
 	height: 120px;
 }
@@ -253,6 +266,11 @@
 
 	.tf-row {
 		font-size: 15px;
+	}
+
+	.tf-approver-row {
+		font-size: 11px;
+		white-space: normal;
 	}
 
 	.tf-title {
@@ -331,6 +349,12 @@
 		font-size: 11pt;
 		line-height: 1.2;
 		margin: 1px 0;
+	}
+
+	.tf-approver-row {
+		font-size: 8pt;
+		line-height: 1.15;
+		white-space: nowrap;
 	}
 
 	.tf-title {

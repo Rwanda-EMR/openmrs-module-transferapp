@@ -17,6 +17,7 @@
 </script>
 
 ${ ui.includeFragment("transferapp", "home/approverPendingBanner") }
+${ ui.includeFragment("transferapp", "home/providerLicenseRequiredBanner") }
 
 <h2>
 	${ ui.message(heading) }

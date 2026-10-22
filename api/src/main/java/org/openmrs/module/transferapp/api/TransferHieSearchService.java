@@ -26,6 +26,11 @@ public interface TransferHieSearchService {
 
 	int MAX_PENDING_WEEKS = 4;
 
+	/**
+	 * Searches HIE transfers. When {@code transferId} is set, looks up
+	 * {@code GET /shr/Encounter/{transferId}} first (UPID optional). Otherwise requires {@code upid}
+	 * for {@code $list-transfers?patient=...}.
+	 */
 	@Authorized(value = {
 			TransferAppActivator.PRIVILEGE_LIST_TRANSFERS,
 			TransferAppActivator.PRIVILEGE_LIST_PENDING,
@@ -36,6 +41,7 @@ public interface TransferHieSearchService {
 	/**
 	 * Lists HIE transfers for a patient between inclusive ISO dates ({@code yyyy-MM-dd}).
 	 * When either bound is blank, behaves like an unfiltered patient transfer list.
+	 * When {@code transferId} is set, Encounter-by-id lookup is preferred (UPID optional).
 	 */
 	@Authorized(value = {
 			TransferAppActivator.PRIVILEGE_LIST_TRANSFERS,

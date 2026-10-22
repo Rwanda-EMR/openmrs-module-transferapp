@@ -52,4 +52,21 @@ public interface PastTransfersService {
 	 */
 	@Transactional(readOnly = true)
 	PastTransferPageResult findVisitsInRange(String startDate, String endDate, String upid, int offset, int limit);
+
+	/**
+	 * Same as {@link #findVisitsInRange(String, String, String, int, int)} with optional insurance
+	 * type category filter ({@code CBHI}, {@code RSSB}, {@code MMI}, {@code OTHER}, {@code NONE}).
+	 * Blank / unknown values mean no insurance filter.
+	 */
+	@Transactional(readOnly = true)
+	PastTransferPageResult findVisitsInRange(String startDate, String endDate, String upid, String insuranceType,
+			int offset, int limit);
+
+	/**
+	 * Same as {@link #findVisitsInRange(String, String, String, String, int, int)} with optional
+	 * Primary Care ID filter (exact patient identifier match).
+	 */
+	@Transactional(readOnly = true)
+	PastTransferPageResult findVisitsInRange(String startDate, String endDate, String upid, String insuranceType,
+			String primaryCareId, int offset, int limit);
 }

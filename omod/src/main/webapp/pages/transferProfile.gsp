@@ -4,6 +4,7 @@
     ui.includeCss("transferapp", "transferProfile.css")
     ui.includeJavascript("transferapp", "transferProfile.js")
     def licenseValidatedFlag = licenseValidated == true || licenseValidated == "true"
+    def licenseValidationEnabledFlag = licenseValidationEnabled == true || licenseValidationEnabled == "true"
 %>
 <script type="text/javascript">
     var breadcrumbs = [
@@ -28,6 +29,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "profi
                 <input type="text" id="licenseNumber" name="licenseNumber" maxlength="64" required
                        value="${ ui.encodeHtmlAttribute(licenseNumber ?: '') }"
                        data-validated-license="${ ui.encodeHtmlAttribute(licenseValidatedFlag ? (licenseNumber ?: '') : '') }" />
+                <% if (licenseValidationEnabledFlag) { %>
                 <button type="button" id="transfer-license-validate-btn" class="button confirm transfer-license-validate-btn"
                         style="${ licenseValidatedFlag ? 'display:none;' : '' }">
                     ${ ui.message("transferapp.profile.license.checkValidity") }
@@ -36,12 +38,16 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "profi
                       style="${ licenseValidatedFlag ? '' : 'display:none;' }">
                     <i class="icon-ok"></i> ${ ui.message("transferapp.profile.license.validated") }
                 </span>
+                <% } %>
             </div>
             <p id="transfer-license-validate-hint" class="transfer-profile-hint">
-                ${ ui.message("transferapp.profile.license.checkHint") }
+                ${ licenseValidationEnabledFlag
+                    ? ui.message("transferapp.profile.license.checkHint")
+                    : ui.message("transferapp.profile.license.validationDisabledHint") }
             </p>
         </div>
 
+        <% if (licenseValidationEnabledFlag) { %>
         <div id="transfer-license-result-row" class="transfer-profile-license-result-row"
              style="${ licenseValidatedFlag ? '' : 'display:none;' }">
             <div class="transfer-profile-field">
@@ -55,6 +61,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "profi
                        value="${ ui.encodeHtmlAttribute(licenseExpiryDate ?: '') }" />
             </div>
         </div>
+        <% } %>
 
         <div class="transfer-profile-field">
             <label for="phoneNumber">${ ui.message("transferapp.profile.phoneNumber") }</label>
@@ -78,7 +85,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "profi
 
         <div class="transfer-profile-actions">
             <button type="submit" class="btn btn-primary"
-                    ${ licenseValidatedFlag ? '' : 'disabled="disabled"' }>
+                    ${ (!licenseValidationEnabledFlag || licenseValidatedFlag) ? '' : 'disabled="disabled"' }>
                 ${ ui.message("transferapp.profile.save") }
             </button>
         </div>
@@ -86,6 +93,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "profi
 </div>
 </div>
 
+<% if (licenseValidationEnabledFlag) { %>
 <div id="transfer-license-otp-overlay" class="transfer-license-otp-overlay" style="display:none;"></div>
 <div id="transfer-license-otp-dialog" class="dialog transfer-license-otp-dialog" style="display:none;" role="dialog"
      aria-labelledby="transfer-license-otp-title" aria-modal="true">
@@ -111,6 +119,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "profi
         </div>
     </div>
 </div>
+<% } %>
 
 <script type="text/javascript">
     window.transferProfileConfig = {
@@ -121,6 +130,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "profi
         verifyOtpUrl: (typeof openmrsContextPath !== "undefined" ? openmrsContextPath : "/${ ui.encodeJavaScript(contextPath) }")
             + "/module/transferapp/profile/license/verifyOtp.form",
         licenseValidated: ${ licenseValidatedFlag ? 'true' : 'false' },
+        licenseValidationEnabled: ${ licenseValidationEnabledFlag ? 'true' : 'false' },
         messages: {
             saveSuccess: "${ ui.encodeJavaScript(ui.message('transferapp.profile.saveSuccess')) }",
             saveError: "${ ui.encodeJavaScript(ui.message('transferapp.profile.saveError')) }",

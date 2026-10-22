@@ -13,20 +13,40 @@
  */
 package org.openmrs.module.transferapp.page.controller.findpatient;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.codehaus.jackson.JsonNode;
 import org.openmrs.module.appframework.domain.AppDescriptor;
 import org.openmrs.module.appui.UiSessionContext;
+import org.openmrs.module.transferapp.api.ProviderLicenseRequirement;
 import org.openmrs.ui.framework.UiUtils;
 import org.openmrs.ui.framework.page.PageModel;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
- * Same contract as coreapps Find Patient, with the approver banner included in the GSP.
+ * Same contract as coreapps Find Patient, with approver / license banners in the GSP.
+ * Redirects provider-role users missing Provider License to My Profile when possible.
  */
 public class FindPatientPageController {
 
-	public void get(PageModel model, @RequestParam("app") AppDescriptor app, UiSessionContext sessionContext,
+	private static final Log log = LogFactory.getLog(FindPatientPageController.class);
+
+	public String get(PageModel model, @RequestParam("app") AppDescriptor app, UiSessionContext sessionContext,
 			UiUtils ui) {
+		try {
+			if (ProviderLicenseRequirement.shouldPromptForProviderLicense()) {
+				Map<String, Object> params = new LinkedHashMap<String, Object>();
+				params.put("app", "transferapp.dashboard");
+				return "redirect:" + ui.pageLinkWithoutContextPath("transferapp", "transferProfile", params);
+			}
+		}
+		catch (Exception ex) {
+			log.warn("Unable to evaluate provider license redirect on find patient", ex);
+		}
+
 		model.addAttribute("afterSelectedUrl", app.getConfig().get("afterSelectedUrl").getTextValue());
 		model.addAttribute("heading", app.getConfig().get("heading").getTextValue());
 		model.addAttribute("label", app.getConfig().get("label").getTextValue());
@@ -48,5 +68,6 @@ public class FindPatientPageController {
 		else {
 			model.addAttribute("breadcrumbs", null);
 		}
+		return null;
 	}
 }

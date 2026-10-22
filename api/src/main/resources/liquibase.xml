@@ -1872,6 +1872,28 @@
         </insert>
     </changeSet>
 
+    <changeSet id="transferapp-20261016-pat-deployment" author="MoH Team">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="provider_attribute_type"/>
+                <sqlCheck expectedResult="0">
+                    SELECT COUNT(*) FROM provider_attribute_type WHERE name = 'Deployment'
+                </sqlCheck>
+            </and>
+        </preConditions>
+        <comment>Create Deployment provider attribute type (Free Text) for provider-registry FOSAID</comment>
+        <insert tableName="provider_attribute_type">
+            <column name="name" value="Deployment"/>
+            <column name="description" value="FOSAID of the facility where the provider is deployed in the provider registry"/>
+            <column name="datatype" value="org.openmrs.customdatatype.datatype.FreeTextDatatype"/>
+            <column name="min_occurs" valueNumeric="0"/>
+            <column name="creator" valueNumeric="1"/>
+            <column name="date_created" valueComputed="NOW()"/>
+            <column name="retired" valueBoolean="false"/>
+            <column name="uuid" valueComputed="uuid()"/>
+        </insert>
+    </changeSet>
+
     <!--
         Migrate completed My Profile rows from transfer_profile into OpenMRS provider_attribute.
         Path: transfer_profile.user_id → users.person_id → provider → provider_attribute.

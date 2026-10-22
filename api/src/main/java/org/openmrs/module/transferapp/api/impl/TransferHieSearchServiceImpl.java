@@ -110,9 +110,11 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 			String endDate, boolean mergeScheduledReuse) {
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 
-		if (StringUtils.isBlank(upid)) {
+		String normalizedUpid = StringUtils.trimToNull(upid);
+		String normalizedTransferId = StringUtils.trimToNull(transferId);
+		if (normalizedUpid == null && normalizedTransferId == null) {
 			result.put("status", "error");
-			result.put("message", "UPID parameter is required");
+			result.put("message", "UPID or transferId parameter is required");
 			result.put("data", Collections.emptyList());
 			return result;
 		}
@@ -127,17 +129,38 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 
 		try {
 			HieBasicConnection connection = hieConnectionResolver.resolveConnection();
-			String pathWithQuery = buildPatientListTransfersPath(upid.trim(), fromDate, endDate);
+
+			// When OpenMRS already stored the HIE transfer UUID, look it up directly.
+			// Do not require the local patient UPID to match HIE subject.
+			if (normalizedTransferId != null) {
+				Map<String, Object> byId = fetchTransferByEncounterId(connection, normalizedTransferId);
+				if (byId != null) {
+					result.put("status", "success");
+					result.put("fromDate", fromDate != null ? fromDate : "");
+					result.put("endDate", endDate != null ? endDate : "");
+					result.put("data", enrichTransfers(Collections.singletonList(byId)));
+					return result;
+				}
+				if (normalizedUpid == null) {
+					result.put("status", "success");
+					result.put("fromDate", fromDate != null ? fromDate : "");
+					result.put("endDate", endDate != null ? endDate : "");
+					result.put("data", Collections.emptyList());
+					return result;
+				}
+			}
+
+			String pathWithQuery = buildPatientListTransfersPath(normalizedUpid, fromDate, endDate);
 			log.info("Requesting transfers from HIE: " + connection.getBaseUrl() + pathWithQuery);
 
 			List<Map<String, Object>> transfers = enrichTransfers(
 					fetchAllTransferPages(connection, pathWithQuery));
-			if (StringUtils.isNotBlank(transferId)) {
-				transfers = filterByTransferId(transfers, transferId.trim());
+			if (normalizedTransferId != null) {
+				transfers = filterByTransferId(transfers, normalizedTransferId);
 			}
 			if (mergeScheduledReuse) {
-				transfers = mergeScheduledReuseTransfers(transfers, upid.trim(), fromDate, endDate);
-				transfers = mergePreviouslyUsedTransfers(transfers, upid.trim(), connection);
+				transfers = mergeScheduledReuseTransfers(transfers, normalizedUpid, fromDate, endDate);
+				transfers = mergePreviouslyUsedTransfers(transfers, normalizedUpid, connection);
 			}
 
 			result.put("status", "success");
@@ -147,11 +170,34 @@ public class TransferHieSearchServiceImpl implements TransferHieSearchService {
 			return result;
 		}
 		catch (Exception ex) {
-			log.error("Error fetching transfers from HIE for UPID: " + upid, ex);
+			log.error("Error fetching transfers from HIE for UPID: " + upid
+					+ (normalizedTransferId != null ? ", transferId: " + normalizedTransferId : ""), ex);
 			result.put("status", "error");
 			result.put("message", ex.getMessage() != null ? ex.getMessage() : "Failed to fetch transfers from HIE");
 			result.put("data", Collections.emptyList());
 			return result;
+		}
+	}
+
+	/**
+	 * {@code GET /shr/Encounter/{transferId}} — used when the Transfer Id was kept in OpenMRS.
+	 */
+	private Map<String, Object> fetchTransferByEncounterId(HieBasicConnection connection, String transferId) {
+		if (connection == null || StringUtils.isBlank(transferId)) {
+			return null;
+		}
+		try {
+			log.info("Requesting transfer Encounter from HIE by id: " + transferId);
+			String json = hieShrClient.fetchEncounterById(connection, transferId.trim());
+			if (StringUtils.isBlank(json)) {
+				return null;
+			}
+			validateHieResponse(json);
+			return responseParser.parseEncounter(json);
+		}
+		catch (Exception ex) {
+			log.warn("Unable to fetch HIE Encounter by id " + transferId + ": " + ex.getMessage());
+			return null;
 		}
 	}
 

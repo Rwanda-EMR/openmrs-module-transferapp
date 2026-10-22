@@ -120,6 +120,8 @@ public class TransferProfile extends BaseOpenmrsData {
 
 	/**
 	 * Preview / HIE display: {@code Name(LICENSE)} when a license number is available.
+	 * Does not append another {@code (…)} when the name already ends with one (avoids
+	 * {@code Name(refLicense)(approverLicense)} after approval → HIE submit).
 	 */
 	public static String formatCareProviderName(String name, String licenseNumber) {
 		String displayName = StringUtils.trimToEmpty(name);
@@ -134,7 +136,30 @@ public class TransferProfile extends BaseOpenmrsData {
 		if (displayName.endsWith(suffix) || displayName.contains("(" + license + ")")) {
 			return displayName;
 		}
+		// Already has a trailing parenthetical (typically the referring license).
+		if (displayName.matches(".*\\([^)]+\\)\\s*$")) {
+			return displayName;
+		}
 		return displayName + suffix;
+	}
+
+	/**
+	 * Keeps at most one trailing {@code (…)} license suffix on a referring-provider display name.
+	 */
+	public static String sanitizeReferringProviderDisplayName(String name) {
+		String displayName = StringUtils.trimToEmpty(name);
+		if (StringUtils.isBlank(displayName)) {
+			return "";
+		}
+		// Name(license1)(license2)... → Name(license1)
+		while (displayName.matches(".*\\([^)]+\\)\\([^)]+\\)\\s*$")) {
+			int lastOpen = displayName.lastIndexOf('(');
+			if (lastOpen <= 0) {
+				break;
+			}
+			displayName = displayName.substring(0, lastOpen).trim();
+		}
+		return displayName;
 	}
 
 }

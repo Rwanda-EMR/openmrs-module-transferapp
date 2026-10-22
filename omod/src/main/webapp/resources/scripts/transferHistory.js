@@ -309,18 +309,21 @@
 
     function fetchHiePreview(transferId, upid) {
         var deferred = jq.Deferred();
-        if (!transferId || !upid) {
+        if (!transferId) {
             deferred.resolve(null);
             return deferred.promise();
+        }
+        var requestData = {
+            transferId: transferId,
+            activeOnly: false
+        };
+        if (upid) {
+            requestData.upid = upid;
         }
         jq.ajax({
             url: restUrl(),
             type: "GET",
-            data: {
-                upid: upid,
-                transferId: transferId,
-                activeOnly: false
-            },
+            data: requestData,
             dataType: "json",
             headers: { "Accept": "application/json" }
         }).done(function(response) {
@@ -469,9 +472,9 @@
     }
 
     function loadTransferPreview(transferId, upid, localUuid) {
-        if (!transferId || !upid) {
+        if (!transferId) {
             jq("#transfer-history-preview-body").html(
-                "<p style='color:red;'>" + esc(messages().missingIds || "Missing transfer UUID or UPID.") + "</p>"
+                "<p style='color:red;'>" + esc(messages().missingIds || "Missing transfer UUID.") + "</p>"
             );
             showPreviewDialog();
             return;

@@ -30,6 +30,8 @@
         filterStartDate: "${ ui.encodeJavaScript(filterStartDate ?: '') }",
         filterEndDate: "${ ui.encodeJavaScript(filterEndDate ?: '') }",
         filterUpid: "${ ui.encodeJavaScript(filterUpid ?: '') }",
+        filterPrimaryCareId: "${ ui.encodeJavaScript(filterPrimaryCareId ?: '') }",
+        filterInsuranceType: "${ ui.encodeJavaScript(filterInsuranceType ?: '') }",
         pageSize: ${ pastTransfersPageSize ?: 100 },
         nextOffset: ${ pastTransfersNextOffset ?: 0 },
         totalCount: ${ pastTransfersTotalCount ?: 0 },
@@ -147,6 +149,27 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "pastT
                    placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.pastTransfers.filter.upid.placeholder')) }"
                    autocomplete="off" />
         </div>
+        <div class="transfer-records-filter-field transfer-records-filter-field-primary-care">
+            <label for="past-transfers-filter-primary-care-id">${ ui.message("transferapp.pastTransfers.filter.primaryCareId") }</label>
+            <input type="text"
+                   id="past-transfers-filter-primary-care-id"
+                   name="primaryCareId"
+                   value="${ ui.encodeHtmlAttribute(filterPrimaryCareId ?: '') }"
+                   placeholder="${ ui.encodeHtmlAttribute(ui.message('transferapp.pastTransfers.filter.primaryCareId.placeholder')) }"
+                   autocomplete="off" />
+        </div>
+        <div class="transfer-records-filter-field transfer-records-filter-field-insurance">
+            <label for="past-transfers-filter-insurance-type">${ ui.message("transferapp.pastTransfers.filter.insuranceType") }</label>
+            <select id="past-transfers-filter-insurance-type" name="insuranceType">
+                <option value="">${ ui.message("transferapp.pastTransfers.filter.insuranceType.all") }</option>
+                <% (insuranceTypeOptions ?: []).each { option -> %>
+                <option value="${ ui.encodeHtmlAttribute(option) }"
+                        ${ (filterInsuranceType ?: '') == option ? 'selected="selected"' : '' }>
+                    ${ ui.encodeHtmlContent(option) }
+                </option>
+                <% } %>
+            </select>
+        </div>
         <div class="transfer-records-filter-actions">
             <button type="submit" class="confirm">${ ui.message("transferapp.pastTransfers.filter.apply") }</button>
         </div>
@@ -206,6 +229,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "pastT
             <tr>
                 <th>${ ui.message("transferapp.pastTransfers.column.row") }</th>
                 <th>${ ui.message("transferapp.pastTransfers.column.upid") }</th>
+                <th>${ ui.message("transferapp.pastTransfers.column.primaryCareId") }</th>
                 <th>${ ui.message("transferapp.pastTransfers.column.patientName") }</th>
                 <th>${ ui.message("transferapp.pastTransfers.column.visitDate") }</th>
                 <th>${ ui.message("transferapp.pastTransfers.column.visitEndDate") }</th>
@@ -240,6 +264,7 @@ ${ ui.includeFragment("transferapp", "transfer/transferNav", [ activeTab: "pastT
                 data-patient-name="${ ui.encodeHtmlAttribute(item.patientName ?: '') }">
                 <td>${ index + 1 }</td>
                 <td>${ ui.encodeHtmlContent(item.upid ?: '') }</td>
+                <td>${ ui.encodeHtmlContent(item.primaryCareId ?: '') }</td>
                 <td>${ ui.encodeHtmlContent(item.patientName ?: '') }</td>
                 <td>
                     <% if (item.visitStartDatetime) { %>

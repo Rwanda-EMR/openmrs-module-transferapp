@@ -21,6 +21,7 @@ import org.openmrs.User;
 import org.openmrs.api.APIException;
 import org.openmrs.api.ProviderService;
 import org.openmrs.api.context.Context;
+import org.openmrs.customdatatype.CustomDatatypeUtil;
 import org.openmrs.module.transferapp.model.TransferProfile;
 
 import java.text.SimpleDateFormat;
@@ -49,6 +50,9 @@ public final class ProviderProfileAttributes {
 	public static final String TYPE_LICENSE_EXPIRY = "License Expiry Date";
 
 	public static final String TYPE_LICENSE_STATUS = "License Status";
+
+	/** FOSAID of the facility where the provider is deployed (from provider registry). */
+	public static final String TYPE_DEPLOYMENT = "Deployment";
 
 	private static final String DATE_PATTERN = "yyyy-MM-dd";
 
@@ -106,6 +110,20 @@ public final class ProviderProfileAttributes {
 	}
 
 	/**
+	 * True when the user has a non-blank {@code Provider License} attribute.
+	 */
+	public static boolean hasProviderLicense(User user) {
+		if (user == null) {
+			return false;
+		}
+		Provider provider = findProviderForUser(user);
+		if (provider == null) {
+			return false;
+		}
+		return StringUtils.isNotBlank(readText(provider, TYPE_PROVIDER_LICENSE));
+	}
+
+	/**
 	 * True when this user has {@code License Validated=true} for the given license number.
 	 */
 	public static boolean isLicenseValidatedForUser(User user, String licenseNumber) {
@@ -130,7 +148,7 @@ public final class ProviderProfileAttributes {
 			throw new APIException("You must be logged in to save your profile");
 		}
 		String license = requireText(licenseNumber, "License number is required");
-		if (!isLicenseValidatedForUser(user, license)) {
+		if (ProviderLicenseRequirement.isLicenseValidationEnabled() && !isLicenseValidatedForUser(user, license)) {
 			throw new APIException("License number must be validated before the profile can be saved");
 		}
 		String phone = requireText(phoneNumber, "Phone number is required");
@@ -138,6 +156,13 @@ public final class ProviderProfileAttributes {
 		String specialityValue = StringUtils.trimToNull(speciality);
 
 		Provider provider = ensureProviderForUser(user);
+		// Resolve attribute types before mutating attributes so Hibernate auto-flush during
+		// getAllProviderAttributeTypes does not insert dirty rows with null value_reference.
+		requireType(TYPE_PROVIDER_LICENSE);
+		requireType(TYPE_PHONE_NUMBER);
+		requireType(TYPE_QUALIFICATION);
+		requireType(TYPE_SPECIALITY);
+
 		upsertText(provider, TYPE_PROVIDER_LICENSE, license);
 		upsertText(provider, TYPE_PHONE_NUMBER, phone);
 		upsertText(provider, TYPE_QUALIFICATION, qualificationValue);
@@ -147,6 +172,7 @@ public final class ProviderProfileAttributes {
 		else {
 			clearText(provider, TYPE_SPECIALITY);
 		}
+		CustomDatatypeUtil.saveAttributesIfNecessary(provider);
 		Context.getProviderService().saveProvider(provider);
 
 		TransferProfile profile = new TransferProfile();
@@ -161,9 +187,13 @@ public final class ProviderProfileAttributes {
 
 	public static void saveValidationResult(User user, boolean validated, String expiryDate, String status) {
 		Provider provider = ensureProviderForUser(user);
+		requireType(TYPE_LICENSE_VALIDATED);
+		requireType(TYPE_LICENSE_EXPIRY);
+		requireType(TYPE_LICENSE_STATUS);
 		upsertBoolean(provider, TYPE_LICENSE_VALIDATED, validated);
 		upsertDate(provider, TYPE_LICENSE_EXPIRY, parseDate(expiryDate));
 		upsertText(provider, TYPE_LICENSE_STATUS, status);
+		CustomDatatypeUtil.saveAttributesIfNecessary(provider);
 		Context.getProviderService().saveProvider(provider);
 	}
 
@@ -178,6 +208,12 @@ public final class ProviderProfileAttributes {
 			throw new APIException("License number is required");
 		}
 		Provider provider = ensureProviderForUser(user);
+		requireType(TYPE_PROVIDER_LICENSE);
+		requireType(TYPE_LICENSE_VALIDATED);
+		requireType(TYPE_LICENSE_EXPIRY);
+		requireType(TYPE_LICENSE_STATUS);
+		requireType(TYPE_QUALIFICATION);
+		requireType(TYPE_SPECIALITY);
 		upsertText(provider, TYPE_PROVIDER_LICENSE, license);
 		upsertBoolean(provider, TYPE_LICENSE_VALIDATED, true);
 		upsertDate(provider, TYPE_LICENSE_EXPIRY, parseDate(expiryDate));
@@ -193,6 +229,7 @@ public final class ProviderProfileAttributes {
 		if (specialityValue != null) {
 			upsertText(provider, TYPE_SPECIALITY, specialityValue);
 		}
+		CustomDatatypeUtil.saveAttributesIfNecessary(provider);
 		Context.getProviderService().saveProvider(provider);
 	}
 
@@ -300,6 +337,8 @@ public final class ProviderProfileAttributes {
 			provider.addAttribute(attr);
 		}
 		attr.setValue(Boolean.valueOf(value));
+		// OpenMRS 2.x setValue() only hydrates in-memory; persist value_reference before any flush.
+		CustomDatatypeUtil.saveIfDirty(attr);
 	}
 
 	private static void upsertDate(Provider provider, String typeName, Date value) {
@@ -314,6 +353,7 @@ public final class ProviderProfileAttributes {
 			provider.addAttribute(attr);
 		}
 		attr.setValue(value);
+		CustomDatatypeUtil.saveIfDirty(attr);
 	}
 
 	private static void upsertText(Provider provider, String typeName, String value) {
@@ -329,6 +369,7 @@ public final class ProviderProfileAttributes {
 			provider.addAttribute(attr);
 		}
 		attr.setValue(trimmed);
+		CustomDatatypeUtil.saveIfDirty(attr);
 	}
 
 	private static void clearText(Provider provider, String typeName) {

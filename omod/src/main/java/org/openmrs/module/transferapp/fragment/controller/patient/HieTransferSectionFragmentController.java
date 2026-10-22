@@ -131,12 +131,8 @@ public class HieTransferSectionFragmentController {
 		}
 		model.addAttribute("patientId", currentPatient.getPatientId());
 
-		String upid = patientSnapshotResolver.resolveUpid(currentPatient);
-		if (StringUtils.isBlank(upid)) {
-			model.addAttribute("statusMessage", ui.message("transferapp.patient.hieTransfer.noUpid"));
-			return;
-		}
-		model.addAttribute("upid", upid.trim());
+		String upid = StringUtils.trimToNull(patientSnapshotResolver.resolveUpid(currentPatient));
+		model.addAttribute("upid", upid != null ? upid : "");
 
 		Visit activeVisit = resolveActiveVisit(currentPatient);
 		if (activeVisit == null) {
@@ -163,6 +159,11 @@ public class HieTransferSectionFragmentController {
 
 		Concept transferIdConcept = resolveTransferIdConcept();
 		if (transferIdConcept == null) {
+			if (upid == null) {
+				model.addAttribute("showSection", false);
+				model.addAttribute("statusMessage", ui.message("transferapp.patient.hieTransfer.noUpid"));
+				return;
+			}
 			// Still list from HIE when Transfer Id concept is missing.
 			model.addAttribute("listFromHie", true);
 			return;
@@ -170,10 +171,17 @@ public class HieTransferSectionFragmentController {
 
 		String transferId = findTransferIdValueText(latestRegistration, transferIdConcept);
 		if (StringUtils.isNotBlank(transferId)) {
+			// Transfer UUID in OpenMRS is enough to preview from HIE (UPID optional).
 			model.addAttribute("hasTransferIdObs", true);
 			model.addAttribute("transferId", transferId.trim());
 			model.addAttribute("listFromHie", false);
 			model.addAttribute("canProvideFeedback", canProvideFeedback);
+			return;
+		}
+
+		if (upid == null) {
+			model.addAttribute("showSection", false);
+			model.addAttribute("statusMessage", ui.message("transferapp.patient.hieTransfer.noUpid"));
 			return;
 		}
 

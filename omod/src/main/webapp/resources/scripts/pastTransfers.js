@@ -165,18 +165,21 @@
 
     function fetchHiePreview(transferId, upid) {
         var deferred = jq.Deferred();
-        if (!transferId || !upid) {
+        if (!transferId) {
             deferred.resolve(null);
             return deferred.promise();
+        }
+        var requestData = {
+            transferId: transferId,
+            activeOnly: false
+        };
+        if (upid) {
+            requestData.upid = upid;
         }
         jq.ajax({
             url: restUrl(),
             type: "GET",
-            data: {
-                upid: upid,
-                transferId: transferId,
-                activeOnly: false
-            },
+            data: requestData,
             dataType: "json",
             headers: { "Accept": "application/json" }
         }).done(function(response) {
@@ -212,9 +215,9 @@
         previewContext.saveWithObs = options.saveWithObs === true;
         previewContext.sourceRow = options.sourceRow || null;
 
-        if (!previewContext.transferId || !previewContext.upid) {
+        if (!previewContext.transferId) {
             jq("#past-transfers-preview-body").html(
-                "<p style='color:red;'>" + esc(messages().missingIds || "Missing transfer UUID or UPID.") + "</p>"
+                "<p style='color:red;'>" + esc(messages().missingIds || "Missing transfer UUID.") + "</p>"
             );
             updateSaveButtonVisibility();
             setPreviewStatus("", false);
@@ -694,6 +697,7 @@
                 + " data-patient-name='" + esc(row.patientName || "") + "'>"
                 + "<td>" + esc(row.rowNumber || "") + "</td>"
                 + "<td>" + esc(row.upid || "") + "</td>"
+                + "<td>" + esc(row.primaryCareId || "") + "</td>"
                 + "<td>" + esc(row.patientName || "") + "</td>"
                 + "<td>" + esc(row.visitDateDisplay || "") + "</td>"
                 + "<td>" + endCell + "</td>"
@@ -726,6 +730,8 @@
         var startDate = config().filterStartDate || "";
         var endDate = config().filterEndDate || "";
         var upid = jq.trim(config().filterUpid || "");
+        var primaryCareId = jq.trim(config().filterPrimaryCareId || "");
+        var insuranceType = jq.trim(config().filterInsuranceType || "");
         var offset = config().nextOffset || 0;
         var limit = config().pageSize || 100;
         if (!startDate || !endDate) {
@@ -742,6 +748,12 @@
         };
         if (upid) {
             requestData.upid = upid;
+        }
+        if (primaryCareId) {
+            requestData.primaryCareId = primaryCareId;
+        }
+        if (insuranceType) {
+            requestData.insuranceType = insuranceType;
         }
         jq.ajax({
             url: listUrl(),
