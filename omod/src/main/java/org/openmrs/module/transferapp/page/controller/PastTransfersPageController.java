@@ -39,6 +39,7 @@ public class PastTransfersPageController {
 			@RequestParam(value = "startDate", required = false) String startDate,
 			@RequestParam(value = "endDate", required = false) String endDate,
 			@RequestParam(value = "upid", required = false) String upid,
+			@RequestParam(value = "primaryCareId", required = false) String primaryCareId,
 			@RequestParam(value = "insuranceType", required = false) String insuranceType,
 			@RequestParam(value = "app", required = false) String app) {
 
@@ -64,6 +65,7 @@ public class PastTransfersPageController {
 			}
 		}
 		String filterUpid = StringUtils.trimToEmpty(upid);
+		String filterPrimaryCareId = StringUtils.trimToEmpty(primaryCareId);
 		String filterInsuranceType = normalizeInsuranceType(insuranceType);
 
 		PastTransferPageResult page = new PastTransferPageResult();
@@ -75,7 +77,7 @@ public class PastTransfersPageController {
 		if (canAccess && StringUtils.isNotBlank(filterStartDate) && StringUtils.isNotBlank(filterEndDate)) {
 			try {
 				page = pastTransfersService.findVisitsInRange(
-						filterStartDate, filterEndDate, filterUpid, filterInsuranceType, 0,
+						filterStartDate, filterEndDate, filterUpid, filterInsuranceType, filterPrimaryCareId, 0,
 						PastTransfersService.DEFAULT_PAGE_SIZE);
 			}
 			catch (Exception ex) {
@@ -101,6 +103,7 @@ public class PastTransfersPageController {
 		model.addAttribute("filterStartDate", filterStartDate != null ? filterStartDate : "");
 		model.addAttribute("filterEndDate", filterEndDate != null ? filterEndDate : "");
 		model.addAttribute("filterUpid", filterUpid);
+		model.addAttribute("filterPrimaryCareId", filterPrimaryCareId);
 		model.addAttribute("filterInsuranceType", filterInsuranceType);
 		model.addAttribute("insuranceTypeOptions", insuranceTypeOptions());
 		model.addAttribute("listError", listError);

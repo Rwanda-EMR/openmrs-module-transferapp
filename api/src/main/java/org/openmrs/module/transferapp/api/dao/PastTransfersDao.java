@@ -33,6 +33,12 @@ public interface PastTransfersDao {
 	Integer findPatientIdByUpid(String upid);
 
 	/**
+	 * Resolves a non-voided patient id by exact Primary Care ID identifier match.
+	 * Prefers types named like Primary Care ID; returns null when none found.
+	 */
+	Integer findPatientIdByPrimaryCareId(String primaryCareId);
+
+	/**
 	 * Visits whose {@code date_started} falls in {@code [start, end]} and that have at least one
 	 * non-voided registration encounter. Newest start first.
 	 * When {@code patientId} is non-null, results are limited to that patient (fast UPID filter).

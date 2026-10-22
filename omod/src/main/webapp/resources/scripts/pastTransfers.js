@@ -697,6 +697,7 @@
                 + " data-patient-name='" + esc(row.patientName || "") + "'>"
                 + "<td>" + esc(row.rowNumber || "") + "</td>"
                 + "<td>" + esc(row.upid || "") + "</td>"
+                + "<td>" + esc(row.primaryCareId || "") + "</td>"
                 + "<td>" + esc(row.patientName || "") + "</td>"
                 + "<td>" + esc(row.visitDateDisplay || "") + "</td>"
                 + "<td>" + endCell + "</td>"
@@ -729,6 +730,7 @@
         var startDate = config().filterStartDate || "";
         var endDate = config().filterEndDate || "";
         var upid = jq.trim(config().filterUpid || "");
+        var primaryCareId = jq.trim(config().filterPrimaryCareId || "");
         var insuranceType = jq.trim(config().filterInsuranceType || "");
         var offset = config().nextOffset || 0;
         var limit = config().pageSize || 100;
@@ -746,6 +748,9 @@
         };
         if (upid) {
             requestData.upid = upid;
+        }
+        if (primaryCareId) {
+            requestData.primaryCareId = primaryCareId;
         }
         if (insuranceType) {
             requestData.insuranceType = insuranceType;

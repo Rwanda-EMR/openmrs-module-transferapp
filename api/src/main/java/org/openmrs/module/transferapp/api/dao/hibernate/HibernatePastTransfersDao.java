@@ -70,6 +70,36 @@ public class HibernatePastTransfersDao implements PastTransfersDao {
 
 	@Override
 	@SuppressWarnings("unchecked")
+	public Integer findPatientIdByPrimaryCareId(String primaryCareId) {
+		String normalized = StringUtils.trimToNull(primaryCareId);
+		if (normalized == null) {
+			return null;
+		}
+		SQLQuery query = getSession().createSQLQuery(
+				"SELECT pi.patient_id AS patientId "
+						+ "FROM patient_identifier pi "
+						+ "INNER JOIN patient_identifier_type pit "
+						+ "ON pit.patient_identifier_type_id = pi.identifier_type "
+						+ "WHERE pi.voided = 0 "
+						+ "AND pi.identifier = :primaryCareId "
+						+ "AND (UPPER(pit.name) = 'PRIMARY CARE ID' "
+						+ "OR UPPER(pit.name) = 'PRIMARY CARE' "
+						+ "OR UPPER(pit.name) = 'PRIMARY CARE ID TYPE' "
+						+ "OR UPPER(pit.name) LIKE '%PRIMARY CARE%') "
+						+ "ORDER BY CASE "
+						+ "WHEN UPPER(pit.name) = 'PRIMARY CARE ID' THEN 0 "
+						+ "WHEN UPPER(pit.name) = 'PRIMARY CARE' THEN 1 "
+						+ "WHEN UPPER(pit.name) = 'PRIMARY CARE ID TYPE' THEN 2 "
+						+ "ELSE 3 END, pi.patient_id ASC");
+		query.setString("primaryCareId", normalized);
+		query.setMaxResults(1);
+		query.addScalar("patientId", StandardBasicTypes.INTEGER);
+		Number patientId = (Number) query.uniqueResult();
+		return patientId == null ? null : Integer.valueOf(patientId.intValue());
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
 	public List<Object[]> findVisitsWithRegistrationInRange(Date start, Date end,
 			Integer registrationEncounterTypeId, Integer patientId, Integer insuranceTypeConceptId,
 			Collection<Integer> insuranceValueCodedIds, Collection<String> insuranceNamePatterns,

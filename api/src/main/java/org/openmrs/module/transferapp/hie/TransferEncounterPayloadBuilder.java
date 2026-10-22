@@ -618,7 +618,11 @@ public class TransferEncounterPayloadBuilder {
 		String qualification = firstNonBlank(
 				transfer.getProviderQualification(),
 				profile != null ? profile.getQualification() : null);
-		String specialty = profile != null ? StringUtils.trimToNull(profile.getSpeciality()) : null;
+		// Only fall back to My Profile specialty when the transfer has no referring
+		// qualification yet — otherwise an approving user would inject their specialty.
+		String specialty = StringUtils.isBlank(transfer.getProviderQualification()) && profile != null
+				? StringUtils.trimToNull(profile.getSpeciality())
+				: null;
 		String phone = firstNonBlank(
 				transfer.getProviderPhone(),
 				profile != null ? profile.getPhoneNumber() : null);
@@ -1166,23 +1170,40 @@ public class TransferEncounterPayloadBuilder {
 	}
 
 	private String resolveLicense(Transfer transfer, User user, TransferProfile profile) {
+		// Prefer the referring clinician's license already on the transfer display name.
+		// Do not prefer the authenticated user's My Profile — after approval that user is
+		// often the approver, which previously sent the wrong license into HIE.
+		String fromReferringName = extractLicenseFromReferringName(transfer);
+		if (fromReferringName != null) {
+			return fromReferringName;
+		}
 		if (profile != null && StringUtils.isNotBlank(profile.getLicenseNumber())) {
 			return profile.getLicenseNumber().trim();
 		}
-		// Referring provider name may already be formatted as Name(LICENSE)
-		String formatted = transfer != null ? StringUtils.trimToNull(transfer.getReferringProviderName()) : null;
-		if (formatted != null) {
-			int open = formatted.lastIndexOf('(');
-			int close = formatted.lastIndexOf(')');
-			if (open >= 0 && close > open + 1) {
-				return formatted.substring(open + 1, close).trim();
-			}
+		return null;
+	}
+
+	private static String extractLicenseFromReferringName(Transfer transfer) {
+		String formatted = transfer != null
+				? TransferProfile.sanitizeReferringProviderDisplayName(transfer.getReferringProviderName())
+				: null;
+		formatted = StringUtils.trimToNull(formatted);
+		if (formatted == null) {
+			return null;
+		}
+		int open = formatted.lastIndexOf('(');
+		int close = formatted.lastIndexOf(')');
+		if (open >= 0 && close > open + 1) {
+			return formatted.substring(open + 1, close).trim();
 		}
 		return null;
 	}
 
 	private String resolveProviderDisplayName(Transfer transfer, User user) {
-		String raw = transfer != null ? StringUtils.trimToNull(transfer.getReferringProviderName()) : null;
+		String raw = transfer != null
+				? StringUtils.trimToNull(TransferProfile.sanitizeReferringProviderDisplayName(
+						transfer.getReferringProviderName()))
+				: null;
 		if (raw != null) {
 			int open = raw.lastIndexOf('(');
 			if (open > 0) {

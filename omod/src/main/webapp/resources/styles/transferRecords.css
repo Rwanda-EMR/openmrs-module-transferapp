@@ -35,7 +35,7 @@
 
 .transfer-past-transfers-filters-grid {
   display: grid;
-  grid-template-columns: minmax(140px, 170px) minmax(140px, 170px) minmax(180px, 240px) minmax(140px, 170px) auto;
+  grid-template-columns: minmax(120px, 150px) minmax(120px, 150px) minmax(160px, 210px) minmax(150px, 190px) minmax(130px, 160px) auto;
   gap: 14px 16px;
   align-items: end;
   justify-content: start;
@@ -44,6 +44,7 @@
 .transfer-past-transfers-filters-grid .transfer-records-filter-field-start-date,
 .transfer-past-transfers-filters-grid .transfer-records-filter-field-end-date,
 .transfer-past-transfers-filters-grid .transfer-records-filter-field-upid,
+.transfer-past-transfers-filters-grid .transfer-records-filter-field-primary-care,
 .transfer-past-transfers-filters-grid .transfer-records-filter-field-insurance {
   min-width: 0;
 }
@@ -466,7 +467,7 @@
   }
 
   .transfer-past-transfers-filters-grid {
-    grid-template-columns: minmax(140px, 170px) minmax(140px, 170px) minmax(160px, 1fr) minmax(140px, 170px) auto;
+    grid-template-columns: minmax(120px, 150px) minmax(120px, 150px) minmax(140px, 1fr) minmax(140px, 180px) minmax(120px, 150px) auto;
   }
 
   .transfer-records-filter-field-destination,

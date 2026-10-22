@@ -567,14 +567,15 @@ public class HieTransferResponseParser {
                 }
             }
         }
-        transfer.put("referringProviderName", TransferProfile.formatCareProviderName(
-                firstNonBlank(
-                        extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "name"),
-                        referringProviderName),
-                firstNonBlank(
-                        extractNestedExtensionValue(resource, EXT_DOCTOR_DETAILS, "license-number"),
-                        extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "license-number"),
-                        referringProviderLicense)));
+        transfer.put("referringProviderName", TransferProfile.sanitizeReferringProviderDisplayName(
+                TransferProfile.formatCareProviderName(
+                        firstNonBlank(
+                                extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "name"),
+                                referringProviderName),
+                        firstNonBlank(
+                                extractNestedExtensionValue(resource, EXT_DOCTOR_DETAILS, "license-number"),
+                                extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "license-number"),
+                                referringProviderLicense))));
         transfer.put("referringProviderQualification", firstNonBlank(
                 extractNestedCodingDisplay(resource, EXT_DOCTOR_DETAILS, "qualification"),
                 extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "qualification")));
@@ -651,12 +652,13 @@ public class HieTransferResponseParser {
         applyEtransferFormFallback(transfer, extractEtransferFormNode(resource));
         applyPeriodDatetimeFallbacks(transfer, periodStart, periodEnd);
         applyReferralFeedbackFromEncounter(resource, transfer);
-        transfer.put("referringProviderName", TransferProfile.formatCareProviderName(
-                asString(transfer.get("referringProviderName")),
-                firstNonBlank(
-                        extractNestedExtensionValue(resource, EXT_DOCTOR_DETAILS, "license-number"),
-                        extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "license-number"),
-                        referringProviderLicense)));
+        transfer.put("referringProviderName", TransferProfile.sanitizeReferringProviderDisplayName(
+                TransferProfile.formatCareProviderName(
+                        asString(transfer.get("referringProviderName")),
+                        firstNonBlank(
+                                extractNestedExtensionValue(resource, EXT_DOCTOR_DETAILS, "license-number"),
+                                extractNestedPreferTopThenDetails(resource, EXT_PRACTITIONER_INFO, "license-number"),
+                                referringProviderLicense))));
     }
 
     /**

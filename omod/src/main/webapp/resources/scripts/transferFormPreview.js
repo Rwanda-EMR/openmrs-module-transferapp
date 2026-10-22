@@ -21,6 +21,25 @@
 		return "<span class='tf-line' style='min-width:" + width + "px;'>" + safe + "</span>";
 	}
 
+	/**
+	 * Collapse Name(license1)(license2)… to Name(license1). Older approver→HIE submit
+	 * paths appended the approver license onto the referring provider display name.
+	 */
+	function sanitizeReferringProviderDisplayName(value) {
+		if (value === null || value === undefined) {
+			return "";
+		}
+		var name = String(value).trim();
+		while (/\([^)]+\)\([^)]+\)\s*$/.test(name)) {
+			var lastOpen = name.lastIndexOf("(");
+			if (lastOpen <= 0) {
+				break;
+			}
+			name = name.substring(0, lastOpen).trim();
+		}
+		return name;
+	}
+
 	function splitClinicalPresentationLines(value) {
 		if (value === null || value === undefined) {
 			return [];
@@ -887,7 +906,7 @@
 			isMmiInsurance: insuranceFlags.isMmiInsurance,
 			otherInsurance: insuranceFlags.otherInsurance,
 			isNoInsurance: insuranceFlags.isNoInsurance,
-			referringProviderName: normalized.referringProviderName,
+			referringProviderName: sanitizeReferringProviderDisplayName(normalized.referringProviderName),
 			referringProviderQualification: firstNonBlank(
 				normalized.referringProviderQualification,
 				normalized.providerSpecialty
@@ -1040,9 +1059,11 @@
 			+ " <strong>Phone:</strong> " + line(p.referringProviderPhone, 180)
 			+ signatureBlock + "</div>"
 			+ (p.approverName || p.approverPosition || p.approverPhone
-				? ("<div class='tf-row tf-bottom-gap'><strong>Approver name:</strong> " + line(p.approverName, 220)
-					+ " <strong>Approver position:</strong> " + line(p.approverPosition, 180) + "</div>"
-					+ "<div class='tf-row'><strong>Approver phone:</strong> " + line(p.approverPhone, 180) + "</div>")
+				? ("<div class='tf-row tf-approver-row tf-bottom-gap'>"
+					+ "<strong>Approved By:</strong> " + line(p.approverName, 160)
+					+ " <strong>Position:</strong> " + line(p.approverPosition, 140)
+					+ " <strong>Phone Number:</strong> " + line(p.approverPhone, 120)
+					+ "</div>")
 				: "");
 
 		var bottomSection = bottomRows;

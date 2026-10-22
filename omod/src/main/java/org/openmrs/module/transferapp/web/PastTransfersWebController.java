@@ -46,6 +46,7 @@ public class PastTransfersWebController {
 			@RequestParam("startDate") String startDate,
 			@RequestParam("endDate") String endDate,
 			@RequestParam(value = "upid", required = false) String upid,
+			@RequestParam(value = "primaryCareId", required = false) String primaryCareId,
 			@RequestParam(value = "insuranceType", required = false) String insuranceType,
 			@RequestParam(value = "offset", required = false) Integer offset,
 			@RequestParam(value = "limit", required = false) Integer limit) throws Exception {
@@ -78,14 +79,17 @@ public class PastTransfersWebController {
 					? limit.intValue()
 					: PastTransfersService.DEFAULT_PAGE_SIZE;
 			String filterUpid = StringUtils.trimToEmpty(upid);
+			String filterPrimaryCareId = StringUtils.trimToEmpty(primaryCareId);
 			String filterInsuranceType = StringUtils.trimToEmpty(insuranceType);
 			PastTransferPageResult page = service.findVisitsInRange(
-					normalizedStart, normalizedEnd, filterUpid, filterInsuranceType, pageOffset, pageLimit);
+					normalizedStart, normalizedEnd, filterUpid, filterInsuranceType, filterPrimaryCareId,
+					pageOffset, pageLimit);
 
 			data.put("status", "success");
 			data.put("startDate", normalizedStart);
 			data.put("endDate", normalizedEnd);
 			data.put("upid", filterUpid);
+			data.put("primaryCareId", filterPrimaryCareId);
 			data.put("insuranceType", filterInsuranceType);
 			data.put("offset", page.getOffset());
 			data.put("limit", page.getLimit());
@@ -119,6 +123,7 @@ public class PastTransfersWebController {
 			row.put("visitId", item.getVisitId());
 			row.put("patientId", item.getPatientId());
 			row.put("upid", StringUtils.defaultString(item.getUpid()));
+			row.put("primaryCareId", StringUtils.defaultString(item.getPrimaryCareId()));
 			row.put("patientName", StringUtils.defaultString(item.getPatientName()));
 			row.put("visitDateIso", formatDay(item.getVisitStartDatetime(), dayFormat));
 			row.put("visitEndDateIso", formatDay(item.getVisitStopDatetime(), dayFormat));

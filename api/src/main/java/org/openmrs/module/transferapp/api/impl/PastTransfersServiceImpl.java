@@ -85,12 +85,18 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 	@Override
 	public PastTransferPageResult findVisitsInRange(String startDate, String endDate, String upid, int offset,
 			int limit) {
-		return findVisitsInRange(startDate, endDate, upid, null, offset, limit);
+		return findVisitsInRange(startDate, endDate, upid, null, null, offset, limit);
 	}
 
 	@Override
 	public PastTransferPageResult findVisitsInRange(String startDate, String endDate, String upid, String insuranceType,
 			int offset, int limit) {
+		return findVisitsInRange(startDate, endDate, upid, insuranceType, null, offset, limit);
+	}
+
+	@Override
+	public PastTransferPageResult findVisitsInRange(String startDate, String endDate, String upid, String insuranceType,
+			String primaryCareId, int offset, int limit) {
 		if (pastTransfersDao == null) {
 			throw new APIException("Past transfers data access is not configured");
 		}
@@ -118,6 +124,21 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 				page.setTotalCount(0);
 				return page;
 			}
+		}
+		String normalizedPrimaryCareId = StringUtils.trimToNull(primaryCareId);
+		if (normalizedPrimaryCareId != null) {
+			Integer primaryCarePatientId = pastTransfersDao.findPatientIdByPrimaryCareId(normalizedPrimaryCareId);
+			if (primaryCarePatientId == null) {
+				page.setItems(Collections.<PastTransferItem>emptyList());
+				page.setTotalCount(0);
+				return page;
+			}
+			if (patientIdFilter != null && !patientIdFilter.equals(primaryCarePatientId)) {
+				page.setItems(Collections.<PastTransferItem>emptyList());
+				page.setTotalCount(0);
+				return page;
+			}
+			patientIdFilter = primaryCarePatientId;
 		}
 
 		InsuranceTypeFilter insuranceFilter = resolveInsuranceTypeFilter(insuranceType);
@@ -196,6 +217,7 @@ public class PastTransfersServiceImpl implements PastTransfersService {
 				item.setPatientName(patient.getPersonName().getFullName());
 			}
 			item.setUpid(patientSnapshotResolver.resolveUpid(patient));
+			item.setPrimaryCareId(patientSnapshotResolver.resolvePrimaryCareId(patient));
 			item.setVisitStartDatetime(start);
 			item.setVisitStopDatetime(stop);
 

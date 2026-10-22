@@ -26,6 +26,9 @@ public class PastTransferItem {
 
 	private String upid;
 
+	/** Facility Primary Care ID (patient identifier), when present. */
+	private String primaryCareId;
+
 	private String patientName;
 
 	private Date visitStartDatetime;
@@ -69,6 +72,14 @@ public class PastTransferItem {
 
 	public void setUpid(String upid) {
 		this.upid = upid;
+	}
+
+	public String getPrimaryCareId() {
+		return primaryCareId;
+	}
+
+	public void setPrimaryCareId(String primaryCareId) {
+		this.primaryCareId = primaryCareId;
 	}
 
 	public String getPatientName() {

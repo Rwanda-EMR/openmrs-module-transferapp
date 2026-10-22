@@ -281,8 +281,19 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 				clinicalEncounterJson, existingJson, encounterId, keepRequiresVerification);
 	}
 
+	/**
+	 * Fills blank referring-provider fields from the authenticated user's My Profile.
+	 * Never overwrites fields already set — after local approval the submitter is often
+	 * an approver, and overwriting previously appended a second license / qualification.
+	 */
 	private void applyProviderQualificationWithSpeciality(Transfer transfer) {
 		if (transfer == null || transferProfileService == null) {
+			return;
+		}
+		boolean hasReferringName = StringUtils.isNotBlank(transfer.getReferringProviderName());
+		boolean hasQualification = StringUtils.isNotBlank(transfer.getProviderQualification());
+		boolean hasPhone = StringUtils.isNotBlank(transfer.getProviderPhone());
+		if (hasReferringName && hasQualification && hasPhone) {
 			return;
 		}
 		User user = Context.getAuthenticatedUser();
@@ -293,23 +304,29 @@ public class TransferHieSubmissionServiceImpl implements TransferHieSubmissionSe
 		if (profile == null) {
 			return;
 		}
-		String combined = StringUtils.trimToNull(profile.getQualificationWithSpeciality());
-		if (combined != null) {
-			transfer.setProviderQualification(combined);
+		if (!hasQualification) {
+			String combined = StringUtils.trimToNull(profile.getQualificationWithSpeciality());
+			if (combined != null) {
+				transfer.setProviderQualification(combined);
+			}
 		}
-		String phone = StringUtils.trimToNull(profile.getPhoneNumber());
-		if (phone != null) {
-			transfer.setProviderPhone(phone);
+		if (!hasPhone) {
+			String phone = StringUtils.trimToNull(profile.getPhoneNumber());
+			if (phone != null) {
+				transfer.setProviderPhone(phone);
+			}
 		}
-		String referringName = StringUtils.trimToNull(transfer.getReferringProviderName());
-		if (referringName == null && user.getPerson() != null && user.getPerson().getPersonName() != null) {
-			referringName = StringUtils.trimToNull(user.getPerson().getPersonName().getFullName());
+		if (!hasReferringName) {
+			String referringName = null;
+			if (user.getPerson() != null && user.getPerson().getPersonName() != null) {
+				referringName = StringUtils.trimToNull(user.getPerson().getPersonName().getFullName());
+			}
+			if (referringName == null) {
+				referringName = StringUtils.trimToNull(user.getUsername());
+			}
+			transfer.setReferringProviderName(TransferProfile.formatCareProviderName(
+					referringName, profile.getLicenseNumber()));
 		}
-		if (referringName == null) {
-			referringName = StringUtils.trimToNull(user.getUsername());
-		}
-		transfer.setReferringProviderName(TransferProfile.formatCareProviderName(
-				referringName, profile.getLicenseNumber()));
 	}
 
 	/**

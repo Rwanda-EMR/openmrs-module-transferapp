@@ -1968,7 +1968,9 @@ public class TransferSaveController {
 	private String formatReferringProviderNameForPreview(Transfer transfer) {
 		// Use the stored referring-provider display as-is. License is already applied at save
 		// time via TransferProfile.formatCareProviderName; re-appending here duplicates suffixes.
-		return nullToEmpty(transfer.getReferringProviderName());
+		// Sanitize collapses Name(license1)(license2) left by older approver→HIE submit paths.
+		return TransferProfile.sanitizeReferringProviderDisplayName(
+				nullToEmpty(transfer.getReferringProviderName()));
 	}
 
 	private String nullToEmpty(String value) {

@@ -61,4 +61,12 @@ public interface PastTransfersService {
 	@Transactional(readOnly = true)
 	PastTransferPageResult findVisitsInRange(String startDate, String endDate, String upid, String insuranceType,
 			int offset, int limit);
+
+	/**
+	 * Same as {@link #findVisitsInRange(String, String, String, String, int, int)} with optional
+	 * Primary Care ID filter (exact patient identifier match).
+	 */
+	@Transactional(readOnly = true)
+	PastTransferPageResult findVisitsInRange(String startDate, String endDate, String upid, String insuranceType,
+			String primaryCareId, int offset, int limit);
 }
