@@ -228,6 +228,30 @@
 	</globalProperty>
 
 	<globalProperty>
+		<property>transferapp.orphanTransferBackfill.enabled</property>
+		<defaultValue>false</defaultValue>
+		<description>When true, the scheduled Orphan Transfer Id Backfill task fetches HIE Encounter details for Transfer Id obs that have no matching transfers row and inserts the missing local records. When false (default), the task exits without work</description>
+	</globalProperty>
+
+	<globalProperty>
+		<property>transferapp.orphanTransferBackfill.batchSize</property>
+		<defaultValue>50</defaultValue>
+		<description>Maximum number of orphan Transfer Id obs to process in one scheduler run (default 50)</description>
+	</globalProperty>
+
+	<globalProperty>
+		<property>transferapp.orphanTransferBackfill.delaySeconds</property>
+		<defaultValue>30</defaultValue>
+		<description>Seconds to wait between successive HIE Encounter requests within one backfill run (default 30)</description>
+	</globalProperty>
+
+	<globalProperty>
+		<property>transferapp.orphanTransferBackfill.lookbackDays</property>
+		<defaultValue>1</defaultValue>
+		<description>Only consider Transfer Id obs created within this many days when searching for orphans to backfill (default 1)</description>
+	</globalProperty>
+
+	<globalProperty>
 		<property>transferapp.outboundProvince</property>
 		<defaultValue></defaultValue>
 		<description>Province of this facility. Used only on transfer preview screens when the transfer targets transferapp.outboundFacilityName and HIE omitted Province. Not written into outbound HIE payloads</description>
