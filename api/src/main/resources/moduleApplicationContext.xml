@@ -92,6 +92,33 @@
 		</property>
 	</bean>
 
+	<bean id="orphanTransferBackfillService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+		<property name="transactionManager">
+			<ref bean="transactionManager" />
+		</property>
+		<property name="target">
+			<bean class="org.openmrs.module.transferapp.api.impl.OrphanTransferBackfillServiceImpl">
+				<property name="pastTransfersDao" ref="pastTransfersDao" />
+				<property name="transferHieReceiveService" ref="transferAppHieReceiveService" />
+			</bean>
+		</property>
+		<property name="preInterceptors">
+			<ref bean="serviceInterceptors" />
+		</property>
+		<property name="transactionAttributeSource">
+			<ref bean="transactionAttributeSource" />
+		</property>
+	</bean>
+
+	<bean parent="serviceContext">
+		<property name="moduleService">
+			<list>
+				<value>org.openmrs.module.transferapp.api.OrphanTransferBackfillService</value>
+				<ref bean="orphanTransferBackfillService" />
+			</list>
+		</property>
+	</bean>
+
 	<bean id="transferDao" class="org.openmrs.module.transferapp.api.dao.hibernate.HibernateTransferDao">
 		<property name="sessionFactory" ref="dbSessionFactory" />
 	</bean>
