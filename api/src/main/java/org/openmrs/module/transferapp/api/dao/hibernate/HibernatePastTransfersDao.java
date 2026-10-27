@@ -23,6 +23,7 @@ import org.openmrs.Patient;
 import org.openmrs.api.db.hibernate.DbSession;
 import org.openmrs.api.db.hibernate.DbSessionFactory;
 import org.openmrs.module.transferapp.api.dao.PastTransfersDao;
+import org.openmrs.module.transferapp.model.OrphanTransferIdObs;
 import org.openmrs.module.transferapp.model.Transfer;
 
 import java.util.ArrayList;
@@ -489,6 +490,62 @@ public class HibernatePastTransfersDao implements PastTransfersDao {
 			}
 		}
 		return all;
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public List<OrphanTransferIdObs> findOrphanTransferIdObs(Integer transferIdConceptId, Date createdOnOrAfter,
+			int maxResults) {
+		if (transferIdConceptId == null || createdOnOrAfter == null || maxResults <= 0) {
+			return Collections.emptyList();
+		}
+		SQLQuery query = getSession().createSQLQuery(
+				"SELECT o.obs_id AS obsId, o.person_id AS patientId, o.value_text AS hieTransferId, "
+						+ "o.date_created AS dateCreated "
+						+ "FROM obs o "
+						+ "INNER JOIN patient p ON p.patient_id = o.person_id AND p.voided = 0 "
+						+ "WHERE o.voided = 0 "
+						+ "AND o.concept_id = :conceptId "
+						+ "AND o.value_text IS NOT NULL "
+						+ "AND TRIM(o.value_text) <> '' "
+						+ "AND o.date_created >= :createdOnOrAfter "
+						+ "AND NOT EXISTS ("
+						+ "  SELECT 1 FROM transfers t "
+						+ "  WHERE t.voided = 0 "
+						+ "  AND t.patient_id = o.person_id "
+						+ "  AND t.hie_transfer_id = TRIM(o.value_text)"
+						+ ") "
+						+ "ORDER BY o.date_created ASC, o.obs_id ASC");
+		query.setInteger("conceptId", transferIdConceptId);
+		query.setTimestamp("createdOnOrAfter", createdOnOrAfter);
+		query.setMaxResults(maxResults);
+		query.addScalar("obsId", StandardBasicTypes.INTEGER);
+		query.addScalar("patientId", StandardBasicTypes.INTEGER);
+		query.addScalar("hieTransferId", StandardBasicTypes.STRING);
+		query.addScalar("dateCreated", StandardBasicTypes.TIMESTAMP);
+		List<Object[]> rows = query.list();
+		if (rows == null || rows.isEmpty()) {
+			return Collections.emptyList();
+		}
+		List<OrphanTransferIdObs> result = new ArrayList<OrphanTransferIdObs>();
+		for (Object[] row : rows) {
+			if (row == null || row.length < 4) {
+				continue;
+			}
+			String hieTransferId = StringUtils.trimToNull(row[2] != null ? String.valueOf(row[2]) : null);
+			if (hieTransferId == null) {
+				continue;
+			}
+			OrphanTransferIdObs orphan = new OrphanTransferIdObs();
+			orphan.setObsId(row[0] instanceof Number ? Integer.valueOf(((Number) row[0]).intValue()) : null);
+			orphan.setPatientId(row[1] instanceof Number ? Integer.valueOf(((Number) row[1]).intValue()) : null);
+			orphan.setHieTransferId(hieTransferId);
+			orphan.setDateCreated(row[3] instanceof Date ? (Date) row[3] : null);
+			if (orphan.getPatientId() != null) {
+				result.add(orphan);
+			}
+		}
+		return result;
 	}
 
 	private DbSession getSession() {

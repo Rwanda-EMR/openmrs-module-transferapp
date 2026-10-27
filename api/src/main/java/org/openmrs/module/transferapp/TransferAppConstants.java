@@ -170,6 +170,43 @@ public final class TransferAppConstants {
 	public static final String DEFAULT_LICENSE_VALIDATION_ENABLED = "false";
 
 	/**
+	 * When {@code true}, the orphan Transfer Id backfill scheduler fetches HIE Encounter details for
+	 * Transfer Id obs that have no matching {@code transfers} row. Default {@code false}.
+	 */
+	public static final String GP_ORPHAN_TRANSFER_BACKFILL_ENABLED = "transferapp.orphanTransferBackfill.enabled";
+
+	public static final String DEFAULT_ORPHAN_TRANSFER_BACKFILL_ENABLED = "false";
+
+	/** Max orphan Transfer Id obs processed per scheduler run. */
+	public static final String GP_ORPHAN_TRANSFER_BACKFILL_BATCH_SIZE = "transferapp.orphanTransferBackfill.batchSize";
+
+	public static final String DEFAULT_ORPHAN_TRANSFER_BACKFILL_BATCH_SIZE = "50";
+
+	/** Seconds to wait between successive HIE Encounter fetches within one run. */
+	public static final String GP_ORPHAN_TRANSFER_BACKFILL_DELAY_SECONDS =
+			"transferapp.orphanTransferBackfill.delaySeconds";
+
+	public static final String DEFAULT_ORPHAN_TRANSFER_BACKFILL_DELAY_SECONDS = "30";
+
+	/**
+	 * Only consider Transfer Id obs created within this many days (lookback window for the backfill).
+	 */
+	public static final String GP_ORPHAN_TRANSFER_BACKFILL_LOOKBACK_DAYS =
+			"transferapp.orphanTransferBackfill.lookbackDays";
+
+	public static final String DEFAULT_ORPHAN_TRANSFER_BACKFILL_LOOKBACK_DAYS = "1";
+
+	/** OpenMRS scheduler task name for orphan Transfer Id → transfers backfill. */
+	public static final String ORPHAN_TRANSFER_BACKFILL_TASK_NAME = "Transfer App Orphan Transfer Id Backfill";
+
+	/** Schedulable class for {@link #ORPHAN_TRANSFER_BACKFILL_TASK_NAME}. */
+	public static final String ORPHAN_TRANSFER_BACKFILL_TASK_CLASS =
+			"org.openmrs.module.transferapp.task.OrphanTransferIdBackfillTask";
+
+	/** Repeat interval in seconds (50 minutes). */
+	public static final long ORPHAN_TRANSFER_BACKFILL_REPEAT_INTERVAL_SECONDS = 50L * 60L;
+
+	/**
 	 * Province of the current (outbound) facility. Preview-only fallback when a transfer targeting
 	 * {@link #GP_OUTBOUND_FACILITY_NAME} has no province in the HIE payload. Not used on outbound HIE submit.
 	 */

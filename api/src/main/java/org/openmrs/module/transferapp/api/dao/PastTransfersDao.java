@@ -14,6 +14,7 @@
 package org.openmrs.module.transferapp.api.dao;
 
 import org.openmrs.Patient;
+import org.openmrs.module.transferapp.model.OrphanTransferIdObs;
 import org.openmrs.module.transferapp.model.Transfer;
 
 import java.util.Collection;
@@ -86,4 +87,12 @@ public interface PastTransfersDao {
 	 * Local transfers matching any of the HIE transfer ids (non-voided).
 	 */
 	List<Transfer> findTransfersByHieTransferIds(Collection<String> hieTransferIds);
+
+	/**
+	 * Non-voided Transfer Id obs ({@code value_text}) created on/after {@code createdOnOrAfter}
+	 * whose patient has no matching non-voided {@code transfers.hie_transfer_id} row.
+	 * Oldest first; capped at {@code maxResults}.
+	 */
+	List<OrphanTransferIdObs> findOrphanTransferIdObs(Integer transferIdConceptId, Date createdOnOrAfter,
+			int maxResults);
 }
