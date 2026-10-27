@@ -13,16 +13,24 @@
  */
 package org.openmrs.module.transferapp;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.openmrs.Privilege;
 import org.openmrs.Role;
 import org.openmrs.api.UserService;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.BaseModuleActivator;
+import org.openmrs.scheduler.SchedulerService;
+import org.openmrs.scheduler.TaskDefinition;
+
+import java.util.Date;
 
 /**
  * This class contains the logic that is run every time this module is either started or stopped.
  */
 public class TransferAppActivator extends BaseModuleActivator {
+
+	private static final Log log = LogFactory.getLog(TransferAppActivator.class);
 
 	public static final String PRIVILEGE_DASHBOARD = "App: transferapp.dashboard";
 
@@ -43,7 +51,56 @@ public class TransferAppActivator extends BaseModuleActivator {
 	@Override
 	public void started() {
 		ensureDefaultPrivilegesForSystemRoles();
+		ensureOrphanTransferBackfillTask();
 		super.started();
+	}
+
+	/**
+	 * Registers (or updates) the orphan Transfer Id backfill scheduler task to run every 50 minutes.
+	 * Work is gated by {@code transferapp.orphanTransferBackfill.enabled} (default false).
+	 */
+	private void ensureOrphanTransferBackfillTask() {
+		try {
+			SchedulerService schedulerService = Context.getSchedulerService();
+			if (schedulerService == null) {
+				return;
+			}
+			TaskDefinition task = schedulerService.getTaskByName(
+					TransferAppConstants.ORPHAN_TRANSFER_BACKFILL_TASK_NAME);
+			boolean created = false;
+			if (task == null) {
+				task = new TaskDefinition();
+				task.setName(TransferAppConstants.ORPHAN_TRANSFER_BACKFILL_TASK_NAME);
+				task.setDescription(
+						"Backfills transfers rows for Transfer Id obs missing local records by fetching HIE Encounter details");
+				task.setTaskClass(TransferAppConstants.ORPHAN_TRANSFER_BACKFILL_TASK_CLASS);
+				task.setStartTime(new Date());
+				task.setCreator(Context.getAuthenticatedUser());
+				task.setDateCreated(new Date());
+				created = true;
+			}
+			task.setTaskClass(TransferAppConstants.ORPHAN_TRANSFER_BACKFILL_TASK_CLASS);
+			task.setRepeatInterval(TransferAppConstants.ORPHAN_TRANSFER_BACKFILL_REPEAT_INTERVAL_SECONDS);
+			task.setStartOnStartup(Boolean.TRUE);
+			schedulerService.saveTaskDefinition(task);
+			if (!Boolean.TRUE.equals(task.getStarted())) {
+				try {
+					schedulerService.scheduleTask(task);
+				}
+				catch (Exception scheduleEx) {
+					log.warn("Could not schedule orphan Transfer Id backfill task on startup: "
+							+ scheduleEx.getMessage());
+				}
+			}
+			log.info((created ? "Registered" : "Updated") + " scheduler task '"
+					+ TransferAppConstants.ORPHAN_TRANSFER_BACKFILL_TASK_NAME
+					+ "' (every "
+					+ TransferAppConstants.ORPHAN_TRANSFER_BACKFILL_REPEAT_INTERVAL_SECONDS
+					+ "s)");
+		}
+		catch (Exception ex) {
+			log.warn("Unable to ensure orphan Transfer Id backfill scheduler task: " + ex.getMessage(), ex);
+		}
 	}
 
 	private void ensureDefaultPrivilegesForSystemRoles() {
