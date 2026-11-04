@@ -138,6 +138,12 @@ public final class TransferAppConstants {
 
 	public static final String DEFAULT_PRODUCTION = "true";
 
+	/** FHIR extension identifying which system authored the HIE Encounter payload. */
+	public static final String EXT_SOURCE_SYSTEM =
+			"http://example.org/fhir/StructureDefinition/source-system";
+
+	public static final String SOURCE_SYSTEM_OPENMRS = "OpenMRS";
+
 	/** FHIR extension: facility that provides the ambulance vehicle (FOSA id + name). */
 	public static final String EXT_AMBULANCE_PROVIDER_FACILITY =
 			"http://example.org/fhir/StructureDefinition/ambulance-provider-facility";

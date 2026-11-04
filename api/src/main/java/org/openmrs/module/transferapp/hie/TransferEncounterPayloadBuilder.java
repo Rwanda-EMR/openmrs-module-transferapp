@@ -292,6 +292,9 @@ public class TransferEncounterPayloadBuilder {
 			String encounterId, boolean externalReceivingFacility) {
 		ArrayNode extensions = encounter.putArray("extension");
 
+		addStringExtension(extensions, TransferAppConstants.EXT_SOURCE_SYSTEM,
+				TransferAppConstants.SOURCE_SYSTEM_OPENMRS);
+
 		String patientPhone = firstNonBlank(transfer.getClientTelephone(), transfer.getCaregiverTelephone());
 		if (StringUtils.isNotBlank(patientPhone)) {
 			ObjectNode phoneExt = addObjectNode(extensions);

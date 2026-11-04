@@ -13,6 +13,7 @@
 				<property name="transferDao" ref="transferDao" />
 				<property name="maternityTransferDao" ref="maternityTransferDao" />
 				<property name="neonatalTransferDao" ref="neonatalTransferDao" />
+				<property name="pastTransfersDao" ref="pastTransfersDao" />
 				<property name="transferAdminService" ref="transferAdminService" />
 				<property name="transferReferralFeedbackDao" ref="transferReferralFeedbackDao" />
 			</bean>
