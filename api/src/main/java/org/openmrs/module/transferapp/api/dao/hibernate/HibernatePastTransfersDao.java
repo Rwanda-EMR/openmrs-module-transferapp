@@ -676,7 +676,8 @@ public class HibernatePastTransfersDao implements PastTransfersDao {
 				.append("  WHERE f.voided = 0 AND f.patient_id = n.patient_id ")
 				.append("  AND TRIM(f.hie_transfer_id) = TRIM(n.hie_transfer_id)")
 				.append(")")
-				.append(") keys");
+				// Alias must not be "keys" — reserved word in MySQL 8+.
+				.append(") missing_keys");
 		SQLQuery query = getSession().createSQLQuery(sql.toString());
 		query.setString("sendingFacility", facility);
 		bindCoalesceDecisionBounds(query, fromDate, toDate);
@@ -687,15 +688,25 @@ public class HibernatePastTransfersDao implements PastTransfersDao {
 
 	/**
 	 * SQL expression that strips optional surrounding braces and trims Transfer Id text.
+	 * Uses CHAR(123)/CHAR(125) instead of literal {@code '{'/'}'} because Hibernate treats
+	 * curly braces in native SQL as alias placeholders ({@code Unmatched braces for alias path}).
 	 */
 	private static String normalizedTransferIdSql(String columnExpression) {
-		return "TRIM(BOTH ' ' FROM TRIM(BOTH '}' FROM TRIM(BOTH '{' FROM TRIM(" + columnExpression + "))))";
+		String trimmed = "TRIM(" + columnExpression + ")";
+		return "TRIM(CASE "
+				+ "WHEN LEFT(" + trimmed + ", 1) = CHAR(123) AND RIGHT(" + trimmed + ", 1) = CHAR(125) "
+				+ "THEN SUBSTRING(" + trimmed + ", 2, CHAR_LENGTH(" + trimmed + ") - 2) "
+				+ "ELSE " + trimmed + " END)";
 	}
 
+	/**
+	 * UUID shape check. Quantifier braces are doubled ({@code {{8}}}) so Hibernate emits
+	 * {@code {8}} to MySQL REGEXP instead of treating them as alias paths.
+	 */
 	private static String uuidValueTextPredicate(String columnExpression) {
 		String normalized = normalizedTransferIdSql(columnExpression);
 		return "(" + normalized
-				+ " REGEXP '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')";
+				+ " REGEXP '^[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}$')";
 	}
 
 	private static void appendObsDatetimeBounds(StringBuilder sql, Date fromDate, Date toDate) {
