@@ -32,6 +32,7 @@ import org.openmrs.module.transferapp.api.TransferPatientSnapshotResolver;
 import org.openmrs.module.transferapp.api.TransferReceivedStatistics;
 import org.openmrs.module.transferapp.api.dao.MaternityTransferDao;
 import org.openmrs.module.transferapp.api.dao.NeonatalTransferDao;
+import org.openmrs.module.transferapp.api.dao.PastTransfersDao;
 import org.openmrs.module.transferapp.api.dao.TransferDao;
 import org.openmrs.module.transferapp.api.dao.TransferReferralFeedbackDao;
 import org.openmrs.module.transferapp.model.MaternityTransfer;
@@ -62,6 +63,8 @@ public class TransferDashboardServiceImpl implements TransferDashboardService {
 
 	private NeonatalTransferDao neonatalTransferDao;
 
+	private PastTransfersDao pastTransfersDao;
+
 	private TransferAdminService transferAdminService;
 
 	private TransferReferralFeedbackDao transferReferralFeedbackDao;
@@ -78,6 +81,10 @@ public class TransferDashboardServiceImpl implements TransferDashboardService {
 		this.neonatalTransferDao = neonatalTransferDao;
 	}
 
+	public void setPastTransfersDao(PastTransfersDao pastTransfersDao) {
+		this.pastTransfersDao = pastTransfersDao;
+	}
+
 	public void setTransferAdminService(TransferAdminService transferAdminService) {
 		this.transferAdminService = transferAdminService;
 	}
@@ -91,18 +98,21 @@ public class TransferDashboardServiceImpl implements TransferDashboardService {
 		TransferReceivedStatistics statistics = new TransferReceivedStatistics();
 
 		Concept concept = getReceivedTransferConcept();
-		if (concept == null) {
+		if (concept == null || concept.getConceptId() == null) {
 			return statistics;
 		}
 
 		Date startOfToday = startOfToday();
 		Date startOfWeek = startOfThisWeek();
+		Integer conceptId = concept.getConceptId();
 
-		statistics.setToday(countObservations(concept, startOfToday, null));
-		statistics.setThisWeek(countObservations(concept, startOfWeek, null));
-		statistics.setTotal(countObservations(concept, periodStart, periodEnd));
+		statistics.setToday(countObservations(conceptId, startOfToday, null));
+		statistics.setThisWeek(countObservations(conceptId, startOfWeek, null));
+		statistics.setTotal(countObservations(conceptId, periodStart, periodEnd));
 		statistics.setPending(0);
-		statistics.setMissingCounterReferral(listMissingCounterReferrals(periodStart, periodEnd).size());
+		statistics.setMissingCounterReferral(pastTransfersDao != null
+				? pastTransfersDao.countMissingInboundCounterReferrals(conceptId, periodStart, periodEnd)
+				: 0);
 
 		return statistics;
 	}
@@ -148,7 +158,9 @@ public class TransferDashboardServiceImpl implements TransferDashboardService {
 				+ maternityPeriod + neonatalPeriod);
 		statistics.setPending(transferDao.countOutboundTransfers(facilityName, null, Boolean.FALSE)
 				+ maternityPending + neonatalPending);
-		statistics.setMissingCounterReferral(listMissingOutboundCounterReferrals(periodStart, periodEnd).size());
+		statistics.setMissingCounterReferral(pastTransfersDao != null
+				? pastTransfersDao.countMissingOutboundCounterReferrals(facilityName, periodStart, periodEnd)
+				: 0);
 
 		return statistics;
 	}
@@ -193,63 +205,14 @@ public class TransferDashboardServiceImpl implements TransferDashboardService {
 		String sendingFacility = transferAdminService != null
 				? transferAdminService.resolveCurrentSendingFacilityName()
 				: null;
-		if (StringUtils.isBlank(sendingFacility) || transferDao == null) {
-			return statistics;
-		}
-
-		List<String> outboundIds = transferDao.listOutboundHieTransferIds(sendingFacility.trim());
-		if (outboundIds == null || outboundIds.isEmpty()) {
-			return statistics;
-		}
-
-		Set<String> outboundIdSet = new HashSet<String>();
-		for (String id : outboundIds) {
-			if (StringUtils.isNotBlank(id)) {
-				outboundIdSet.add(id.trim());
-			}
-		}
-		if (outboundIdSet.isEmpty()) {
-			return statistics;
-		}
-
 		Concept concept = getReceivedTransferConcept();
-		if (concept == null) {
+		if (StringUtils.isBlank(sendingFacility) || concept == null || concept.getConceptId() == null
+				|| pastTransfersDao == null) {
 			return statistics;
 		}
 
-		List<Obs> observations = getObsService().getObservations(
-				null,
-				null,
-				Collections.singletonList(concept),
-				null,
-				null,
-				null,
-				null,
-				null,
-				null,
-				periodStart,
-				periodEnd,
-				false);
-		if (observations == null || observations.isEmpty()) {
-			return statistics;
-		}
-
-		int received = 0;
-		Set<String> counted = new HashSet<String>();
-		for (Obs observation : observations) {
-			if (observation == null || StringUtils.isBlank(observation.getValueText())) {
-				continue;
-			}
-			String transferId = observation.getValueText().trim();
-			if (transferId.startsWith("{") && transferId.endsWith("}") && transferId.length() > 2) {
-				transferId = transferId.substring(1, transferId.length() - 1).trim();
-			}
-			if (!outboundIdSet.contains(transferId) || !counted.add(transferId)) {
-				continue;
-			}
-			received++;
-		}
-		statistics.setReceived(received);
+		statistics.setReceived(pastTransfersDao.countInboundCounterReferralsMatchingOutbound(
+				concept.getConceptId(), periodStart, periodEnd, sendingFacility.trim()));
 		return statistics;
 	}
 
@@ -605,32 +568,11 @@ public class TransferDashboardServiceImpl implements TransferDashboardService {
 		return normalized;
 	}
 
-	protected int countObservations(Concept concept, Date fromDate, Date toDate) {
-		List<Obs> observations = getObsService().getObservations(
-				null,
-				null,
-				Collections.singletonList(concept),
-				null,
-				null,
-				null,
-				null,
-				null,
-				null,
-				fromDate,
-				toDate,
-				false);
-
-		if (observations == null || observations.isEmpty()) {
+	protected int countObservations(Integer transferIdConceptId, Date fromDate, Date toDate) {
+		if (transferIdConceptId == null || pastTransfersDao == null) {
 			return 0;
 		}
-
-		int count = 0;
-		for (Obs observation : observations) {
-			if (observation != null && isValidUuid(observation.getValueText())) {
-				count++;
-			}
-		}
-		return count;
+		return pastTransfersDao.countValidTransferIdObs(transferIdConceptId, fromDate, toDate);
 	}
 
 	/**

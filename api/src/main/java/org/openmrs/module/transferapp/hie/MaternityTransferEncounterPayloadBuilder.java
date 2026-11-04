@@ -119,6 +119,8 @@ public class MaternityTransferEncounterPayloadBuilder {
 	}
 
 	private void addExtensions(ObjectNode encounter, MaternityTransfer transfer, User user) {
+		addStringExtension(encounter, TransferAppConstants.EXT_SOURCE_SYSTEM,
+				TransferAppConstants.SOURCE_SYSTEM_OPENMRS);
 		addTransferFormKindExtension(encounter);
 		addTransferTypeExtension(encounter, transfer.getTransferType());
 		addDateTimeExtension(encounter, "http://example.org/fhir/StructureDefinition/admission-datetime",

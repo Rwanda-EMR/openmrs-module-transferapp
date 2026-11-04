@@ -548,6 +548,194 @@ public class HibernatePastTransfersDao implements PastTransfersDao {
 		return result;
 	}
 
+	@Override
+	public int countValidTransferIdObs(Integer transferIdConceptId, Date fromDate, Date toDate) {
+		if (transferIdConceptId == null) {
+			return 0;
+		}
+		StringBuilder sql = new StringBuilder();
+		sql.append("SELECT COUNT(*) AS cnt FROM obs o ")
+				.append("WHERE o.voided = 0 ")
+				.append("AND o.concept_id = :conceptId ")
+				.append("AND o.value_text IS NOT NULL ")
+				.append("AND ").append(uuidValueTextPredicate("o.value_text")).append(" ");
+		appendObsDatetimeBounds(sql, fromDate, toDate);
+		SQLQuery query = getSession().createSQLQuery(sql.toString());
+		query.setInteger("conceptId", transferIdConceptId);
+		bindObsDatetimeBounds(query, fromDate, toDate);
+		query.addScalar("cnt", StandardBasicTypes.LONG);
+		Number count = (Number) query.uniqueResult();
+		return count == null ? 0 : count.intValue();
+	}
+
+	@Override
+	public int countMissingInboundCounterReferrals(Integer transferIdConceptId, Date fromDate, Date toDate) {
+		if (transferIdConceptId == null) {
+			return 0;
+		}
+		String normalizedId = normalizedTransferIdSql("o.value_text");
+		StringBuilder sql = new StringBuilder();
+		sql.append("SELECT COUNT(DISTINCT CONCAT(o.person_id, '|', ").append(normalizedId).append(")) AS cnt ")
+				.append("FROM obs o ")
+				.append("INNER JOIN patient p ON p.patient_id = o.person_id AND p.voided = 0 ")
+				.append("WHERE o.voided = 0 ")
+				.append("AND o.concept_id = :conceptId ")
+				.append("AND o.value_text IS NOT NULL ")
+				.append("AND ").append(uuidValueTextPredicate("o.value_text")).append(" ")
+				.append("AND NOT EXISTS (")
+				.append("  SELECT 1 FROM transfer_referral_feedback f ")
+				.append("  WHERE f.voided = 0 AND f.hie_sent = 1 ")
+				.append("  AND f.patient_id = o.person_id ")
+				.append("  AND TRIM(f.hie_transfer_id) = ").append(normalizedId)
+				.append(") ");
+		appendObsDatetimeBounds(sql, fromDate, toDate);
+		SQLQuery query = getSession().createSQLQuery(sql.toString());
+		query.setInteger("conceptId", transferIdConceptId);
+		bindObsDatetimeBounds(query, fromDate, toDate);
+		query.addScalar("cnt", StandardBasicTypes.LONG);
+		Number count = (Number) query.uniqueResult();
+		return count == null ? 0 : count.intValue();
+	}
+
+	@Override
+	public int countInboundCounterReferralsMatchingOutbound(Integer transferIdConceptId, Date fromDate, Date toDate,
+			String sendingFacility) {
+		if (transferIdConceptId == null || StringUtils.isBlank(sendingFacility)) {
+			return 0;
+		}
+		String normalizedId = normalizedTransferIdSql("o.value_text");
+		StringBuilder sql = new StringBuilder();
+		sql.append("SELECT COUNT(DISTINCT ").append(normalizedId).append(") AS cnt ")
+				.append("FROM obs o ")
+				.append("WHERE o.voided = 0 ")
+				.append("AND o.concept_id = :conceptId ")
+				.append("AND o.value_text IS NOT NULL ")
+				.append("AND ").append(uuidValueTextPredicate("o.value_text")).append(" ")
+				.append("AND ").append(normalizedId).append(" IN (")
+				.append("  SELECT TRIM(t.hie_transfer_id) FROM transfers t ")
+				.append("  WHERE t.voided = 0 ")
+				.append("  AND t.sending_facility = :sendingFacility ")
+				.append("  AND t.hie_sent = 1 ")
+				.append("  AND t.hie_transfer_id IS NOT NULL AND TRIM(t.hie_transfer_id) <> '' ")
+				.append("  AND (t.received_from_hie IS NULL OR t.received_from_hie = 0)")
+				.append(") ");
+		appendObsDatetimeBounds(sql, fromDate, toDate);
+		SQLQuery query = getSession().createSQLQuery(sql.toString());
+		query.setInteger("conceptId", transferIdConceptId);
+		query.setString("sendingFacility", sendingFacility.trim());
+		bindObsDatetimeBounds(query, fromDate, toDate);
+		query.addScalar("cnt", StandardBasicTypes.LONG);
+		Number count = (Number) query.uniqueResult();
+		return count == null ? 0 : count.intValue();
+	}
+
+	@Override
+	public int countMissingOutboundCounterReferrals(String sendingFacility, Date fromDate, Date toDate) {
+		if (StringUtils.isBlank(sendingFacility)) {
+			return 0;
+		}
+		String facility = sendingFacility.trim();
+		StringBuilder sql = new StringBuilder();
+		sql.append("SELECT COUNT(*) AS cnt FROM (")
+				.append("SELECT CONCAT(t.patient_id, '|', TRIM(t.hie_transfer_id)) AS k ")
+				.append("FROM transfers t ")
+				.append("WHERE t.voided = 0 ")
+				.append("AND t.sending_facility = :sendingFacility ")
+				.append("AND t.hie_sent = 1 ")
+				.append("AND (t.received_from_hie IS NULL OR t.received_from_hie = 0) ")
+				.append("AND t.hie_transfer_id IS NOT NULL AND TRIM(t.hie_transfer_id) <> '' ");
+		appendCoalesceDecisionBounds(sql, "t", fromDate, toDate);
+		sql.append("AND NOT EXISTS (")
+				.append("  SELECT 1 FROM transfer_referral_feedback f ")
+				.append("  WHERE f.voided = 0 AND f.patient_id = t.patient_id ")
+				.append("  AND TRIM(f.hie_transfer_id) = TRIM(t.hie_transfer_id)")
+				.append(") ")
+				.append("UNION ")
+				.append("SELECT CONCAT(m.patient_id, '|', TRIM(m.hie_transfer_id)) AS k ")
+				.append("FROM maternity_transfers m ")
+				.append("WHERE m.voided = 0 ")
+				.append("AND m.sending_facility = :sendingFacility ")
+				.append("AND m.hie_sent = 1 ")
+				.append("AND m.hie_transfer_id IS NOT NULL AND TRIM(m.hie_transfer_id) <> '' ");
+		appendCoalesceDecisionBounds(sql, "m", fromDate, toDate);
+		sql.append("AND NOT EXISTS (")
+				.append("  SELECT 1 FROM transfer_referral_feedback f ")
+				.append("  WHERE f.voided = 0 AND f.patient_id = m.patient_id ")
+				.append("  AND TRIM(f.hie_transfer_id) = TRIM(m.hie_transfer_id)")
+				.append(") ")
+				.append("UNION ")
+				.append("SELECT CONCAT(n.patient_id, '|', TRIM(n.hie_transfer_id)) AS k ")
+				.append("FROM neonatal_transfers n ")
+				.append("WHERE n.voided = 0 ")
+				.append("AND n.sending_facility = :sendingFacility ")
+				.append("AND n.hie_sent = 1 ")
+				.append("AND n.hie_transfer_id IS NOT NULL AND TRIM(n.hie_transfer_id) <> '' ");
+		appendCoalesceDecisionBounds(sql, "n", fromDate, toDate);
+		sql.append("AND NOT EXISTS (")
+				.append("  SELECT 1 FROM transfer_referral_feedback f ")
+				.append("  WHERE f.voided = 0 AND f.patient_id = n.patient_id ")
+				.append("  AND TRIM(f.hie_transfer_id) = TRIM(n.hie_transfer_id)")
+				.append(")")
+				.append(") keys");
+		SQLQuery query = getSession().createSQLQuery(sql.toString());
+		query.setString("sendingFacility", facility);
+		bindCoalesceDecisionBounds(query, fromDate, toDate);
+		query.addScalar("cnt", StandardBasicTypes.LONG);
+		Number count = (Number) query.uniqueResult();
+		return count == null ? 0 : count.intValue();
+	}
+
+	/**
+	 * SQL expression that strips optional surrounding braces and trims Transfer Id text.
+	 */
+	private static String normalizedTransferIdSql(String columnExpression) {
+		return "TRIM(BOTH ' ' FROM TRIM(BOTH '}' FROM TRIM(BOTH '{' FROM TRIM(" + columnExpression + "))))";
+	}
+
+	private static String uuidValueTextPredicate(String columnExpression) {
+		String normalized = normalizedTransferIdSql(columnExpression);
+		return "(" + normalized
+				+ " REGEXP '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')";
+	}
+
+	private static void appendObsDatetimeBounds(StringBuilder sql, Date fromDate, Date toDate) {
+		if (fromDate != null) {
+			sql.append("AND o.obs_datetime >= :fromDate ");
+		}
+		if (toDate != null) {
+			sql.append("AND o.obs_datetime <= :toDate ");
+		}
+	}
+
+	private static void bindObsDatetimeBounds(SQLQuery query, Date fromDate, Date toDate) {
+		if (fromDate != null) {
+			query.setTimestamp("fromDate", fromDate);
+		}
+		if (toDate != null) {
+			query.setTimestamp("toDate", toDate);
+		}
+	}
+
+	private static void appendCoalesceDecisionBounds(StringBuilder sql, String alias, Date fromDate, Date toDate) {
+		if (fromDate != null) {
+			sql.append("AND COALESCE(").append(alias).append(".decision_to_transfer_at, ")
+					.append(alias).append(".date_created) >= :fromDate ");
+		}
+		if (toDate != null) {
+			sql.append("AND COALESCE(").append(alias).append(".decision_to_transfer_at, ")
+					.append(alias).append(".date_created) <= :toDate ");
+		}
+	}
+
+	private static void bindCoalesceDecisionBounds(SQLQuery query, Date fromDate, Date toDate) {
+		if (fromDate != null) {
+			query.setTimestamp("fromDate", fromDate);
+		}
+		if (toDate != null) {
+			query.setTimestamp("toDate", toDate);
+		}
+	}
+
 	private DbSession getSession() {
 		return sessionFactory.getCurrentSession();
 	}

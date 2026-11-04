@@ -95,4 +95,29 @@ public interface PastTransfersDao {
 	 */
 	List<OrphanTransferIdObs> findOrphanTransferIdObs(Integer transferIdConceptId, Date createdOnOrAfter,
 			int maxResults);
+
+	/**
+	 * Count of non-voided Transfer Id obs whose {@code value_text} is a UUID (optional braces),
+	 * with {@code obs_datetime} in {@code [fromDate, toDate]} (null bounds unbounded).
+	 */
+	int countValidTransferIdObs(Integer transferIdConceptId, Date fromDate, Date toDate);
+
+	/**
+	 * Distinct patient|Transfer-Id pairs from Transfer Id obs in the date range that do not yet
+	 * have HIE-sent counter-referral feedback.
+	 */
+	int countMissingInboundCounterReferrals(Integer transferIdConceptId, Date fromDate, Date toDate);
+
+	/**
+	 * Distinct Transfer Ids from Transfer Id obs in the date range that match this facility's
+	 * outbound HIE transfer ids (external {@code transfers} table only — same as prior dashboard logic).
+	 */
+	int countInboundCounterReferralsMatchingOutbound(Integer transferIdConceptId, Date fromDate, Date toDate,
+			String sendingFacility);
+
+	/**
+	 * Outbound transfers (external + maternity + neonatal) sent to HIE in the date range that do
+	 * not yet have any local counter-referral feedback row.
+	 */
+	int countMissingOutboundCounterReferrals(String sendingFacility, Date fromDate, Date toDate);
 }
