@@ -14,6 +14,8 @@
 package org.openmrs.module.transferapp.page.controller;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.openmrs.module.appui.UiSessionContext;
 import org.openmrs.module.transferapp.TransferAppActivator;
 import org.openmrs.module.transferapp.TransferPrivilegeHelper;
@@ -33,6 +35,8 @@ import java.util.Date;
  * Controller for the transfer dashboard page.
  */
 public class DashboardPageController {
+
+	private static final Log log = LogFactory.getLog(DashboardPageController.class);
 
 	private static final int MAX_DATE_RANGE_MONTHS = 6;
 
@@ -95,6 +99,7 @@ public class DashboardPageController {
 			model.addAttribute("counterReferralsSent", counterReferrals.getSent());
 		}
 		catch (Exception ex) {
+			log.error("Transfer dashboard statistics failed", ex);
 			setZeroStats(model);
 			model.addAttribute("canAccessDashboard", false);
 			model.addAttribute("dashboardAccessDeniedMessage", TransferPrivilegeHelper.resolveUserFacingMessage(
