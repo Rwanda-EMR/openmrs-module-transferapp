@@ -700,13 +700,18 @@ public class HibernatePastTransfersDao implements PastTransfersDao {
 	}
 
 	/**
-	 * UUID shape check. Quantifier braces are doubled ({@code {{8}}}) so Hibernate emits
-	 * {@code {8}} to MySQL REGEXP instead of treating them as alias paths.
+	 * UUID shape check without REGEXP {@code {n}} quantifiers — Hibernate treats curly braces
+	 * in native SQL as alias placeholders and can fail with
+	 * {@code Unmatched braces} / {@code could not extract ResultSet}.
 	 */
 	private static String uuidValueTextPredicate(String columnExpression) {
 		String normalized = normalizedTransferIdSql(columnExpression);
-		return "(" + normalized
-				+ " REGEXP '^[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}$')";
+		return "(CHAR_LENGTH(" + normalized + ") = 36 "
+				+ "AND SUBSTRING(" + normalized + ", 9, 1) = '-' "
+				+ "AND SUBSTRING(" + normalized + ", 14, 1) = '-' "
+				+ "AND SUBSTRING(" + normalized + ", 19, 1) = '-' "
+				+ "AND SUBSTRING(" + normalized + ", 24, 1) = '-' "
+				+ "AND " + normalized + " REGEXP '^[0-9a-fA-F-]+$')";
 	}
 
 	private static void appendObsDatetimeBounds(StringBuilder sql, Date fromDate, Date toDate) {
