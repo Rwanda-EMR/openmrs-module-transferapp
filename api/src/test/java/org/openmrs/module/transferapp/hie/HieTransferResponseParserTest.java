@@ -15,6 +15,7 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 public class HieTransferResponseParserTest {
 
@@ -67,7 +68,8 @@ public class HieTransferResponseParserTest {
 	@Test
 	public void mapsResponseTwoPreviewFallbacks() throws Exception {
 		java.io.File jsonFile = resolveDevsFile("response_two.json");
-		assertTrue("response_two.json should exist for preview fallback mapping", jsonFile.exists());
+		// devs/ is not in the repository (.gitignore): skip where the sample is absent
+		assumeTrue("response_two.json should exist for preview fallback mapping", jsonFile.exists());
 
 		String json = new String(Files.readAllBytes(jsonFile.toPath()), StandardCharsets.UTF_8);
 		Map<String, Object> transfer = new HieTransferResponseParser().parse(json).get(0);
@@ -86,7 +88,8 @@ public class HieTransferResponseParserTest {
 	@Test
 	public void mapsGahiniNestedTransferDetailsShape() throws Exception {
 		java.io.File jsonFile = resolveDevsFile("sample_transfer_gahini.json");
-		assertTrue("sample_transfer_gahini.json should exist", jsonFile.exists());
+		// devs/ is not in the repository (.gitignore): skip where the sample is absent
+		assumeTrue("sample_transfer_gahini.json should exist", jsonFile.exists());
 
 		String entry = new String(Files.readAllBytes(jsonFile.toPath()), StandardCharsets.UTF_8);
 		String wrapped = "{\"resourceType\":\"Parameters\",\"parameter\":["

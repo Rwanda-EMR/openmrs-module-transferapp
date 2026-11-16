@@ -21,14 +21,14 @@
 		<require_module version="${appuiVersion}">org.openmrs.module.appui</require_module>
 		<require_module version="${coreappsVersion}">org.openmrs.module.coreapps</require_module>
 		<require_module version="${webservicesRestVersion}">org.openmrs.module.webservices.rest</require_module>
-		<require_module version="${rwandaemrVersion}">org.openmrs.module.rwandaemr</require_module>
+		<require_module>org.openmrs.module.rwandaemr</require_module>
 		<require_module version="${fhir2Version}">org.openmrs.module.fhir2</require_module>
 		<require_module version="${registrationcoreVersion}">org.openmrs.module.registrationcore</require_module>
 		<require_module version="${addresshierarchyVersion}">org.openmrs.module.addresshierarchy</require_module>
 	</require_modules>
 
 	<aware_of_modules>
-		<aware_of_module version="${mohbillingVersion}">org.openmrs.module.mohbilling</aware_of_module>
+		<aware_of_module>org.openmrs.module.mohbilling</aware_of_module>
 	</aware_of_modules>
 
 	<!-- Module Activator -->
