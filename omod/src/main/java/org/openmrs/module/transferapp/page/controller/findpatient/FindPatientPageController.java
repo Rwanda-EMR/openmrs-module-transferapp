@@ -16,6 +16,9 @@ package org.openmrs.module.transferapp.page.controller.findpatient;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.node.ArrayNode;
+import org.codehaus.jackson.node.JsonNodeFactory;
+import org.codehaus.jackson.node.ObjectNode;
 import org.openmrs.module.appframework.domain.AppDescriptor;
 import org.openmrs.module.appui.UiSessionContext;
 import org.openmrs.module.transferapp.api.ProviderLicenseRequirement;
@@ -59,15 +62,50 @@ public class FindPatientPageController {
 		}
 		model.addAttribute("columnConfig", app.getConfig().get("columnConfig"));
 
-		// Mirror coreapps BreadcrumbHelper for apps that define breadcrumbs in config.
-		// Default findPatient apps leave this null and the GSP uses Home -> label.
-		JsonNode breadcrumbsNode = app.getConfig() != null ? app.getConfig().get("breadcrumbs") : null;
-		if (breadcrumbsNode != null && !breadcrumbsNode.isNull()) {
-			model.addAttribute("breadcrumbs", breadcrumbsNode.toString());
-		}
-		else {
-			model.addAttribute("breadcrumbs", null);
-		}
+		model.addAttribute("breadcrumbs", breadcrumbsJson(app, ui));
 		return null;
+	}
+
+	/**
+	 * Does what coreapps' BreadcrumbHelper does for the coreapps Find Patient page (that class is in the coreapps
+	 * omod, which this module doesn't depend on): adds the context path to each link, translates each label, and
+	 * links the last breadcrumb to this page. Returns null if the app doesn't define breadcrumbs, so the GSP uses
+	 * Home -> label.
+	 */
+	static String breadcrumbsJson(AppDescriptor app, UiUtils ui) {
+		JsonNode config = app.getConfig() != null ? app.getConfig().get("breadcrumbs") : null;
+		if (config == null || config.isNull()) {
+			return null;
+		}
+		if (!config.isArray()) {
+			throw new IllegalStateException("breadcrumbs defined in " + app + " must be null or an array");
+		}
+		String currentUrl = ui.thisUrlWithContextPath();
+		if (currentUrl.endsWith("&")) {
+			currentUrl = currentUrl.substring(0, currentUrl.length() - 1);
+		}
+		ArrayNode breadcrumbs = JsonNodeFactory.instance.arrayNode();
+		for (int i = 0; i < config.size(); i++) {
+			ObjectNode breadcrumb = JsonNodeFactory.instance.objectNode();
+			JsonNode item = config.get(i);
+			if (hasText(item, "icon")) {
+				breadcrumb.put("icon", item.get("icon").getTextValue());
+			}
+			if (i == config.size() - 1) {
+				breadcrumb.put("link", currentUrl);
+			}
+			else if (hasText(item, "link")) {
+				breadcrumb.put("link", "/" + ui.contextPath() + item.get("link").getTextValue());
+			}
+			if (hasText(item, "label")) {
+				breadcrumb.put("label", ui.message(item.get("label").getTextValue()));
+			}
+			breadcrumbs.add(breadcrumb);
+		}
+		return breadcrumbs.toString();
+	}
+
+	private static boolean hasText(JsonNode item, String field) {
+		return item.get(field) != null && !item.get(field).isNull();
 	}
 }
