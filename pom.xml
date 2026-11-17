@@ -21,6 +21,12 @@
 		<url>https://openmrs.org</url>
 	</organization>
 
+	<scm>
+		<developerConnection>scm:git:https://github.com/Rwanda-EMR/openmrs-module-transferapp</developerConnection>
+		<url>https://github.com/Rwanda-EMR/openmrs-module-transferapp</url>
+		<tag>HEAD</tag>
+	</scm>
+
 	<modules>
 		<module>api</module>
 		<module>omod</module>
@@ -35,12 +41,12 @@
 		<appuiVersion>1.7</appuiVersion>
 		<coreappsVersion>1.11.1</coreappsVersion>
 		<webservicesRestVersion>2.50.0</webservicesRestVersion>
-		<rwandaemrVersion>4.1.0-SNAPSHOT</rwandaemrVersion>
+		<rwandaemrVersion>4.1.1-SNAPSHOT</rwandaemrVersion>
 		<fhir2Version>2.9.1-SNAPSHOT</fhir2Version>
 		<registrationcoreVersion>1.13.0</registrationcoreVersion>
 		<addresshierarchyVersion>2.21.0</addresshierarchyVersion>
 		<initializerVersion>2.10.0</initializerVersion>
-		<mohbillingVersion>2.2.2-SNAPSHOT</mohbillingVersion>
+		<mohbillingVersion>2.2.6-SNAPSHOT</mohbillingVersion>
 		<itextpdfVersion>5.5.13.3</itextpdfVersion>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
@@ -180,23 +186,45 @@
 					<artifactId>maven-dependency-plugin</artifactId>
 					<version>2.4</version>
 				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-release-plugin</artifactId>
+					<version>3.3.1</version>
+					<configuration>
+						<autoVersionSubmodules>true</autoVersionSubmodules>
+						<tagNameFormat>@{project.version}</tagNameFormat>
+					</configuration>
+				</plugin>
 			</plugins>
 		</pluginManagement>
 	</build>
 
+	<distributionManagement>
+		<repository>
+			<id>openmrs-repo-modules-rwandaemr</id>
+			<name>rwandaemr-artifactory-primary-0-releases</name>
+			<url>https://openmrs.jfrog.io/artifactory/modules-pih/</url>
+		</repository>
+		<snapshotRepository>
+			<id>openmrs-repo-modules-rwandaemr-snapshots</id>
+			<name>rwandaemr-artifactory-primary-0-snapshots</name>
+			<url>https://openmrs.jfrog.io/artifactory/modules-pih-snapshots/</url>
+		</snapshotRepository>
+	</distributionManagement>
+
 	<repositories>
 		<repository>
 			<id>openmrs-repo</id>
-			<name>OpenMRS Nexus Repository</name>
-			<url>https://mavenrepo.openmrs.org/nexus/content/repositories/public</url>
+			<name>OpenMRS Artifactory Repository</name>
+			<url>https://openmrs.jfrog.io/artifactory/public</url>
 		</repository>
 	</repositories>
 
 	<pluginRepositories>
 		<pluginRepository>
 			<id>openmrs-repo</id>
-			<name>OpenMRS Nexus Repository</name>
-			<url>https://mavenrepo.openmrs.org/public</url>
+			<name>OpenMRS Artifactory Repository</name>
+			<url>https://openmrs.jfrog.io/artifactory/public</url>
 			<snapshots>
 				<enabled>false</enabled>
 			</snapshots>
